@@ -1,0 +1,605 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00335522C07BD5F73F1CA5A3 /* PhotoLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19228B23E7674EA5BE6AA5AF /* PhotoLibraryService.swift */; };
+		0C23D558924FE6BFA7B1E509 /* DependencyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBEDC83F921DAE79D323E3CC /* DependencyContainer.swift */; };
+		0F328D546EF72C5A43EC4C53 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3F725CF1DAB9C1E71FED8C /* RootView.swift */; };
+		0F4B54EE5AF64A135626E9C5 /* ImmichAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD85A6F27E6B002D433EE957 /* ImmichAPIClientTests.swift */; };
+		1073BAEE4F1F707ED70F6C07 /* MockKeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32494F08196735AC40C42E65 /* MockKeychainStore.swift */; };
+		13025AF5B1167AA39D11EA3F /* AuthenticatedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF59DA9133D4929044AB198C /* AuthenticatedAsyncImage.swift */; };
+		16A15FE17FE057D4F3F4B5A8 /* TimelineViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AAAC623B25E2F58794D2DE8 /* TimelineViewModelTests.swift */; };
+		222CDCE3A4AC1498771B5F19 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863CCB80BBF2D2DB75D709A8 /* LoginView.swift */; };
+		277C60DB6031A81FFC1D3D17 /* MockPhotoLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDDC8C15182914EB1CB4D3C /* MockPhotoLibraryService.swift */; };
+		39B7140FEEE7F4C8200CB76F /* ImmichAssetURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944AF3866C73AEFFF44D5098 /* ImmichAssetURL.swift */; };
+		3C3E7DB6ABCD73CE81DFA3C5 /* MockImmichClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */; };
+		5257FD93BBB1F2AEBE24BAE2 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3CC41BE0841865DDCC77FE /* TimelineView.swift */; };
+		5CC183A81FECD0A95A5E15C6 /* AnyEncodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705A26D33FBB7E3005E7EC05 /* AnyEncodable.swift */; };
+		6CF897BBA5C7CF8E415731BC /* AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57B5A5157AE50E292F0CEA0 /* AuthViewModelTests.swift */; };
+		6DB42ADF994B02E2121B4E45 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3BB3A9E0C7AC8A15BFCFA2 /* AuthViewModel.swift */; };
+		729725D2CD07CA0BCA9D57EA /* AssetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD7026D8C8E0E1E5C742993 /* AssetDetailView.swift */; };
+		741FC097DE7A647EDDD0E766 /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB0B6FBF917910E6D37ED1BD /* JSONCoding.swift */; };
+		74B671349932155D6960783D /* PhotoLibraryServiceImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125C8D15AD494746DDDC499A /* PhotoLibraryServiceImpl.swift */; };
+		7E57C32A07EE1347BAE7DD2C /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACA8FE0FABA574203F62A5C1 /* KeychainStore.swift */; };
+		8065F22AB0DD2746464509FC /* DTOEncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5894E2DA334D7213B1F4D76B /* DTOEncodingTests.swift */; };
+		832E4042AED6C9FAAB6AC7D1 /* AssetDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743C8155F678A0D035DCA27F /* AssetDetailViewModel.swift */; };
+		94CC0B59BFDAF7158BAC91D0 /* AssetDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD692C8B85C9F03CE679BF51 /* AssetDetailViewModelTests.swift */; };
+		989446660BFF32E378E09957 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15168B21BF81DE8DB9FB219B /* TimelineViewModel.swift */; };
+		99B8F1B2B2B546A9424A99E1 /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7FE6FC2411C4B49F43B418 /* DTOs.swift */; };
+		A3D7F4346BC1AAF1BE2F7DD5 /* ImmichAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6892FD91BCB405574D2E2665 /* ImmichAPIClient.swift */; };
+		ABDC870D146CBBC241BC86E2 /* MultipartBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A9E21B1633B3B0280CDDBC /* MultipartBody.swift */; };
+		AE42CCAC59E2AAC0B8F11A8F /* AssetReactItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0EC4BD63322CE72002283FE /* AssetReactItem.swift */; };
+		B2A0ECCF66B27FB64ADA526F /* UploadViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1809DE8A57CB828C66625B95 /* UploadViewModel.swift */; };
+		BA13CAF45C72C15D6F1305C9 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506B4D76D76B4FDA67D828E9 /* Constants.swift */; };
+		BD4B67A0A61C1A9F0A103027 /* ServerConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE62BBEC9A84CE827B1A5E9 /* ServerConnectView.swift */; };
+		D0CAC7A169395CDEC4458056 /* ImmichSwiftUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFDE41EB3F35AB3723245CB /* ImmichSwiftUIApp.swift */; };
+		D2FCD9E2B7564C58B9F1AD71 /* ImmichClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52227E27B6C189FC528D1924 /* ImmichClient.swift */; };
+		DC9FA61F102C076161373742 /* AssetThumbnailCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4939195A3781240543971E26 /* AssetThumbnailCell.swift */; };
+		F082DE38C0BB2B118792F655 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = F954E1666928C1815BF89BEC /* APIError.swift */; };
+		F2BB3D71D7D0019DD0872750 /* KeychainStoreImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		97DF164670759DD814015248 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33637C967137820639937F67 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B31020D1619B9803A47177CB;
+			remoteInfo = ImmichSwiftUI;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0E3F725CF1DAB9C1E71FED8C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		125C8D15AD494746DDDC499A /* PhotoLibraryServiceImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryServiceImpl.swift; sourceTree = "<group>"; };
+		15168B21BF81DE8DB9FB219B /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
+		1809DE8A57CB828C66625B95 /* UploadViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadViewModel.swift; sourceTree = "<group>"; };
+		19228B23E7674EA5BE6AA5AF /* PhotoLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryService.swift; sourceTree = "<group>"; };
+		32494F08196735AC40C42E65 /* MockKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockKeychainStore.swift; sourceTree = "<group>"; };
+		33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ImmichSwiftUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockImmichClient.swift; sourceTree = "<group>"; };
+		4939195A3781240543971E26 /* AssetThumbnailCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetThumbnailCell.swift; sourceTree = "<group>"; };
+		506B4D76D76B4FDA67D828E9 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		52227E27B6C189FC528D1924 /* ImmichClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichClient.swift; sourceTree = "<group>"; };
+		5894E2DA334D7213B1F4D76B /* DTOEncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOEncodingTests.swift; sourceTree = "<group>"; };
+		6892FD91BCB405574D2E2665 /* ImmichAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichAPIClient.swift; sourceTree = "<group>"; };
+		6AAAC623B25E2F58794D2DE8 /* TimelineViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModelTests.swift; sourceTree = "<group>"; };
+		6E7FE6FC2411C4B49F43B418 /* DTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOs.swift; sourceTree = "<group>"; };
+		705A26D33FBB7E3005E7EC05 /* AnyEncodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyEncodable.swift; sourceTree = "<group>"; };
+		743C8155F678A0D035DCA27F /* AssetDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailViewModel.swift; sourceTree = "<group>"; };
+		7FD7026D8C8E0E1E5C742993 /* AssetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailView.swift; sourceTree = "<group>"; };
+		863CCB80BBF2D2DB75D709A8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		8F3CC41BE0841865DDCC77FE /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
+		8FDDC8C15182914EB1CB4D3C /* MockPhotoLibraryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPhotoLibraryService.swift; sourceTree = "<group>"; };
+		923753AF1B4E81B4AA636C2D /* ImmichSwiftUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ImmichSwiftUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		92A9E21B1633B3B0280CDDBC /* MultipartBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipartBody.swift; sourceTree = "<group>"; };
+		944AF3866C73AEFFF44D5098 /* ImmichAssetURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichAssetURL.swift; sourceTree = "<group>"; };
+		A0EC4BD63322CE72002283FE /* AssetReactItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetReactItem.swift; sourceTree = "<group>"; };
+		AA3BB3A9E0C7AC8A15BFCFA2 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		ACA8FE0FABA574203F62A5C1 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		CF59DA9133D4929044AB198C /* AuthenticatedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticatedAsyncImage.swift; sourceTree = "<group>"; };
+		D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreImpl.swift; sourceTree = "<group>"; };
+		DBEDC83F921DAE79D323E3CC /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
+		DD692C8B85C9F03CE679BF51 /* AssetDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailViewModelTests.swift; sourceTree = "<group>"; };
+		DD85A6F27E6B002D433EE957 /* ImmichAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichAPIClientTests.swift; sourceTree = "<group>"; };
+		EAE62BBEC9A84CE827B1A5E9 /* ServerConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectView.swift; sourceTree = "<group>"; };
+		EB0B6FBF917910E6D37ED1BD /* JSONCoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCoding.swift; sourceTree = "<group>"; };
+		EBFDE41EB3F35AB3723245CB /* ImmichSwiftUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichSwiftUIApp.swift; sourceTree = "<group>"; };
+		F57B5A5157AE50E292F0CEA0 /* AuthViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModelTests.swift; sourceTree = "<group>"; };
+		F954E1666928C1815BF89BEC /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1BFF1D5CC8ACFAF44253C137 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				DBEDC83F921DAE79D323E3CC /* DependencyContainer.swift */,
+				EBFDE41EB3F35AB3723245CB /* ImmichSwiftUIApp.swift */,
+				0E3F725CF1DAB9C1E71FED8C /* RootView.swift */,
+				E2DE9C0003C7F36D8C9C8237 /* Core */,
+				3AEFA7BD43D72FB5A4DEF1F7 /* Features */,
+				20610062207F4E494DE527E2 /* Services */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		20610062207F4E494DE527E2 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				CF59DA9133D4929044AB198C /* AuthenticatedAsyncImage.swift */,
+				6892FD91BCB405574D2E2665 /* ImmichAPIClient.swift */,
+				944AF3866C73AEFFF44D5098 /* ImmichAssetURL.swift */,
+				EB0B6FBF917910E6D37ED1BD /* JSONCoding.swift */,
+				D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */,
+				92A9E21B1633B3B0280CDDBC /* MultipartBody.swift */,
+				125C8D15AD494746DDDC499A /* PhotoLibraryServiceImpl.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		3AEFA7BD43D72FB5A4DEF1F7 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				67062BE6EF73483FA1717930 /* AssetDetail */,
+				42883CFDC234E589F117A88E /* Auth */,
+				9CE02B2FEAF46B3958D7A9BD /* Timeline */,
+				99AC3D4C522EEBC6ED2C0018 /* Upload */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		42883CFDC234E589F117A88E /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				AA3BB3A9E0C7AC8A15BFCFA2 /* AuthViewModel.swift */,
+				863CCB80BBF2D2DB75D709A8 /* LoginView.swift */,
+				EAE62BBEC9A84CE827B1A5E9 /* ServerConnectView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		47C5B741E1C8080A2143FF83 /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				52227E27B6C189FC528D1924 /* ImmichClient.swift */,
+				ACA8FE0FABA574203F62A5C1 /* KeychainStore.swift */,
+				19228B23E7674EA5BE6AA5AF /* PhotoLibraryService.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
+		67062BE6EF73483FA1717930 /* AssetDetail */ = {
+			isa = PBXGroup;
+			children = (
+				7FD7026D8C8E0E1E5C742993 /* AssetDetailView.swift */,
+				743C8155F678A0D035DCA27F /* AssetDetailViewModel.swift */,
+			);
+			path = AssetDetail;
+			sourceTree = "<group>";
+		};
+		72702A00F81C468E5F3BFE9B /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				DD692C8B85C9F03CE679BF51 /* AssetDetailViewModelTests.swift */,
+				F57B5A5157AE50E292F0CEA0 /* AuthViewModelTests.swift */,
+				5894E2DA334D7213B1F4D76B /* DTOEncodingTests.swift */,
+				DD85A6F27E6B002D433EE957 /* ImmichAPIClientTests.swift */,
+				6AAAC623B25E2F58794D2DE8 /* TimelineViewModelTests.swift */,
+				9645F94787F9E793A2BB799D /* Mocks */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		9645F94787F9E793A2BB799D /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */,
+				32494F08196735AC40C42E65 /* MockKeychainStore.swift */,
+				8FDDC8C15182914EB1CB4D3C /* MockPhotoLibraryService.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		9810076BCAABFF144648C16E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */,
+				923753AF1B4E81B4AA636C2D /* ImmichSwiftUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		99AC3D4C522EEBC6ED2C0018 /* Upload */ = {
+			isa = PBXGroup;
+			children = (
+				1809DE8A57CB828C66625B95 /* UploadViewModel.swift */,
+			);
+			path = Upload;
+			sourceTree = "<group>";
+		};
+		9CE02B2FEAF46B3958D7A9BD /* Timeline */ = {
+			isa = PBXGroup;
+			children = (
+				4939195A3781240543971E26 /* AssetThumbnailCell.swift */,
+				8F3CC41BE0841865DDCC77FE /* TimelineView.swift */,
+				15168B21BF81DE8DB9FB219B /* TimelineViewModel.swift */,
+			);
+			path = Timeline;
+			sourceTree = "<group>";
+		};
+		D17CBEEDC2B73B359C3EA5BD = {
+			isa = PBXGroup;
+			children = (
+				1BFF1D5CC8ACFAF44253C137 /* Sources */,
+				72702A00F81C468E5F3BFE9B /* Tests */,
+				9810076BCAABFF144648C16E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DC0839E36CB0A846BEA77B2F /* Types */ = {
+			isa = PBXGroup;
+			children = (
+				705A26D33FBB7E3005E7EC05 /* AnyEncodable.swift */,
+				F954E1666928C1815BF89BEC /* APIError.swift */,
+				A0EC4BD63322CE72002283FE /* AssetReactItem.swift */,
+				6E7FE6FC2411C4B49F43B418 /* DTOs.swift */,
+			);
+			path = Types;
+			sourceTree = "<group>";
+		};
+		E2DE9C0003C7F36D8C9C8237 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				506B4D76D76B4FDA67D828E9 /* Constants.swift */,
+				47C5B741E1C8080A2143FF83 /* Protocols */,
+				DC0839E36CB0A846BEA77B2F /* Types */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B31020D1619B9803A47177CB /* ImmichSwiftUI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D189E55E327191235D906BD1 /* Build configuration list for PBXNativeTarget "ImmichSwiftUI" */;
+			buildPhases = (
+				ECA4E6370BE71562FA32587D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ImmichSwiftUI;
+			packageProductDependencies = (
+			);
+			productName = ImmichSwiftUI;
+			productReference = 33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DA6E7A8F7562E6A3FF0C8F8E /* ImmichSwiftUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F086F407E723BA4D0ABF0BAD /* Build configuration list for PBXNativeTarget "ImmichSwiftUITests" */;
+			buildPhases = (
+				BE23A5B6731B401843D08D65 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D4B2C1D1988F2CFD04B0AB1F /* PBXTargetDependency */,
+			);
+			name = ImmichSwiftUITests;
+			packageProductDependencies = (
+			);
+			productName = ImmichSwiftUITests;
+			productReference = 923753AF1B4E81B4AA636C2D /* ImmichSwiftUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		33637C967137820639937F67 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 3921F729C4FBA1138CAB5924 /* Build configuration list for PBXProject "ImmichSwiftUI" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D17CBEEDC2B73B359C3EA5BD;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 9810076BCAABFF144648C16E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B31020D1619B9803A47177CB /* ImmichSwiftUI */,
+				DA6E7A8F7562E6A3FF0C8F8E /* ImmichSwiftUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BE23A5B6731B401843D08D65 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				94CC0B59BFDAF7158BAC91D0 /* AssetDetailViewModelTests.swift in Sources */,
+				6CF897BBA5C7CF8E415731BC /* AuthViewModelTests.swift in Sources */,
+				8065F22AB0DD2746464509FC /* DTOEncodingTests.swift in Sources */,
+				0F4B54EE5AF64A135626E9C5 /* ImmichAPIClientTests.swift in Sources */,
+				3C3E7DB6ABCD73CE81DFA3C5 /* MockImmichClient.swift in Sources */,
+				1073BAEE4F1F707ED70F6C07 /* MockKeychainStore.swift in Sources */,
+				277C60DB6031A81FFC1D3D17 /* MockPhotoLibraryService.swift in Sources */,
+				16A15FE17FE057D4F3F4B5A8 /* TimelineViewModelTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ECA4E6370BE71562FA32587D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F082DE38C0BB2B118792F655 /* APIError.swift in Sources */,
+				5CC183A81FECD0A95A5E15C6 /* AnyEncodable.swift in Sources */,
+				729725D2CD07CA0BCA9D57EA /* AssetDetailView.swift in Sources */,
+				832E4042AED6C9FAAB6AC7D1 /* AssetDetailViewModel.swift in Sources */,
+				AE42CCAC59E2AAC0B8F11A8F /* AssetReactItem.swift in Sources */,
+				DC9FA61F102C076161373742 /* AssetThumbnailCell.swift in Sources */,
+				6DB42ADF994B02E2121B4E45 /* AuthViewModel.swift in Sources */,
+				13025AF5B1167AA39D11EA3F /* AuthenticatedAsyncImage.swift in Sources */,
+				BA13CAF45C72C15D6F1305C9 /* Constants.swift in Sources */,
+				99B8F1B2B2B546A9424A99E1 /* DTOs.swift in Sources */,
+				0C23D558924FE6BFA7B1E509 /* DependencyContainer.swift in Sources */,
+				A3D7F4346BC1AAF1BE2F7DD5 /* ImmichAPIClient.swift in Sources */,
+				39B7140FEEE7F4C8200CB76F /* ImmichAssetURL.swift in Sources */,
+				D2FCD9E2B7564C58B9F1AD71 /* ImmichClient.swift in Sources */,
+				D0CAC7A169395CDEC4458056 /* ImmichSwiftUIApp.swift in Sources */,
+				741FC097DE7A647EDDD0E766 /* JSONCoding.swift in Sources */,
+				7E57C32A07EE1347BAE7DD2C /* KeychainStore.swift in Sources */,
+				F2BB3D71D7D0019DD0872750 /* KeychainStoreImpl.swift in Sources */,
+				222CDCE3A4AC1498771B5F19 /* LoginView.swift in Sources */,
+				ABDC870D146CBBC241BC86E2 /* MultipartBody.swift in Sources */,
+				00335522C07BD5F73F1CA5A3 /* PhotoLibraryService.swift in Sources */,
+				74B671349932155D6960783D /* PhotoLibraryServiceImpl.swift in Sources */,
+				0F328D546EF72C5A43EC4C53 /* RootView.swift in Sources */,
+				BD4B67A0A61C1A9F0A103027 /* ServerConnectView.swift in Sources */,
+				5257FD93BBB1F2AEBE24BAE2 /* TimelineView.swift in Sources */,
+				989446660BFF32E378E09957 /* TimelineViewModel.swift in Sources */,
+				B2A0ECCF66B27FB64ADA526F /* UploadViewModel.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D4B2C1D1988F2CFD04B0AB1F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B31020D1619B9803A47177CB /* ImmichSwiftUI */;
+			targetProxy = 97DF164670759DD814015248 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		13F31F51C309FC250468FEF4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2MJF39L8VY;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4B182E3475203889566C7BC3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		661AC5B0EFBD1BDF44DF1BD3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.immich.swiftui.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ImmichSwiftUI.app/ImmichSwiftUI";
+			};
+			name = Debug;
+		};
+		839C77664775011D57BA19B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.immich.swiftui.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ImmichSwiftUI.app/ImmichSwiftUI";
+			};
+			name = Release;
+		};
+		94CC4A78134392B84861ED75 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 2MJF39L8VY;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A903C52CD8AD57F6A45233A2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3921F729C4FBA1138CAB5924 /* Build configuration list for PBXProject "ImmichSwiftUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A903C52CD8AD57F6A45233A2 /* Debug */,
+				4B182E3475203889566C7BC3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D189E55E327191235D906BD1 /* Build configuration list for PBXNativeTarget "ImmichSwiftUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				94CC4A78134392B84861ED75 /* Debug */,
+				13F31F51C309FC250468FEF4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F086F407E723BA4D0ABF0BAD /* Build configuration list for PBXNativeTarget "ImmichSwiftUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				661AC5B0EFBD1BDF44DF1BD3 /* Debug */,
+				839C77664775011D57BA19B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 33637C967137820639937F67 /* Project object */;
+}

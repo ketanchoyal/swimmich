@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Xcode derived data + build artifacts
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Pods (not used)
+Pods/

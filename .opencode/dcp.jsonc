@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+  "enabled": true,
+  "autoUpdate": true,
+  "debug": false,
+  "pruneNotification": "minimal",
+  "pruneNotificationType": "chat",
+
+  // Laisse DCP tourner aussi dans les sessions des subagents (scout, reviewer,
+  // tester, debugger) — indispensable en config multi-agent, sinon seule la
+  // session de l'agent primaire (build/plan) est élaguée.
+  "experimental": {
+    "allowSubAgents": true,
+    "customPrompts": false
+  },
+
+  // Protège les fichiers modifiés/en cours d'édition de tout élagage, même
+  // si la conversation autour a été résumée.
+  // Note : l'index codebase-memory-mcp vit dans ~/.cache/codebase-memory-mcp/
+  // (hors-projet) — rien à protéger côté projet.
+  "protectedFilePatterns": [
+    "AGENTS.md",
+    "**/*.env*"
+  ],
+
+  "commands": {
+    "enabled": true,
+    "protectedTools": []
+  },
+
+  "manualMode": {
+    "enabled": false,
+    "automaticStrategies": true
+  },
+
+  "turnProtection": {
+    "enabled": true,
+    "turns": 4
+  },
+
+  "compress": {
+    "mode": "range",
+    "permission": "allow",
+    "showCompression": false,
+    "summaryBuffer": true,
+    "maxContextLimit": "80%",
+    "minContextLimit": "40%",
+    "nudgeFrequency": 5,
+    "iterationNudgeThreshold": 15,
+    "nudgeForce": "soft",
+    "protectedTools": ["task", "skill", "todowrite", "todoread"],
+    "protectTags": true,
+    "protectUserMessages": false
+  },
+
+  "strategies": {
+    "deduplication": {
+      "enabled": true,
+      "protectedTools": []
+    },
+    "purgeErrors": {
+      "enabled": true,
+      "turns": 4,
+      "protectedTools": []
+    }
+  }
+}

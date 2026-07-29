@@ -1,0 +1,93 @@
+import Foundation
+
+/// Bounds-checked accessor — returns nil on out-of-bounds instead of trapping.
+/// Guards optional parallel-array indexing in columnar zip (FM-1 mitigation).
+private func safeIndex<T>(_ array: [T]?, _ i: Int) -> T? {
+    guard let array else { return nil }
+    guard i >= 0, i < array.count else { return nil }
+    return array[i]
+}
+
+/// Client-side representation of a timeline asset after zipping the columnar
+/// `TimeBucketAssetResponseDto`. Designed for grid rendering + detail viewer.
+struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
+    let id: String
+    let ownerId: String
+    let ratio: Double
+    let isFavorite: Bool
+    let visibility: String
+    let isTrashed: Bool
+    let isImage: Bool
+    let thumbhash: String?
+    let createdAt: String
+    let fileCreatedAt: String
+    let localOffsetHours: Double
+    let duration: Int?
+    let livePhotoVideoId: String?
+    let projectionType: String?
+    let city: String?
+    let country: String?
+    let latitude: Double?
+    let longitude: Double?
+
+    /// True for video assets.
+    var isVideo: Bool { !isImage }
+
+    /// Display aspect ratio clamped to sane bounds (avoid div-by-zero/overflow).
+    var aspectRatio: Double {
+        guard ratio > 0 else { return 1.0 }
+        return min(max(ratio, 0.2), 5.0)
+    }
+
+    /// Zips a columnar response into objects. FM-1: enforces same index association.
+    /// Returns nil if response is malformed (mismatched required-array lengths).
+    static func zip(_ dto: TimeBucketAssetResponseDto) -> [AssetReactItem] {
+        let count = dto.id.count
+        // All required arrays must match id length.
+        guard dto.ownerId.count == count,
+              dto.ratio.count == count,
+              dto.isFavorite.count == count,
+              dto.visibility.count == count,
+              dto.isTrashed.count == count,
+              dto.isImage.count == count,
+              dto.thumbhash.count == count,
+              dto.createdAt.count == count,
+              dto.fileCreatedAt.count == count,
+              dto.localOffsetHours.count == count,
+              dto.duration.count == count,
+              dto.livePhotoVideoId.count == count,
+              dto.projectionType.count == count else {
+            return []
+        }
+        var items: [AssetReactItem] = []
+        items.reserveCapacity(count)
+        for i in 0..<count {
+            items.append(AssetReactItem(
+                id: dto.id[i],
+                ownerId: dto.ownerId[i],
+                ratio: dto.ratio[i],
+                isFavorite: dto.isFavorite[i],
+                visibility: dto.visibility[i],
+                isTrashed: dto.isTrashed[i],
+                isImage: dto.isImage[i],
+                thumbhash: dto.thumbhash[i],
+                createdAt: dto.createdAt[i],
+                fileCreatedAt: dto.fileCreatedAt[i],
+                localOffsetHours: dto.localOffsetHours[i],
+                duration: dto.duration[i],
+                livePhotoVideoId: dto.livePhotoVideoId[i],
+                projectionType: dto.projectionType[i],
+                city: safeIndex(dto.city, i).flatMap { $0 },
+                country: safeIndex(dto.country, i).flatMap { $0 },
+                latitude: safeIndex(dto.latitude, i).flatMap { $0 },
+                longitude: safeIndex(dto.longitude, i).flatMap { $0 }
+            ))
+        }
+        return items
+    }
+
+    /// Builds the thumbnail URL for this asset against a base server URL.
+    func thumbnailURL(base: URL, size: AssetMediaSize = .thumbnail) -> URL {
+        ImmichAssetURL.thumbnail(assetId: id, thumbhash: thumbhash ?? "", baseURL: base, size: size)
+    }
+}

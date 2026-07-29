@@ -1,0 +1,285 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "build",
+  "subagent_depth": 5,
+  "instructions": ["AGENTS.pipeline.md"],
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "description": "Agent principal, autonome de bout en bout — c'est l'agent auquel parler pour du one-shot. Cadre en interne via challenge loop avec challenger avant d'implémenter, invoque scout/tester/reviewer selon le besoin, n'invoque jamais debugger directement.",
+      "prompt": "{file:prompts/build.txt}",
+      "model": "zai-coding-plan/glm-5.2",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "task": {
+          "*": "deny",
+          "challenger": "allow",
+          "scout": "allow",
+          "tester": "allow",
+          "reviewer": "allow",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "description": "Checkpoint de cadrage optionnel : analyse et propose un plan sans écrire ni exécuter quoi que ce soit. À invoquer volontairement (Tab) quand une relecture humaine est voulue avant d'autoriser build à agir.",
+      "prompt": "{file:prompts/plan.txt}",
+      "model": "zai-coding-plan/glm-5.2",
+      "temperature": 0.3,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "task": "deny"
+      }
+    },
+    "challenger": {
+      "mode": "subagent",
+      "description": "Challenge un plan reçu de build avant toute implémentation : vérifie chaque hypothèse contre le code réel et remonte des objections concrètes et sourcées, ou approuve explicitement. Ne propose jamais de correctif, read-only. Modèle volontairement différent de build pour briser les angles morts cognitifs partagés.",
+      "prompt": "{file:prompts/challenger.txt}",
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.4,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rmdir *": "deny",
+          "sudo *": "deny",
+          "chmod *": "deny",
+          "chown *": "deny",
+          "mv *": "deny",
+          "cp *": "deny",
+          "dd *": "deny",
+          "mkfs*": "deny",
+          "> *": "deny",
+          ">> *": "deny",
+          "curl *": "deny",
+          "wget *": "deny",
+          "git push*": "deny",
+          "git reset*": "deny",
+          "git checkout*": "deny",
+          "git switch*": "deny",
+          "git commit*": "deny",
+          "git stash*": "deny",
+          "git merge*": "deny",
+          "git rebase*": "deny",
+          "git tag*": "deny",
+          "git cherry-pick*": "deny",
+          "git revert*": "deny",
+          "git clean*": "deny",
+          "git restore*": "deny"
+        },
+        "task": {
+          "*": "deny",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "scout": {
+      "mode": "subagent",
+      "description": "Explore le codebase avant toute implémentation, en priorité via le serveur MCP codebase-memory-mcp (graphe de connaissance indexé) plutôt que grep à l'aveugle. Read-only ; chaque affirmation doit citer sa référence fichier:ligne exacte.",
+      "prompt": "{file:prompts/scout.txt}",
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rmdir *": "deny",
+          "sudo *": "deny",
+          "chmod *": "deny",
+          "chown *": "deny",
+          "mv *": "deny",
+          "cp *": "deny",
+          "dd *": "deny",
+          "mkfs*": "deny",
+          "> *": "deny",
+          ">> *": "deny",
+          "curl *": "deny",
+          "wget *": "deny",
+          "git push*": "deny",
+          "git reset*": "deny",
+          "git checkout*": "deny",
+          "git switch*": "deny",
+          "git commit*": "deny",
+          "git stash*": "deny",
+          "git merge*": "deny",
+          "git rebase*": "deny",
+          "git tag*": "deny",
+          "git cherry-pick*": "deny",
+          "git revert*": "deny",
+          "git clean*": "deny",
+          "git restore*": "deny"
+        },
+        "task": {
+          "*": "deny",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "reviewer": {
+      "mode": "subagent",
+      "description": "Relit un diff terminé avant que build ne le déclare fini : checklist rigorous-engineering + mapping diff ↔ AC du contract (acceptance contract Phase 0b). Read-only ; invoque debugger directement si la checklist échoue.",
+      "prompt": "{file:prompts/reviewer.txt}",
+      "model": "zai-coding-plan/glm-5.2",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rmdir *": "deny",
+          "sudo *": "deny",
+          "chmod *": "deny",
+          "chown *": "deny",
+          "mv *": "deny",
+          "cp *": "deny",
+          "dd *": "deny",
+          "mkfs*": "deny",
+          "> *": "deny",
+          ">> *": "deny",
+          "curl *": "deny",
+          "wget *": "deny",
+          "git push*": "deny",
+          "git reset*": "deny",
+          "git checkout*": "deny",
+          "git switch*": "deny",
+          "git commit*": "deny",
+          "git stash*": "deny",
+          "git merge*": "deny",
+          "git rebase*": "deny",
+          "git tag*": "deny",
+          "git cherry-pick*": "deny",
+          "git revert*": "deny",
+          "git clean*": "deny",
+          "git restore*": "deny"
+        },
+        "task": {
+          "*": "deny",
+          "debugger": "allow",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "tester": {
+      "mode": "subagent",
+      "description": "Exécute la suite de tests/linters concernés par le changement et compare aux résultats baseline (avant modification). Invoque debugger directement si un test nouvellement cassé est introduit par le changement.",
+      "prompt": "{file:prompts/tester.txt}",
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0,
+      "permission": {
+        "edit": "deny",
+        "bash": "allow",
+        "task": {
+          "*": "deny",
+          "debugger": "allow",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "debugger": {
+      "mode": "subagent",
+      "description": "Reçoit un échec avec contexte complet et corrige en autonomie totale (scout → hypothèse → correctif minimal → tester → reviewer), jusqu'à 2 cycles complets (limite technique subagent_depth=5). Ne redemande jamais confirmation avant résolution.",
+      "prompt": "{file:prompts/debugger.txt}",
+      "model": "zai-coding-plan/glm-5.2",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "allow",
+        "bash": "allow",
+        "task": {
+          "*": "deny",
+          "scout": "allow",
+          "tester": "allow",
+          "reviewer": "allow",
+          "specialist": "allow",
+          "contractor": "allow"
+        }
+      }
+    },
+    "specialist": {
+      "mode": "subagent",
+      "description": "Shell on-demand ADVISORY (read-only). Aucune expertise pré-câblée — l'agent qui l'invoque décrit le rôle + la tâche dans le prompt de l'invocation task. Retourne analyse sourcée + snippets prêts à appliquer, n'édite rien, leaf node.",
+      "prompt": "{file:prompts/ondemand/specialist.txt}",
+      "model": "deepseek/deepseek-v4-pro",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rmdir *": "deny",
+          "sudo *": "deny",
+          "chmod *": "deny",
+          "chown *": "deny",
+          "mv *": "deny",
+          "cp *": "deny",
+          "dd *": "deny",
+          "mkfs*": "deny",
+          "> *": "deny",
+          ">> *": "deny",
+          "curl *": "deny",
+          "wget *": "deny",
+          "git push*": "deny",
+          "git reset*": "deny",
+          "git checkout*": "deny",
+          "git switch*": "deny",
+          "git commit*": "deny",
+          "git stash*": "deny",
+          "git merge*": "deny",
+          "git rebase*": "deny",
+          "git tag*": "deny",
+          "git cherry-pick*": "deny",
+          "git revert*": "deny",
+          "git clean*": "deny",
+          "git restore*": "deny"
+        },
+        "task": "deny"
+      }
+    },
+    "contractor": {
+      "mode": "subagent",
+      "description": "Shell on-demand ACTION-CAPABLE. Aucune expertise pré-câblée — l'agent qui l'invoque décrit le rôle + la tâche à ACCOMPLIR dans le prompt de l'invocation task. edit+bash allow (accomplit la tâche de bout en bout), leaf node, pas de git push/commit (réservé humain).",
+      "prompt": "{file:prompts/ondemand/contractor.txt}",
+      "model": "zai-coding-plan/glm-5.2",
+      "temperature": 0.2,
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "allow",
+          "rm *": "deny",
+          "rmdir *": "deny",
+          "sudo *": "deny",
+          "dd *": "deny",
+          "mkfs*": "deny",
+          "git push*": "deny",
+          "git reset*": "deny",
+          "git commit*": "deny",
+          "git tag*": "deny"
+        },
+        "task": "deny"
+      }
+    }
+  },
+  "mcp": {
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+      "enabled": true
+    },
+    "codebase-memory-mcp": {
+      "type": "local",
+      "command": ["codebase-memory-mcp"],
+      "enabled": true,
+      "timeout": 60000
+    }
+  }
+}
