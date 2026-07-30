@@ -90,4 +90,64 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     func thumbnailURL(base: URL, size: AssetMediaSize = .thumbnail) -> URL {
         ImmichAssetURL.thumbnail(assetId: id, thumbhash: thumbhash ?? "", baseURL: base, size: size)
     }
+
+    /// Copy with `isFavorite` overridden (AC-205). Backs optimistic favorite
+    /// toggle from the timeline / selection toolbar — all other fields intact.
+    /// Original is unchanged (immutable `let` struct).
+    func with(isFavorite: Bool) -> AssetReactItem {
+        AssetReactItem(
+            id: id,
+            ownerId: ownerId,
+            ratio: ratio,
+            isFavorite: isFavorite,
+            visibility: visibility,
+            isTrashed: isTrashed,
+            isImage: isImage,
+            thumbhash: thumbhash,
+            createdAt: createdAt,
+            fileCreatedAt: fileCreatedAt,
+            localOffsetHours: localOffsetHours,
+            duration: duration,
+            livePhotoVideoId: livePhotoVideoId,
+            projectionType: projectionType,
+            city: city,
+            country: country,
+            latitude: latitude,
+            longitude: longitude
+        )
+    }
+}
+
+extension AssetReactItem {
+    /// Adapts a full `AssetResponseDto` (search/getAsset response) into the
+    /// grid-rendering type. Used by SearchViewModel to feed `AssetThumbnailCell`
+    /// without a parallel columnar pipeline.
+    ///
+    /// Placed in an extension so the synthesized memberwise initializer stays
+    /// available to the rest of the codebase (zip/with factories rely on it).
+    ///
+    /// Defaults for fields absent on `AssetResponseDto`:
+    /// - `ratio = 1.0` (square cell; full DTO lacks aspect ratio — AC-410 FM-3)
+    /// - `localOffsetHours = 0.0` (full DTO has ISO `localDateTime` w/ tz, not
+    ///   a numeric offset; date headers in search may be off by ±12h, accepted MVP)
+    init(from dto: AssetResponseDto) {
+        self.id = dto.id
+        self.ownerId = dto.ownerId
+        self.ratio = 1.0
+        self.isFavorite = dto.isFavorite
+        self.visibility = dto.visibility
+        self.isTrashed = dto.isTrashed
+        self.isImage = (dto.type == "IMAGE")
+        self.thumbhash = dto.thumbhash
+        self.createdAt = dto.createdAt
+        self.fileCreatedAt = dto.fileCreatedAt
+        self.localOffsetHours = 0.0
+        self.duration = dto.duration
+        self.livePhotoVideoId = dto.livePhotoVideoId
+        self.projectionType = dto.exifInfo?.projectionType
+        self.city = dto.exifInfo?.city
+        self.country = dto.exifInfo?.country
+        self.latitude = dto.exifInfo?.latitude
+        self.longitude = dto.exifInfo?.longitude
+    }
 }
