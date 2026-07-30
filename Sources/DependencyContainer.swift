@@ -24,4 +24,26 @@ final class DependencyContainer {
     func makeTimelineViewModel() -> TimelineViewModel {
         TimelineViewModel(client: client as any ImmichClient)
     }
+
+    func makeTrashViewModel() -> TrashViewModel {
+        TrashViewModel(client: client as any ImmichClient)
+    }
+
+    func makeSearchViewModel() -> SearchViewModel {
+        SearchViewModel(client: client as any ImmichClient)
+    }
+
+    func makeAlbumsViewModel() -> AlbumsViewModel {
+        AlbumsViewModel(client: client as any ImmichClient)
+    }
+
+    func makeAlbumDetailViewModel(albumId: String) -> AlbumDetailViewModel {
+        AlbumDetailViewModel(client: client as any ImmichClient, albumId: albumId)
+    }
+
+    /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,
+    /// not `ImmichClient`, so we pass nothing but asset identity.
+    func makePhotoEditorViewModel(asset: AssetReactItem) -> PhotoEditorViewModel {
+        PhotoEditorViewModel(assetId: asset.id)
+    }
 }

@@ -107,4 +107,151 @@ final class DTOEncodingTests: XCTestCase {
         let decoded = try JSONDecoder.immich.decode(TimeBucketAssetResponseDto.self, from: encoded)
         XCTAssertEqual(decoded, original)
     }
+
+    // AC-310: BulkIdsDto + TrashResponseDto round-trip.
+    func test_AC_310_trashDtos() throws {
+        let bulk = BulkIdsDto(ids: ["a", "b"])
+        let encodedBulk = try JSONEncoder.immich.encode(bulk)
+        let decodedBulk = try JSONDecoder.immich.decode(BulkIdsDto.self, from: encodedBulk)
+        XCTAssertEqual(decodedBulk, bulk)
+
+        // Server-style JSON for TrashResponseDto.
+        let countJSON = #"{"count":3}"#.data(using: .utf8)!
+        let resp = try JSONDecoder.immich.decode(TrashResponseDto.self, from: countJSON)
+        XCTAssertEqual(resp.count, 3)
+
+        let reencoded = try JSONEncoder.immich.encode(resp)
+        let redecoded = try JSONDecoder.immich.decode(TrashResponseDto.self, from: reencoded)
+        XCTAssertEqual(resp, redecoded)
+    }
+
+    // AC-311: ImmichAPI.trash SubPath resolves to /api/trash/<suffix>.
+    func test_AC_311_trashSubpath() {
+        XCTAssertEqual(ImmichAPI.trash.path("/restore/assets"), "/api/trash/restore/assets")
+        XCTAssertEqual(ImmichAPI.trash.path("/restore"), "/api/trash/restore")
+        XCTAssertEqual(ImmichAPI.trash.path("/empty"), "/api/trash/empty")
+    }
+
+    // AC-500: ImmichAPI.albums + sharedLinks SubPath resolution.
+    func test_AC_500_albumsSharedLinksSubpath() {
+        XCTAssertEqual(ImmichAPI.albums.path(""), "/api/albums")
+        XCTAssertEqual(ImmichAPI.albums.path("/x"), "/api/albums/x")
+        XCTAssertEqual(ImmichAPI.albums.path("/x/assets"), "/api/albums/x/assets")
+        XCTAssertEqual(ImmichAPI.sharedLinks.path(""), "/api/shared-links")
+        XCTAssertEqual(ImmichAPI.sharedLinks.path("/y"), "/api/shared-links/y")
+    }
+
+    // AC-501: AlbumResponseDto decodes server JSON (no assets field) + round-trips.
+    func test_AC_501_albumResponseDtoRoundTrip() throws {
+        let json = """
+        {
+          "id": "album-1",
+          "albumName": "Vacation",
+          "description": "Summer trip",
+          "createdAt": "2024-06-01T00:00:00.000Z",
+          "updatedAt": "2024-06-02T00:00:00.000Z",
+          "albumThumbnailAssetId": "asset-thumb",
+          "shared": true,
+          "albumUsers": [{"user": {"id": "u1"}, "role": "EDITOR"}],
+          "hasSharedLink": true,
+          "assetCount": 42,
+          "isActivityEnabled": false,
+          "order": "asc",
+          "startDate": "2024-06-01T00:00:00.000Z",
+          "endDate": "2024-06-10T00:00:00.000Z",
+          "contributorCounts": []
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder.immich.decode(AlbumResponseDto.self, from: json)
+        XCTAssertEqual(decoded.id, "album-1")
+        XCTAssertEqual(decoded.albumName, "Vacation")
+        XCTAssertEqual(decoded.description, "Summer trip")
+        XCTAssertEqual(decoded.albumThumbnailAssetId, "asset-thumb")
+        XCTAssertTrue(decoded.shared)
+        XCTAssertTrue(decoded.hasSharedLink)
+        XCTAssertEqual(decoded.assetCount, 42)
+        XCTAssertEqual(decoded.order, .asc)
+
+        let reencoded = try JSONEncoder.immich.encode(decoded)
+        let redecoded = try JSONDecoder.immich.decode(AlbumResponseDto.self, from: reencoded)
+        XCTAssertEqual(decoded, redecoded)
+    }
+
+    // AC-502: CreateAlbumDto encodes optional fields (absent when nil).
+    func test_AC_502_createAlbumDtoEncoding() throws {
+        let withAssets = CreateAlbumDto(albumName: "A", description: "D", assetIds: ["id1", "id2"])
+        let enc1 = try JSONEncoder.immich.encode(withAssets)
+        let obj1 = try JSONSerialization.jsonObject(with: enc1) as? [String: Any]
+        XCTAssertEqual(obj1?["albumName"] as? String, "A")
+        XCTAssertEqual(obj1?["description"] as? String, "D")
+        XCTAssertEqual(obj1?["assetIds"] as? [String], ["id1", "id2"])
+
+        let minimal = CreateAlbumDto(albumName: "B", description: nil, assetIds: nil)
+        let enc2 = try JSONEncoder.immich.encode(minimal)
+        let obj2 = try JSONSerialization.jsonObject(with: enc2) as? [String: Any]
+        XCTAssertEqual(obj2?["albumName"] as? String, "B")
+        XCTAssertNil(obj2?["description"])
+        XCTAssertNil(obj2?["assetIds"])
+    }
+
+    // AC-503: SharedLinkCreateDto encodes type enum + password; SharedLinkResponseDto decodes.
+    func test_AC_503_sharedLinkDtos() throws {
+        let withPw = SharedLinkCreateDto(type: .album, albumId: "a1", password: "secret")
+        let enc1 = try JSONEncoder.immich.encode(withPw)
+        let obj1 = try JSONSerialization.jsonObject(with: enc1) as? [String: Any]
+        XCTAssertEqual(obj1?["type"] as? String, "ALBUM")
+        XCTAssertEqual(obj1?["albumId"] as? String, "a1")
+        XCTAssertEqual(obj1?["password"] as? String, "secret")
+
+        let noPw = SharedLinkCreateDto(type: .album, albumId: "a1")
+        let enc2 = try JSONEncoder.immich.encode(noPw)
+        let obj2 = try JSONSerialization.jsonObject(with: enc2) as? [String: Any]
+        XCTAssertNil(obj2?["password"])
+
+        let respJSON = """
+        {
+          "id": "link-1", "description": null, "password": null, "userId": "u1",
+          "key": "a2V5", "type": "ALBUM", "createdAt": "2024-01-01T00:00:00.000Z",
+          "expiresAt": null, "assets": [], "album": null,
+          "allowUpload": false, "allowDownload": true, "showMetadata": true, "slug": null
+        }
+        """.data(using: .utf8)!
+        let resp = try JSONDecoder.immich.decode(SharedLinkResponseDto.self, from: respJSON)
+        XCTAssertEqual(resp.id, "link-1")
+        XCTAssertEqual(resp.type, .album)
+        XCTAssertEqual(resp.key, "a2V5")
+        XCTAssertNil(resp.password)
+    }
+
+    // AC-504: BulkIdResponseDto decodes mixed success/failure.
+    func test_AC_504_bulkIdResponseDto() throws {
+        let json = """
+        [
+          {"id": "x", "success": true},
+          {"id": "y", "success": false, "error": "DUPLICATE", "errorMessage": "Already in album"}
+        ]
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder.immich.decode([BulkIdResponseDto].self, from: json)
+        XCTAssertEqual(decoded.count, 2)
+        XCTAssertTrue(decoded[0].success)
+        XCTAssertNil(decoded[0].error)
+        XCTAssertFalse(decoded[1].success)
+        XCTAssertEqual(decoded[1].error, .duplicate)
+        XCTAssertEqual(decoded[1].errorMessage, "Already in album")
+    }
+
+    // AC-519: MetadataSearchDto.albumIds encodes correctly (present/absent).
+    func test_AC_519_metadataSearchAlbumIds() throws {
+        let withAlbums = MetadataSearchDto(query: nil, albumIds: ["a", "b"])
+        let enc1 = try JSONEncoder.immich.encode(withAlbums)
+        let obj1 = try JSONSerialization.jsonObject(with: enc1) as? [String: Any]
+        XCTAssertEqual(obj1?["albumIds"] as? [String], ["a", "b"])
+
+        let withoutAlbums = MetadataSearchDto(query: "x", albumIds: nil)
+        let enc2 = try JSONEncoder.immich.encode(withoutAlbums)
+        let obj2 = try JSONSerialization.jsonObject(with: enc2) as? [String: Any]
+        XCTAssertNil(obj2?["albumIds"])
+        XCTAssertEqual(obj2?["query"] as? String, "x")
+    }
 }

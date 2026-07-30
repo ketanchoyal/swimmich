@@ -225,3 +225,13 @@ struct AssetBulkDeleteDto: Codable, Equatable {
     let ids: [String]
     var force: Bool?
 }
+
+// MARK: - Trash DTOs (AC-310)
+
+struct BulkIdsDto: Codable, Equatable {
+    let ids: [String]
+}
+
+struct TrashResponseDto: Codable, Equatable {
+    let count: Int
+}

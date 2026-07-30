@@ -40,6 +40,59 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastDeleteBody: AssetBulkDeleteDto?
     var deleteError: Error?
 
+    // Trash capture (AC-300, AC-307..AC-309)
+    var lastTimeBucketsIsTrashed: Bool?
+    var lastRestoreTrashAssetsIds: [String]?
+    var restoreTrashAssetsResponse: TrashResponseDto?
+    var restoreTrashAssetsError: Error?
+    var restoreAllTrashCallCount = 0
+    var restoreAllTrashResponse: TrashResponseDto?
+    var restoreAllTrashError: Error?
+    var emptyTrashCallCount = 0
+    var emptyTrashResponse: TrashResponseDto?
+    var emptyTrashError: Error?
+
+    // Search capture (AC-400..AC-406)
+    var lastMetadataSearchDto: MetadataSearchDto?
+    var searchMetadataResponse: SearchResponseDto?
+    var searchMetadataError: Error?
+    var lastSmartSearchDto: SmartSearchDto?
+    var smartSearchResponse: SearchResponseDto?
+    var smartSearchError: Error?
+    var exploreResponse: [SearchExploreResponseDto]?
+    var exploreError: Error?
+
+    // Albums capture (AC-500..AC-518)
+    var albumsResponse: [AlbumResponseDto]?
+    var albumsError: Error?
+    var lastCreateAlbumDto: CreateAlbumDto?
+    var createAlbumResponse: AlbumResponseDto?
+    var createAlbumError: Error?
+    var getAlbumResponse: [String: AlbumResponseDto] = [:]
+    var getAlbumError: Error?
+    var deleteAlbumCallCount = 0
+    var lastDeletedAlbumId: String?
+    var deleteAlbumError: Error?
+    var lastAddAssetsAlbumId: String?
+    var lastAddAssetsIds: [String]?
+    var addAssetsResponse: [BulkIdResponseDto]?
+    var addAssetsError: Error?
+    var lastRemoveAssetsAlbumId: String?
+    var lastRemoveAssetsIds: [String]?
+    var removeAssetsResponse: [BulkIdResponseDto]?
+    var removeAssetsError: Error?
+
+    // Shared links capture (AC-500..AC-518)
+    var lastSharedLinksAlbumId: String?
+    var sharedLinksResponse: [SharedLinkResponseDto]?
+    var sharedLinksError: Error?
+    var lastCreateSharedLinkDto: SharedLinkCreateDto?
+    var createSharedLinkResponse: SharedLinkResponseDto?
+    var createSharedLinkError: Error?
+    var lastDeleteSharedLinkId: String?
+    var deleteSharedLinkCallCount = 0
+    var deleteSharedLinkError: Error?
+
     // Upload capture (AC-008)
     var lastUploadData: Data?
     var lastUploadFileCreatedAt: String?
@@ -109,6 +162,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     func getTimeBuckets(isFavorite: Bool?, isTrashed: Bool?) async throws -> [TimeBucketsResponseDto] {
         bump()
+        lastTimeBucketsIsTrashed = isTrashed
         if let e = globalError { throw e }
         return bucketsResponse
     }
@@ -154,6 +208,136 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         lastDeleteBody = AssetBulkDeleteDto(ids: ids, force: force)
         if let e = globalError ?? deleteError { throw e }
+    }
+
+    // MARK: - Trash (AC-307..AC-309)
+
+    func restoreTrashAssets(ids: [String]) async throws -> TrashResponseDto {
+        bump()
+        lastRestoreTrashAssetsIds = ids
+        if let e = globalError ?? restoreTrashAssetsError { throw e }
+        return restoreTrashAssetsResponse ?? TrashResponseDto(count: ids.count)
+    }
+
+    func restoreAllTrash() async throws -> TrashResponseDto {
+        bump()
+        restoreAllTrashCallCount += 1
+        if let e = globalError ?? restoreAllTrashError { throw e }
+        return restoreAllTrashResponse ?? TrashResponseDto(count: 5)
+    }
+
+    func emptyTrash() async throws -> TrashResponseDto {
+        bump()
+        emptyTrashCallCount += 1
+        if let e = globalError ?? emptyTrashError { throw e }
+        return emptyTrashResponse ?? TrashResponseDto(count: 5)
+    }
+
+    // MARK: - Search (AC-400..AC-406)
+
+    func searchMetadata(dto: MetadataSearchDto) async throws -> SearchResponseDto {
+        bump()
+        lastMetadataSearchDto = dto
+        if let e = globalError ?? searchMetadataError { throw e }
+        return searchMetadataResponse ?? SearchResponseDto(
+            assets: SearchAssetResponseDto(count: 0, items: [], nextPage: nil)
+        )
+    }
+
+    func searchSmart(dto: SmartSearchDto) async throws -> SearchResponseDto {
+        bump()
+        lastSmartSearchDto = dto
+        if let e = globalError ?? smartSearchError { throw e }
+        return smartSearchResponse ?? SearchResponseDto(
+            assets: SearchAssetResponseDto(count: 0, items: [], nextPage: nil)
+        )
+    }
+
+    func getExploreData() async throws -> [SearchExploreResponseDto] {
+        bump()
+        if let e = globalError ?? exploreError { throw e }
+        return exploreResponse ?? []
+    }
+
+    // MARK: - Albums (AC-500..AC-518)
+
+    private func cannedAlbum(id: String, name: String = "Album", count: Int = 0) -> AlbumResponseDto {
+        AlbumResponseDto(
+            id: id, albumName: name, description: "", createdAt: "2024-01-01T00:00:00.000Z",
+            updatedAt: "2024-01-01T00:00:00.000Z", albumThumbnailAssetId: nil, shared: false,
+            hasSharedLink: false, assetCount: count, isActivityEnabled: false, order: nil
+        )
+    }
+
+    func getAlbums() async throws -> [AlbumResponseDto] {
+        bump()
+        if let e = globalError ?? albumsError { throw e }
+        return albumsResponse ?? []
+    }
+
+    func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto {
+        bump()
+        lastCreateAlbumDto = dto
+        if let e = globalError ?? createAlbumError { throw e }
+        return createAlbumResponse ?? cannedAlbum(id: "album-new", name: dto.albumName, count: dto.assetIds?.count ?? 0)
+    }
+
+    func getAlbum(id: String) async throws -> AlbumResponseDto {
+        bump()
+        if let e = globalError ?? getAlbumError { throw e }
+        return getAlbumResponse[id] ?? cannedAlbum(id: id)
+    }
+
+    func deleteAlbum(id: String) async throws {
+        bump()
+        deleteAlbumCallCount += 1
+        lastDeletedAlbumId = id
+        if let e = globalError ?? deleteAlbumError { throw e }
+    }
+
+    func addAssetsToAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto] {
+        bump()
+        lastAddAssetsAlbumId = albumId
+        lastAddAssetsIds = dto.ids
+        if let e = globalError ?? addAssetsError { throw e }
+        return addAssetsResponse ?? dto.ids.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
+    }
+
+    func removeAssetsFromAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto] {
+        bump()
+        lastRemoveAssetsAlbumId = albumId
+        lastRemoveAssetsIds = dto.ids
+        if let e = globalError ?? removeAssetsError { throw e }
+        return removeAssetsResponse ?? dto.ids.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
+    }
+
+    // MARK: - Shared Links (AC-500..AC-518)
+
+    func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto] {
+        bump()
+        lastSharedLinksAlbumId = albumId
+        if let e = globalError ?? sharedLinksError { throw e }
+        return sharedLinksResponse ?? []
+    }
+
+    func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto {
+        bump()
+        lastCreateSharedLinkDto = dto
+        if let e = globalError ?? createSharedLinkError { throw e }
+        if let r = createSharedLinkResponse { return r }
+        return SharedLinkResponseDto(
+            id: "link-new", description: dto.description, password: dto.password, userId: "owner",
+            key: "a2V5", type: dto.type, createdAt: "2024-01-01T00:00:00.000Z", expiresAt: dto.expiresAt,
+            assets: [], album: nil, allowUpload: dto.allowUpload ?? false,
+            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true, slug: nil
+        )
+    }
+
+    func deleteSharedLink(id: String) async throws {
+        bump()
+        deleteSharedLinkCallCount += 1
+        lastDeleteSharedLinkId = id
+        if let e = globalError ?? deleteSharedLinkError { throw e }
     }
 
     func uploadAsset(

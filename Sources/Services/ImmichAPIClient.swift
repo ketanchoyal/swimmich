@@ -100,6 +100,78 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.assets.path(""), body: body)
     }
 
+    // MARK: - Trash (AC-307..AC-309)
+
+    func restoreTrashAssets(ids: [String]) async throws -> TrashResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.trash.path("/restore/assets"), body: AnyEncodable(BulkIdsDto(ids: ids)))
+    }
+
+    func restoreAllTrash() async throws -> TrashResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.trash.path("/restore"), body: nil)
+    }
+
+    func emptyTrash() async throws -> TrashResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.trash.path("/empty"), body: nil)
+    }
+
+    // MARK: - Search (AC-400..AC-406)
+
+    func searchMetadata(dto: MetadataSearchDto) async throws -> SearchResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.search.path("/metadata"), body: AnyEncodable(dto))
+    }
+
+    func searchSmart(dto: SmartSearchDto) async throws -> SearchResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.search.path("/smart"), body: AnyEncodable(dto))
+    }
+
+    func getExploreData() async throws -> [SearchExploreResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.search.path("/explore"))
+    }
+
+    // MARK: - Albums (AC-500..AC-518)
+
+    func getAlbums() async throws -> [AlbumResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.albums.path(""))
+    }
+
+    func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.albums.path(""), body: AnyEncodable(dto))
+    }
+
+    func getAlbum(id: String) async throws -> AlbumResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.albums.path("/\(id)"))
+    }
+
+    func deleteAlbum(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.albums.path("/\(id)"), body: nil)
+    }
+
+    func addAssetsToAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto] {
+        try await sendAuthed(.PUT, path: ImmichAPI.albums.path("/\(albumId)/assets"), body: AnyEncodable(dto))
+    }
+
+    func removeAssetsFromAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto] {
+        try await sendAuthed(.DELETE, path: ImmichAPI.albums.path("/\(albumId)/assets"), body: AnyEncodable(dto))
+    }
+
+    // MARK: - Shared Links (AC-500..AC-518)
+
+    func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto] {
+        var query: [URLQueryItem] = []
+        if let albumId {
+            query.append(URLQueryItem(name: "albumId", value: albumId))
+        }
+        return try await sendAuthed(.GET, path: ImmichAPI.sharedLinks.path(""), query: query)
+    }
+
+    func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.sharedLinks.path(""), body: AnyEncodable(dto))
+    }
+
+    func deleteSharedLink(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sharedLinks.path("/\(id)"), body: nil)
+    }
+
     // MARK: - Upload
 
     func uploadAsset(

@@ -29,6 +29,29 @@ protocol ImmichClient: AnyObject, Sendable {
     func updateAsset(id: String, dto: UpdateAssetDto) async throws -> AssetResponseDto
     func deleteAssets(ids: [String], force: Bool?) async throws
 
+    // MARK: - Trash (AC-300..AC-309)
+    func restoreTrashAssets(ids: [String]) async throws -> TrashResponseDto
+    func restoreAllTrash() async throws -> TrashResponseDto
+    func emptyTrash() async throws -> TrashResponseDto
+
+    // MARK: - Search (AC-400..AC-406)
+    func searchMetadata(dto: MetadataSearchDto) async throws -> SearchResponseDto
+    func searchSmart(dto: SmartSearchDto) async throws -> SearchResponseDto
+    func getExploreData() async throws -> [SearchExploreResponseDto]
+
+    // MARK: - Albums (AC-500..AC-518)
+    func getAlbums() async throws -> [AlbumResponseDto]
+    func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto
+    func getAlbum(id: String) async throws -> AlbumResponseDto
+    func deleteAlbum(id: String) async throws
+    func addAssetsToAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto]
+    func removeAssetsFromAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto]
+
+    // MARK: - Shared Links (AC-500..AC-518)
+    func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto]
+    func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto
+    func deleteSharedLink(id: String) async throws
+
     /// Uploads an asset via multipart/form-data.
     /// `checksum` is base64-encoded SHA1 (also sent as `x-immich-checksum` header).
     func uploadAsset(

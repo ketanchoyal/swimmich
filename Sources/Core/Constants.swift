@@ -8,6 +8,11 @@ enum ImmichAPI {
     static let server = SubPath(root: "/server")
     static let assets = SubPath(root: "/assets")
     static let timeline = SubPath(root: "/timeline")
+    static let trash = SubPath(root: "/trash") // AC-311
+    static let search = SubPath(root: "/search") // AC-400
+    static let people = SubPath(root: "/people") // AC-400 (deferred People feature)
+    static let albums = SubPath(root: "/albums") // AC-500
+    static let sharedLinks = SubPath(root: "/shared-links") // AC-500
 
     struct SubPath {
         let root: String
