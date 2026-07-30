@@ -275,6 +275,14 @@
       "url": "https://mcp.exa.ai/mcp",
       "enabled": true
     },
+    "zai-mcp-server": {
+      "type": "local",
+      "command": ["npx","-y","@z_ai/mcp-server"],
+      "environment": {
+        "Z_AI_API_KEY": "07f6f31955c0408c8fb7e3ca844cb2a4.4yklL11vWCfdwUkh",
+        "Z_AI_MODE": "ZAI"
+      }
+    },
     "codebase-memory-mcp": {
       "type": "local",
       "command": ["codebase-memory-mcp"],
