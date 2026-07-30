@@ -67,7 +67,7 @@ final class AppLockViewModel: AppLockService {
         return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             context.evaluatePolicy(
                 .deviceOwnerAuthentication,
-                localizedReason: "Unlock PhotoVault"
+                localizedReason: String(localized: "Unlock PhotoVault")
             ) { success, _ in
                 continuation.resume(returning: success)
             }

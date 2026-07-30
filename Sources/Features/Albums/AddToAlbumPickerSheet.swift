@@ -67,9 +67,8 @@ struct AddToAlbumPickerSheet: View {
     }
 
     private func add(to albumId: String) async {
-        let vm = AlbumDetailViewModel(client: DependencyContainer.shared.client, albumId: albumId)
-        await vm.addAssets(ids: Array(selectedAssetIds))
-        if vm.errorMessage == nil {
+        await albumsVM.addAssets(ids: Array(selectedAssetIds), toAlbumId: albumId)
+        if albumsVM.errorMessage == nil {
             addedAlbumId = albumId
             lastAddTick &+= 1
             // Refresh the shared list so the count badge updates.

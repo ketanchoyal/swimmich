@@ -57,4 +57,22 @@ final class AlbumsViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    // MARK: - Add assets (V1.5 polish — AC-704)
+
+    /// Adds assets to an existing album. Used by `AddToAlbumPickerSheet` to avoid
+    /// instantiating a throwaway `AlbumDetailViewModel` (which triggers a wasted
+    /// `searchMetadata` round-trip per add). NO asset refresh — caller refreshes the
+    /// shared albums list via `refresh()` if needed.
+    func addAssets(ids: [String], toAlbumId albumId: String) async {
+        guard !ids.isEmpty else { return }
+        // SUG-1: clear any stale errorMessage so the picker's nil-check reflects THIS call.
+        errorMessage = nil
+        do {
+            _ = try await client.addAssetsToAlbum(albumId: albumId, dto: BulkIdsDto(ids: ids))
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }

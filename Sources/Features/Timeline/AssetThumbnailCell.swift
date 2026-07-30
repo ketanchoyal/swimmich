@@ -176,7 +176,7 @@ struct AssetThumbnailCell: View {
                 .foregroundStyle(isSelected ? .blue : .white)
                 .shadow(color: .black.opacity(0.25), radius: 1.5)
                 .padding(8)
-                .accessibilityLabel(isSelected ? "Selected" : "Not selected")
+                .accessibilityLabel(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
         }
     }
 

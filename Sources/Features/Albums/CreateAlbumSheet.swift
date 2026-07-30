@@ -10,6 +10,7 @@ struct CreateAlbumSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var description = ""
+    @State private var createTick = 0
 
     var body: some View {
         NavigationStack {
@@ -40,6 +41,7 @@ struct CreateAlbumSheet: View {
                                 assetIds: preselectedAssetIds
                             )
                             if vm.errorMessage == nil {
+                                createTick &+= 1
                                 dismiss()
                             }
                         }
@@ -48,5 +50,6 @@ struct CreateAlbumSheet: View {
                 }
             }
         }
+        .sensoryFeedback(.success, trigger: createTick)
     }
 }

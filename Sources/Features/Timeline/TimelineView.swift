@@ -64,7 +64,7 @@ struct TimelineView: View {
                                 .background(.regularMaterial, in: Circle())
                                 .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
                         }
-                        .accessibilityLabel("Scroll to top")
+                        .accessibilityLabel(String(localized: "Scroll to top"))
                         .padding(.trailing, 16)
                         .padding(.bottom, 24)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -334,7 +334,7 @@ struct TimelineView: View {
                     Image(systemName: "person.circle")
                         .font(.title3)
                 }
-                .accessibilityLabel("Account")
+                .accessibilityLabel(String(localized: "Account"))
             }
         }
     }

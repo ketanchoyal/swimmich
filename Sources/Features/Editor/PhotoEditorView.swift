@@ -10,6 +10,11 @@ struct PhotoEditorView: View {
     @Bindable var vm: PhotoEditorViewModel
     @Environment(AuthViewModel.self) private var auth
 
+    // V1.5 polish — haptic triggers (AC-707/708/719).
+    @State private var aspectTick = 0
+    @State private var rotateTick = 0
+    @State private var revertTick = 0
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -17,15 +22,24 @@ struct PhotoEditorView: View {
                     previewSection
                     CropAspectPickerView(selectedRatio: Binding(
                         get: { vm.editState.aspectRatio },
-                        set: { vm.setAspectRatio($0) }
+                        set: {
+                            vm.setAspectRatio($0)
+                            aspectTick &+= 1
+                        }
                     ))
                     RotationSliderView(
                         straightenDeg: Binding(
                             get: { vm.editState.straightenDeg },
                             set: { vm.setStraighten($0) }
                         ),
-                        onRotate90CW: { vm.rotate90CW() },
-                        onRotate90CCW: { vm.rotate90CCW() }
+                        onRotate90CW: {
+                            vm.rotate90CW()
+                            rotateTick &+= 1
+                        },
+                        onRotate90CCW: {
+                            vm.rotate90CCW()
+                            rotateTick &+= 1
+                        }
                     )
                     AdjustmentSlidersView(
                         exposure: Binding(get: { vm.editState.exposure }, set: { vm.setExposure($0) }),
@@ -35,6 +49,7 @@ struct PhotoEditorView: View {
                     )
                     Button("Revenir à l'original") {
                         vm.resetToOriginal()
+                        revertTick &+= 1
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
@@ -50,6 +65,9 @@ struct PhotoEditorView: View {
             .navigationTitle("Edit")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .sensoryFeedback(.selection, trigger: aspectTick)
+        .sensoryFeedback(.impact, trigger: rotateTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: revertTick)
         .task {
             // AC-616: load on appear.
             if let baseURL = auth.baseURL {
@@ -85,7 +103,7 @@ struct PhotoEditorView: View {
                 }
             }
         }
-        .frame(height: UIScreen.main.bounds.width)
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 

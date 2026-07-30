@@ -247,4 +247,52 @@ final class AlbumsTests: XCTestCase {
         XCTAssertEqual(vm.sharedLinks.count, 1)
         XCTAssertFalse(vm.sharedLinks.contains { $0.id == "link-1" })
     }
+
+    // MARK: - AC-717 AlbumsViewModel.addAssets (V1.5 polish — no searchMetadata round-trip)
+
+    func test_AC_717_addAssets_albumsVM_success() async {
+        let mock = MockImmichClient()
+        let vm = AlbumsViewModel(client: mock)
+        await vm.addAssets(ids: ["a-1", "a-2"], toAlbumId: "alb-7")
+        XCTAssertEqual(mock.lastAddAssetsAlbumId, "alb-7")
+        XCTAssertEqual(mock.lastAddAssetsIds, ["a-1", "a-2"])
+        XCTAssertNil(vm.errorMessage)
+        // V1.5 guarantee: picker path does NOT trigger a wasted searchMetadata call.
+        XCTAssertNil(mock.lastMetadataSearchDto)
+    }
+
+    func test_AC_717b_addAssets_albumsVM_error() async {
+        let mock = MockImmichClient()
+        mock.addAssetsError = Boom()
+        let vm = AlbumsViewModel(client: mock)
+        await vm.addAssets(ids: ["a-1"], toAlbumId: "alb-7")
+        XCTAssertEqual(mock.lastAddAssetsAlbumId, "alb-7")
+        XCTAssertEqual(mock.lastAddAssetsIds, ["a-1"])
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func test_AC_717c_addAssets_albumsVM_clearsStaleErrorMessage() async {
+        // SUG-1 challenger amendment: a stale load error must not cause the picker to
+        // falsely report an add failure. addAssets clears errorMessage before the API call,
+        // so a successful add leaves errorMessage nil.
+        let mock = MockImmichClient()
+        let vm = AlbumsViewModel(client: mock)
+        // Seed a stale error from a prior load failure.
+        mock.albumsError = Boom()
+        await vm.load()
+        XCTAssertNotNil(vm.errorMessage, "precondition: stale error seeded")
+        // Now perform a successful add — error must be cleared.
+        mock.albumsError = nil
+        await vm.addAssets(ids: ["a-1"], toAlbumId: "alb-7")
+        XCTAssertEqual(mock.lastAddAssetsAlbumId, "alb-7")
+        XCTAssertNil(vm.errorMessage, "successful add must clear stale error")
+    }
+
+    func test_AC_717d_addAssets_albumsVM_emptyIdsNoOp() async {
+        let mock = MockImmichClient()
+        let vm = AlbumsViewModel(client: mock)
+        await vm.addAssets(ids: [], toAlbumId: "alb-7")
+        XCTAssertNil(mock.lastAddAssetsAlbumId)
+        XCTAssertNil(mock.lastAddAssetsIds)
+    }
 }

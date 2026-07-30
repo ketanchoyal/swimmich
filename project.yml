@@ -22,6 +22,7 @@ targets:
     resources:
       - path: Resources/Assets.xcassets
       - path: Resources/Info.plist
+      - path: Resources/Localizable.xcstrings
     info:
       path: Resources/Info.plist
       properties:

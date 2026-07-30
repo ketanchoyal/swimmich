@@ -36,6 +36,12 @@ final class PhotoEditorViewModel {
     /// Test-visible counter of render passes. AC-605 verifies mutation → render.
     @ObservationIgnored private(set) var renderCounter: Int = 0
 
+    /// V1.5 polish: debounce interval (seconds) for render pipeline. Default 0 = synchronous
+    /// (preserves AC-604/605 sync contract). DI wires 0.033 (≈30fps cap) for production so the
+    /// Metal pipeline doesn't re-render per slider tick. AC-702 / AC-703.
+    @ObservationIgnored var renderDebounceInterval: TimeInterval = 0
+    @ObservationIgnored private var renderTask: Task<Void, Never>?
+
     // MARK: CIContext (lazy Metal-backed)
 
     @ObservationIgnored private lazy var ciContext: CIContext = {
@@ -102,13 +108,33 @@ final class PhotoEditorViewModel {
         }
 
         originalImage = image
-        renderPreview()
+        renderImmediately()
     }
 
     // MARK: Render pipeline
 
-    /// Re-applies the pipeline to `originalImage` → `previewImage`. AC-604 / AC-605.
+    /// Debounced entry point. AC-703: with `renderDebounceInterval > 0`, cancels any pending
+    /// render task and schedules a new one at `interval` — caps pipeline invocations during
+    /// rapid slider drags. With interval = 0 (default), renders synchronously → preserves
+    /// AC-604/605 sync test contract.
     func renderPreview() {
+        guard renderDebounceInterval > 0 else {
+            renderImmediately()
+            return
+        }
+        renderTask?.cancel()
+        let interval = renderDebounceInterval
+        renderTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            // Cancellation: a newer mutation has rescheduled; skip this render.
+            if Task.isCancelled { return }
+            self?.renderImmediately()
+        }
+    }
+
+    /// Synchronous Metal render. Re-applies the pipeline to `originalImage` → `previewImage`.
+    /// AC-604 / AC-605. Called directly by `loadOriginal()` and (interval=0) by `renderPreview()`.
+    func renderImmediately() {
         renderCounter += 1
         guard let original = originalImage,
               let cgImage = original.cgImage else {
