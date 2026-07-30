@@ -54,6 +54,8 @@ final class UploadViewModel {
 /// Simple backup settings screen.
 struct BackupSettingsView: View {
     @Environment(AuthViewModel.self) private var auth
+    @Environment(AppLockViewModel.self) private var appLock
+    @AppStorage("app_lock_enabled") private var appLockEnabled = false
 
     var body: some View {
         @Bindable var auth = auth
@@ -67,6 +69,15 @@ struct BackupSettingsView: View {
                     Text("Background backup is a roadmap item. The upload API surface is wired and unit-tested.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+                // AC-114: Require Face ID toggle. @AppStorage mirrors the
+                // same UserDefaults key AppLockViewModel reads, and onChange
+                // keeps the VM's stored isEnabled in sync.
+                Section("Security") {
+                    Toggle("Require Face ID", isOn: $appLockEnabled)
+                        .onChange(of: appLockEnabled) { _, newValue in
+                            appLock.setEnabled(newValue)
+                        }
                 }
             }
             .navigationTitle("Backup")

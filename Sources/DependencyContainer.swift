@@ -8,11 +8,13 @@ final class DependencyContainer {
     let client: ImmichAPIClient
     let keychain: KeychainStore
     let photos: PhotoLibraryService
+    let appLock: AppLockViewModel
 
     init() {
         self.keychain = KeychainStoreImpl()
         self.client = ImmichAPIClient()
         self.photos = PhotoLibraryServiceImpl()
+        self.appLock = AppLockViewModel()
     }
 
     func makeAuthViewModel() -> AuthViewModel {
