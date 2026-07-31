@@ -275,4 +275,109 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mock.lastMetadataSearchDto?.page, 2)
         XCTAssertEqual(vm.results.count, 2)
     }
+
+    // MARK: - Live search (debounced) + clear + recents
+
+    func test_liveSearch_debounced_dispatches_after_idle() async {
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock)
+        vm.debounceInterval = .zero
+        vm.query = "beach"
+        XCTAssertEqual(mock.requestCount, 0, "no request before debounce fires")
+        vm.queryDidChange()
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(mock.requestCount, 1)
+        XCTAssertEqual(mock.lastSmartSearchDto?.query, "beach")
+        XCTAssertTrue(vm.hasSearched)
+        XCTAssertEqual(vm.results.count, 1)
+    }
+
+    func test_liveSearch_empty_query_resets_to_idle() async {
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock)
+        vm.debounceInterval = .zero
+        vm.query = "beach"
+        await vm.search()
+        XCTAssertEqual(vm.results.count, 1)
+
+        vm.query = ""
+        vm.queryDidChange()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(vm.results.isEmpty, "clearing the field must drop stale results")
+        XCTAssertFalse(vm.hasSearched)
+        XCTAssertEqual(mock.requestCount, 1, "empty query must not dispatch")
+    }
+
+    func test_clearSearch_resets_results_and_query() async {
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock)
+        vm.query = "beach"
+        await vm.search()
+        XCTAssertEqual(vm.results.count, 1)
+
+        vm.clearSearch()
+
+        XCTAssertEqual(vm.query, "")
+        XCTAssertTrue(vm.results.isEmpty)
+        XCTAssertFalse(vm.hasSearched)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_searchRecent_dispatches_without_second_search() async {
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock)
+        vm.debounceInterval = .zero
+
+        await vm.searchRecent("paris")
+
+        XCTAssertEqual(mock.lastSmartSearchDto?.query, "paris")
+        XCTAssertEqual(vm.query, "paris")
+        XCTAssertEqual(vm.results.count, 1)
+
+        // The View's onChange fires after the programmatic write; it must no-op.
+        vm.queryDidChange()
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(mock.requestCount, 1, "programmatic query write must not double-search")
+    }
+
+    func test_recents_recorded_deduped_and_capped() async {
+        let suite = "SearchRecentsTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = RecentSearchesStore(defaults: defaults)
+
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock, recents: store)
+
+        for i in 0..<10 {
+            vm.query = "term\(i)"
+            await vm.search()
+        }
+        XCTAssertEqual(vm.recentSearches.count, 8, "capped at capacity")
+        XCTAssertEqual(vm.recentSearches.first, "term9", "newest first")
+
+        vm.query = "term5"
+        await vm.search()
+        XCTAssertEqual(vm.recentSearches.first, "term5", "reused term moves to front")
+        XCTAssertEqual(vm.recentSearches.filter { $0 == "term5" }.count, 1, "no duplicates")
+        XCTAssertEqual(store.load(), vm.recentSearches, "persisted")
+    }
+
+    func test_recents_skip_empty_and_city_flows() async {
+        let suite = "SearchRecentsEmptyTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = RecentSearchesStore(defaults: defaults)
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = SearchResponseDto(
+            assets: SearchAssetResponseDto(count: 0, items: [], nextPage: nil)
+        )
+        let vm = SearchViewModel(client: mock, recents: store)
+
+        // City flow: query stays empty → nothing recorded.
+        await vm.searchByCity("Paris")
+        XCTAssertTrue(vm.recentSearches.isEmpty, "city filter must not be recorded as a text search")
+        XCTAssertTrue(store.load().isEmpty)
+    }
 }

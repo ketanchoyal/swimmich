@@ -4,6 +4,11 @@ import SwiftUI
 /// Authoritative app-wide auth state. Drives RootView routing.
 ///
 /// FM-4: implements AuthSessionDelegate so any 401 anywhere resets state.
+///
+/// Session persistence: the bearer token lives in the Keychain; the server URL
+/// + user identity live in UserDefaults. `restoreSession()` reconfigures the
+/// shared `ImmichClient` on launch (it is otherwise only configured during
+/// login/server discovery), so the app stays authenticated across relaunches.
 @MainActor
 @Observable
 final class AuthViewModel: AuthSessionDelegate {
@@ -13,6 +18,12 @@ final class AuthViewModel: AuthSessionDelegate {
         case reachable(version: ServerVersionResponseDto?)
         case unreachable
     }
+
+    // UserDefaults keys (internal so tests can seed/assert).
+    static let serverURLDefaultsKey = "authServerURL"
+    static let userEmailDefaultsKey = "authUserEmail"
+    static let userNameDefaultsKey = "authUserName"
+    static let userIdDefaultsKey = "authUserId"
 
     // Server connection
     var serverURLString: String = "" {
@@ -28,19 +39,58 @@ final class AuthViewModel: AuthSessionDelegate {
     var userId: String?
     var isAuthenticated: Bool { accessToken != nil }
 
+    /// True while `restoreSession()` reconfigures the client + validates the
+    /// stored token. RootView gates on this to avoid a TabView→onboarding
+    /// flash before validation settles.
+    var isRestoringSession: Bool = false
+
     // UI
     var isLoading: Bool = false
     var errorMessage: String?
 
     private let client: any ImmichClient
     private let keychain: KeychainStore
+    private let defaults: UserDefaults
     private var _cachedBaseURL: URL?
 
-    init(client: any ImmichClient, keychain: KeychainStore) {
+    init(client: any ImmichClient, keychain: KeychainStore, defaults: UserDefaults = .standard) {
         self.client = client
         self.keychain = keychain
+        self.defaults = defaults
+        self.serverURLString = defaults.string(forKey: Self.serverURLDefaultsKey) ?? ""
+        self.userEmail = defaults.string(forKey: Self.userEmailDefaultsKey)
+        self.userName = defaults.string(forKey: Self.userNameDefaultsKey)
+        self.userId = defaults.string(forKey: Self.userIdDefaultsKey)
         self.accessToken = keychain.getToken()
         self.client.authDelegate = self
+    }
+
+    // MARK: - Session restore (relaunch)
+
+    /// Reconfigures the shared client from the stored session and validates
+    /// the token. Called by RootView via `.task` on launch.
+    ///
+    /// - Valid token → stays authenticated (no-op beyond configuring the client).
+    /// - `.unauthorized` → `resetSession()` (clean sign-in again, URL pre-filled).
+    /// - Network failure → keeps the session (offline-safe; a real 401 later
+    ///   still resets via FM-4).
+    func restoreSession() async {
+        guard !isRestoringSession else { return }
+        isRestoringSession = true
+        defer { isRestoringSession = false }
+
+        guard let token = accessToken, let url = baseURL else {
+            resetSession()
+            return
+        }
+        client.configure(baseURL: url, token: token)
+        do {
+            _ = try await client.validateToken()
+        } catch APIError.unauthorized {
+            resetSession()
+        } catch {
+            // Network / decode: keep the session; don't wipe on transient offline.
+        }
     }
 
     // MARK: - URL helpers
@@ -82,6 +132,7 @@ final class AuthViewModel: AuthSessionDelegate {
                 let version = try? await client.serverVersion()
                 serverStatus = .reachable(version: version)
                 serverConfig = try? await client.serverConfig()
+                defaults.set(url.absoluteString, forKey: Self.serverURLDefaultsKey)
             } else {
                 serverStatus = .unreachable
             }
@@ -107,6 +158,10 @@ final class AuthViewModel: AuthSessionDelegate {
             userName = response.name
             userId = response.userId
             keychain.saveToken(response.accessToken)
+            defaults.set(baseURL?.absoluteString ?? serverURLString, forKey: Self.serverURLDefaultsKey)
+            defaults.set(response.userEmail, forKey: Self.userEmailDefaultsKey)
+            defaults.set(response.name, forKey: Self.userNameDefaultsKey)
+            defaults.set(response.userId, forKey: Self.userIdDefaultsKey)
             client.configure(baseURL: baseURL, token: response.accessToken)
         } catch let e {
             errorMessage = e.localizedDescription
@@ -122,12 +177,17 @@ final class AuthViewModel: AuthSessionDelegate {
         isLoading = false
     }
 
+    /// Clears auth state + stored credentials. Keeps the server URL so the
+    /// next sign-in skips re-entering the address.
     func resetSession() {
         accessToken = nil
         userEmail = nil
         userName = nil
         userId = nil
         keychain.deleteToken()
+        defaults.removeObject(forKey: Self.userEmailDefaultsKey)
+        defaults.removeObject(forKey: Self.userNameDefaultsKey)
+        defaults.removeObject(forKey: Self.userIdDefaultsKey)
         client.configure(baseURL: baseURL, token: nil)
     }
 

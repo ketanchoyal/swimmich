@@ -1,105 +1,139 @@
 import SwiftUI
 
-/// Search tab — Apple-Photos-like search with two modes (Results | Explore).
+/// Search tab — Apple-Photos-like search with three modes (Results | Explore | Map).
 ///
-/// - **Results**: free-text search via `Picker` (Metadata | Smart). LazyVGrid
-///   of `AssetThumbnailCell` (corner radius 0 — project convention). Tap →
-///   `AssetDetailView` (NavigationLink pattern from TimelineView.swift:253).
+/// - **Results**: native `.searchable` field with debounced live search.
+///   LazyVGrid of `AssetThumbnailCell` (corner radius 0 — project convention).
+///   Tap → `AssetDetailView` (NavigationLink pattern from TimelineView.swift:253).
+///   Smart/Metadata mode toggle lives in a toolbar `Menu` (default Smart/CLIP).
 /// - **Explore**: curated city/object suggestions via `GET /api/search/explore`.
 ///   Tap a card → `searchByCity(_:)` filters results by that city.
+/// - **Map**: clustered MapKit view of all geolocated photos (AC-710).
 ///
 /// People / faces deferred to a future iteration (cahier L136).
 struct SearchView: View {
     @Bindable var vm: SearchViewModel
+    @Bindable var mapVM: MapViewModel
     @Environment(AuthViewModel.self) private var auth
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                searchBar
-                modePicker
-                Divider()
-                content
+            Group {
+                if vm.viewMode == .results {
+                    resultsStack
+                        .searchable(
+                            text: $vm.query,
+                            placement: .navigationBarDrawer(displayMode: .always),
+                            prompt: "Search photos and places"
+                        )
+                        .onChange(of: vm.query) { _, _ in vm.queryDidChange() }
+                        .searchSuggestions { searchSuggestions }
+                } else {
+                    VStack(spacing: 0) {
+                        modePicker
+                        Divider()
+                        content
+                    }
+                }
             }
-            .navigationTitle("Search")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ImmichAppBar()
+                }
+                if vm.viewMode == .results {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        searchModeMenu
+                    }
+                }
+            }
         }
     }
 
-    // MARK: - Search bar + mode pickers
+    // MARK: - Shared chrome
 
-    private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search photos, places, and people", text: $vm.query)
-                .textFieldStyle(.plain)
-                .submitLabel(.search)
-                .onSubmit { Task { await vm.search() } }
-            if !vm.query.isEmpty {
-                Button {
-                    vm.query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
+    private var resultsStack: some View {
+        VStack(spacing: 0) {
+            modePicker
+            Divider()
+            content
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding(.horizontal)
-        .padding(.top, 8)
     }
 
     private var modePicker: some View {
-        VStack(spacing: 4) {
-            Picker("View", selection: $vm.viewMode) {
-                Text("Results").tag(SearchViewModel.ViewMode.results)
-                Text("Explore").tag(SearchViewModel.ViewMode.explore)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.top, 6)
-
-            if vm.viewMode == .results {
-                Picker("Search Mode", selection: $vm.searchMode) {
-                    Text("Metadata").tag(SearchViewModel.SearchMode.metadata)
-                    Text("Smart").tag(SearchViewModel.SearchMode.smart)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 4)
-            }
+        Picker("View", selection: $vm.viewMode) {
+            Text("Results").tag(SearchViewModel.ViewMode.results)
+            Text("Explore").tag(SearchViewModel.ViewMode.explore)
+            Text("Map").tag(SearchViewModel.ViewMode.map)
         }
-        .padding(.bottom, 4)
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
+        .padding(.top, PVSpacing.s8)
+        .padding(.bottom, PVSpacing.s4)
     }
 
-    // MARK: - Content (results grid | explore cards | empty | loading | error)
+    /// Smart (CLIP semantic) vs Metadata (EXIF fields) search — folded into a
+    /// compact menu so the Results area stays uncluttered.
+    private var searchModeMenu: some View {
+        Menu {
+            Picker("Search Mode", selection: $vm.searchMode) {
+                Label("Smart", systemImage: "sparkles").tag(SearchViewModel.SearchMode.smart)
+                Label("Metadata", systemImage: "character.magnify").tag(SearchViewModel.SearchMode.metadata)
+            }
+        } label: {
+            Label(
+                vm.searchMode == .smart ? "Smart" : "Metadata",
+                systemImage: vm.searchMode == .smart ? "sparkles" : "character.magnify"
+            )
+        }
+        .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
+    }
+
+    @ViewBuilder
+    private var searchSuggestions: some View {
+        if vm.query.isEmpty {
+            if !vm.recentSearches.isEmpty {
+                Section("Recent") {
+                    ForEach(vm.recentSearches, id: \.self) { term in
+                        Button {
+                            Task { await vm.searchRecent(term) }
+                        } label: {
+                            Label(term, systemImage: "clock")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Content (results grid | explore cards | map | loading | error)
 
     @ViewBuilder
     private var content: some View {
-        if vm.isLoading && vm.results.isEmpty && vm.viewMode == .results {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let msg = vm.errorMessage {
-            errorView(msg)
-        } else if vm.viewMode == .results {
-            resultsView
-        } else {
+        switch vm.viewMode {
+        case .results:
+            resultsContent
+        case .explore:
             exploreView
                 .task {
                     // AC-404a / AC-404c: load explore once per VM lifetime.
                     await vm.loadExplore()
                 }
+        case .map:
+            MapSegmentView(vm: mapVM)
         }
     }
 
     @ViewBuilder
-    private var resultsView: some View {
-        if vm.results.isEmpty {
+    private var resultsContent: some View {
+        if vm.isLoading && vm.results.isEmpty && vm.hasSearched {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let msg = vm.errorMessage {
+            errorView(msg)
+        } else if vm.results.isEmpty {
             if vm.hasSearched {
                 ContentUnavailableView(
                     "No results",
@@ -116,7 +150,19 @@ struct SearchView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
-            ScrollView {
+            resultsGrid
+        }
+    }
+
+    private var resultsGrid: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: PVSpacing.s4) {
+                Text("\(vm.results.count) photos")
+                    .font(.pvSubhead)
+                    .foregroundStyle(Color.textSecondaryPV)
+                    .padding(.horizontal)
+                    .padding(.top, PVSpacing.s8)
+
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(vm.results) { item in
                         NavigationLink {
@@ -125,24 +171,22 @@ struct SearchView: View {
                             AssetThumbnailCell(
                                 asset: item,
                                 baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                                token: auth.accessToken,
-                                onTap: {
-                                    Task { await vm.loadMore() }
-                                }
+                                token: auth.accessToken
                             )
                             .buttonStyle(.plain)
                         }
-                        .task {
-                            // AC-406: trigger next page when near the end.
+                        .onAppear {
+                            // AC-406: trigger next page when the last cell appears.
                             if item.id == vm.results.last?.id {
-                                await vm.loadMore()
+                                Task { await vm.loadMore() }
                             }
                         }
                     }
                 }
                 if vm.isLoading {
                     ProgressView()
-                        .padding(.vertical, 12)
+                        .padding(.vertical, PVSpacing.s12)
+                        .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -159,14 +203,14 @@ struct SearchView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: PVSpacing.s16) {
                     ForEach(Array(vm.exploreData.enumerated()), id: \.offset) { _, section in
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: PVSpacing.s8) {
                             Text(Self.prettyFieldName(section.fieldName))
-                                .font(.headline)
+                                .font(.pvHeadline)
                                 .padding(.horizontal)
                             ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 10) {
+                                LazyHStack(spacing: PVSpacing.s8) {
                                     ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
                                         Button {
                                             Task { await vm.searchByCity(item.value) }
@@ -182,35 +226,35 @@ struct SearchView: View {
                         }
                     }
                 }
-                .padding(.vertical, 8)
+                .padding(.vertical, PVSpacing.s8)
             }
         }
     }
 
     @ViewBuilder
     private func exploreCard(value: String, item: AssetResponseDto) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
             let url = AssetReactItem(from: item).thumbnailURL(
                 base: auth.baseURL ?? URL(string: "https://example.com")!
             )
             AuthenticatedAsyncImage(url: url, token: auth.accessToken)
                 .frame(width: 140, height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: PVRadius.none, style: .continuous))
             Text(value)
-                .font(.subheadline)
+                .font(.pvSubhead)
                 .lineLimit(1)
         }
         .frame(width: 140)
     }
 
     private func errorView(_ msg: String) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: PVSpacing.s12) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.title)
-                .foregroundStyle(.orange)
+                .font(.pvTitle)
+                .foregroundStyle(Color.statusPending)
             Text(msg)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(.pvBody)
+                .foregroundStyle(Color.textSecondaryPV)
                 .multilineTextAlignment(.center)
         }
         .padding()

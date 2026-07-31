@@ -39,6 +39,9 @@ protocol ImmichClient: AnyObject, Sendable {
     func searchSmart(dto: SmartSearchDto) async throws -> SearchResponseDto
     func getExploreData() async throws -> [SearchExploreResponseDto]
 
+    // MARK: - Map (AC-710)
+    func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto]
+
     // MARK: - Albums (AC-500..AC-518)
     func getAlbums() async throws -> [AlbumResponseDto]
     func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto

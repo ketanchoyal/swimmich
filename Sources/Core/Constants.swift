@@ -10,6 +10,7 @@ enum ImmichAPI {
     static let timeline = SubPath(root: "/timeline")
     static let trash = SubPath(root: "/trash") // AC-311
     static let search = SubPath(root: "/search") // AC-400
+    static let map = SubPath(root: "/map") // AC-710 (MapKit markers)
     static let people = SubPath(root: "/people") // AC-400 (deferred People feature)
     static let albums = SubPath(root: "/albums") // AC-500
     static let sharedLinks = SubPath(root: "/shared-links") // AC-500

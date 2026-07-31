@@ -33,6 +33,10 @@ final class DependencyContainer {
         SearchViewModel(client: client as any ImmichClient)
     }
 
+    func makeMapViewModel() -> MapViewModel {
+        MapViewModel(client: client as any ImmichClient)
+    }
+
     func makeAlbumsViewModel() -> AlbumsViewModel {
         AlbumsViewModel(client: client as any ImmichClient)
     }

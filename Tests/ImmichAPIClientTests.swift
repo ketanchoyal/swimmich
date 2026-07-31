@@ -151,7 +151,10 @@ final class ImmichAPIClientTests: XCTestCase {
         // (otherwise sendAuthedRaw throws .unauthorized before any HTTP call,
         // bypassing the delegate path).
         client.configure(baseURL: URL(string: "https://example.com")!, token: "expired-jwt")
-        let auth = AuthViewModel(client: client, keychain: keychain)
+        let suite = "ImmichAPIClientTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let auth = AuthViewModel(client: client, keychain: keychain, defaults: defaults)
         auth.serverURLString = "https://example.com"
         _ = auth.baseURL
         auth.accessToken = "expired-jwt"
@@ -182,5 +185,49 @@ final class ImmichAPIClientTests: XCTestCase {
             url.absoluteString,
             "https://photos.example.com/api/assets/abc123/thumbnail?size=thumbnail&c=xyz"
         )
+    }
+
+    // AC-710: map markers request path + optional query params + decoding.
+    func test_AC_710_mapMarkersRequest() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        CapturingURLProtocol.nextData = #"""
+        [{"id":"a1","lat":48.8566,"lon":2.3522,"city":"Paris","state":null,"country":"France"}]
+        """#.data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 200
+
+        let markers = try await client.getMapMarkers(isFavorite: true, isArchived: nil)
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertTrue(captured.url?.absoluteString.contains("/api/map/markers") == true)
+        XCTAssertTrue(captured.url?.absoluteString.contains("isFavorite=true") == true, "favorite filter must be encoded")
+        XCTAssertFalse(captured.url?.absoluteString.contains("isArchived") == true, "nil filter must be omitted")
+
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertEqual(markers.first?.id, "a1")
+        XCTAssertEqual(markers.first?.lat, 48.8566)
+        XCTAssertEqual(markers.first?.city, "Paris")
+        XCTAssertNil(markers.first?.state)
+    }
+
+    // AC-710: map markers without filters → no query params.
+    func test_AC_710_mapMarkersNoFilters() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+
+        _ = try await client.getMapMarkers(isFavorite: nil, isArchived: nil)
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.url?.query, nil, "no query params expected")
     }
 }

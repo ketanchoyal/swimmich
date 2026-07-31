@@ -28,6 +28,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     var logoutResponse: LogoutResponseDto?
     var validateResponse: ValidateAccessTokenResponseDto?
+    var validateError: Error?
 
     var bucketsResponse: [TimeBucketsResponseDto] = []
     var bucketResponses: [String: TimeBucketAssetResponseDto] = [:]
@@ -61,6 +62,12 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var smartSearchError: Error?
     var exploreResponse: [SearchExploreResponseDto]?
     var exploreError: Error?
+
+    // Map capture (AC-710)
+    var mapMarkersResponse: [MapMarkerResponseDto]?
+    var mapMarkersError: Error?
+    var lastMapMarkersIsFavorite: Bool?
+    var lastMapMarkersIsArchived: Bool?
 
     // Albums capture (AC-500..AC-518)
     var albumsResponse: [AlbumResponseDto]?
@@ -156,7 +163,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     func validateToken() async throws -> ValidateAccessTokenResponseDto {
         bump()
-        if let e = globalError { throw e }
+        if let e = globalError ?? validateError { throw e }
         return validateResponse ?? ValidateAccessTokenResponseDto(authStatus: true)
     }
 
@@ -257,6 +264,14 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? exploreError { throw e }
         return exploreResponse ?? []
+    }
+
+    func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto] {
+        bump()
+        lastMapMarkersIsFavorite = isFavorite
+        lastMapMarkersIsArchived = isArchived
+        if let e = globalError ?? mapMarkersError { throw e }
+        return mapMarkersResponse ?? []
     }
 
     // MARK: - Albums (AC-500..AC-518)
