@@ -57,6 +57,54 @@ enum DateHeaderFormatter {
         }
     }
 
+    /// Returns a localized `"yyyy"` year label for an ISO date prefix
+    /// (e.g. `"2024-07-29"` → `"2024"`).
+    static func yearString(
+        for isoPrefix: String,
+        calendar: Calendar = .current
+    ) -> String {
+        guard let date = parseUTCPrefix(isoPrefix) else {
+            return isoPrefix
+        }
+        let df = DateFormatter()
+        df.calendar = calendar
+        df.locale = calendar.locale
+        df.dateFormat = "yyyy"
+        return df.string(from: date)
+    }
+
+    /// Returns a localized `"EEEE d MMMM"` weekday + day + month label for an
+    /// ISO date prefix (e.g. `"2026-07-29"` → `"Wednesday 29 July"`). No
+    /// relative "Today"/"Yesterday" — always the literal weekday, day number,
+    /// and month. Leading weekday's first letter is capitalized (some locales
+    /// emit lowercase weekday/month names).
+    static func dayMonthString(
+        for isoPrefix: String,
+        calendar: Calendar = .current
+    ) -> String {
+        guard let date = parseUTCPrefix(isoPrefix) else {
+            return isoPrefix
+        }
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.calendar = calendar
+        weekdayFormatter.locale = calendar.locale
+        weekdayFormatter.dateFormat = "EEEE"
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.calendar = calendar
+        dayFormatter.locale = calendar.locale
+        dayFormatter.dateFormat = "d"
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.calendar = calendar
+        monthFormatter.locale = calendar.locale
+        monthFormatter.dateFormat = "MMMM"
+
+        let weekday = Self.capitalized(weekdayFormatter.string(from: date))
+        let month = Self.capitalized(monthFormatter.string(from: date))
+        return "\(weekday) \(dayFormatter.string(from: date)) \(month)"
+    }
+
     /// Formats `date` as `"EEEE, MMMM d"` or `"EEEE, MMMM d, yyyy"`, honoring
     /// the injected calendar's locale and timezone.
     private static func format(
@@ -67,6 +115,13 @@ enum DateHeaderFormatter {
         df.locale = calendar.locale
         df.dateFormat = includeYear ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d"
         return df.string(from: date)
+    }
+
+    /// Capitalizes the first letter only (month is the leading token in the
+    /// labels that use this; the rest stays untouched).
+    private static func capitalized(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return String(first).uppercased() + s.dropFirst()
     }
 
     /// Parses `"YYYY-MM-DD"` as a UTC-noon `Date`.

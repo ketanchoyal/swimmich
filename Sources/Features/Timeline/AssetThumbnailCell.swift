@@ -49,11 +49,11 @@ struct AssetThumbnailCell: View {
             .overlay(alignment: .topLeading) { projectionBadge }
             .overlay(alignment: .bottomTrailing) { videoBadge }
             .overlay(alignment: .topTrailing) { checkmark }
-            .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
             // Pro selection: selected cells recede slightly (scale 0.96) w/ spring.
             .scaleEffect(selectionMode && isSelected ? 0.96 : 1.0)
-            .animation(.spring(duration: 0.32, bounce: 0.2), value: isSelected)
-            .animation(.spring(duration: 0.32, bounce: 0.2), value: selectionMode)
+            .animation(PVMotion.snappy, value: isSelected)
+            .animation(PVMotion.snappy, value: selectionMode)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
             .contextMenu {
@@ -121,7 +121,7 @@ struct AssetThumbnailCell: View {
         if asset.isVideo {
             badge {
                 HStack(spacing: 3) {
-                    Image(systemName: "play.fill").font(.system(size: 8))
+                    Image(systemName: "play.fill").font(.system(size: 8)) // DS-exempt: badge micro-glyph §8.6
                     if let d = asset.duration, d > 0 {
                         Text(Self.formattedDuration(d)).monospacedDigit()
                     }
@@ -139,13 +139,13 @@ struct AssetThumbnailCell: View {
         @ViewBuilder _ content: () -> Content
     ) -> some View {
         content()
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .font(.pvCaption)
+            .foregroundStyle(.white) // DS-exempt: badge contrast on material
+            .padding(.horizontal, PVSpacing.s8)
+            .padding(.vertical, 3) // DS-exempt: badge micro-padding
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5)
+            .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5) // DS-exempt: micro-badge shadow
     }
 
     // MARK: - Selection (V5)
@@ -156,9 +156,9 @@ struct AssetThumbnailCell: View {
     private var selectionTint: some View {
         if selectionMode {
             if isSelected {
-                Color.blue.opacity(0.15)
+                Color.accentInfo.opacity(0.15)
             } else {
-                Color.black.opacity(0.06)
+                Color.black.opacity(0.06) // DS-exempt: structural dim overlay
             }
         }
     }
@@ -170,11 +170,11 @@ struct AssetThumbnailCell: View {
     private var checkmark: some View {
         if selectionMode {
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.title3.weight(.semibold))
+                .font(.pvHeadline)
                 .symbolEffect(.bounce, value: isSelected)
                 .contentTransition(.symbolEffect(.replace))
-                .foregroundStyle(isSelected ? .blue : .white)
-                .shadow(color: .black.opacity(0.25), radius: 1.5)
+                .foregroundStyle(isSelected ? Color.accentInfo : Color.white) // DS-exempt: badge contrast on material (white branch)
+                .shadow(color: .black.opacity(0.25), radius: 1.5) // DS-exempt: micro-badge shadow
                 .padding(8)
                 .accessibilityLabel(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
         }

@@ -94,6 +94,57 @@ final class DateHeaderFormatterTests: XCTestCase {
         XCTAssertEqual(result, "Today")
     }
 
+    // MARK: - Year label
+
+    func test_yearString_formatsYear() {
+        let result = DateHeaderFormatter.yearString(
+            for: "2024-07-29",
+            calendar: honoluluCalendar
+        )
+        XCTAssertEqual(result, "2024")
+    }
+
+    func test_yearString_ignoresDayAndMonth() {
+        // Same year, different day/month → identical label.
+        let jan = DateHeaderFormatter.yearString(for: "2024-01-01", calendar: honoluluCalendar)
+        let dec = DateHeaderFormatter.yearString(for: "2024-12-31", calendar: honoluluCalendar)
+        XCTAssertEqual(jan, "2024")
+        XCTAssertEqual(dec, "2024")
+    }
+
+    func test_yearString_malformedPrefixReturnsRaw() {
+        let result = DateHeaderFormatter.yearString(for: "not-a-date")
+        XCTAssertEqual(result, "not-a-date")
+    }
+
+    // MARK: - Day + month label
+
+    func test_dayMonthString_weekdayDayAndCapitalizedMonth() {
+        let result = DateHeaderFormatter.dayMonthString(
+            for: "2026-07-29",
+            calendar: honoluluCalendar
+        )
+        XCTAssertEqual(result, "Wednesday 29 July")
+    }
+
+    func test_dayMonthString_capitalizesLowercaseLocaleWeekdayAndMonth() {
+        // French locale emits lowercase weekday/month names ("mercredi",
+        // "juillet") — both first letters must be capitalized.
+        var fr = Calendar(identifier: .gregorian)
+        fr.timeZone = TimeZone(identifier: "Pacific/Honolulu")!
+        fr.locale = Locale(identifier: "fr_FR")
+        let result = DateHeaderFormatter.dayMonthString(
+            for: "2026-07-29",
+            calendar: fr
+        )
+        XCTAssertEqual(result, "Mercredi 29 Juillet")
+    }
+
+    func test_dayMonthString_malformedPrefixReturnsRaw() {
+        let result = DateHeaderFormatter.dayMonthString(for: "not-a-date")
+        XCTAssertEqual(result, "not-a-date")
+    }
+
     // MARK: - Defensive fallback
 
     func test_AC_V01_malformedPrefixReturnsRaw() {

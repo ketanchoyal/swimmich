@@ -4,7 +4,8 @@ import SwiftUI
 ///
 /// Visual layers (AC-V01..V07):
 /// - Large "Photos" title (collapsing); selection overrides to "X selected".
-/// - SF Symbol toolbar (xmark cancel, portrait-arrow logout).
+/// - SF Symbol toolbar (xmark cancel; selection-mode favorite/delete/add-to-album).
+/// - Photos-style pinch-to-zoom grid (2-7 columns) via `TimelineGridZoom`.
 /// - Skeleton shimmer grid for loading (4×3 initial, 1×3 load-more).
 /// - `ContentUnavailableView` empty + error states.
 /// - Human-relative date headers via `DateHeaderFormatter`.
@@ -13,10 +14,25 @@ import SwiftUI
 struct TimelineView: View {
     @State private var vm: TimelineViewModel
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
+    // Grid zoom (Photos-style pinch): 2-7 columns, default 3. `gridScale`
+    // persists the committed zoom between gestures; the live pinch multiplier
+    // folds in during `MagnifyGesture.onChanged`.
+    private let defaultColumnCount = 3
+    private let minColumnCount = 2
+    private let maxColumnCount = 7
+    @State private var columnCount = 3
+    @State private var gridScale: CGFloat = 1.0
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: columnCount)
+    }
 
     // UI-only haptic / scroll state (not VM concerns).
+    // Pinned header shows the day group whose grid currently owns the top
+    // edge; month-year derives from it (flips only on month change).
+    @State private var pinnedDay: String?
     @State private var showScrollToTop = false
     @State private var lastFavoriteTick = 0
     @State private var lastDeleteTick = 0
@@ -43,8 +59,64 @@ struct TimelineView: View {
 
                     content
                 }
+                .coordinateSpace(name: Self.scrollSpaceName)
+                .onPreferenceChange(PinnedDayPreferenceKey.self) { frames in
+                    pinnedDay = PinnedHeaderResolver.currentDay(from: frames)
+                }
+                // Photos-style pinned year + day (D8): floats over the grid,
+                // top-left, no background — photos slide beneath. White text +
+                // subtle shadow keeps it readable over any photo (Photos app
+                // look). Year flips only at year boundaries; day per day.
+                .overlay(alignment: .topLeading) {
+                    if let day = pinnedDay, !vm.selectionMode {
+                        VStack(alignment: .leading, spacing: PVSpacing.s2) {
+                            Text(DateHeaderFormatter.yearString(for: day))
+                                .font(.pvTitle)
+                                .foregroundStyle(Color.white)
+                            Text(DateHeaderFormatter.dayMonthString(for: day))
+                                .font(.pvSubhead.weight(.bold))
+                                .foregroundStyle(Color.white)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, PVSpacing.s16)
+                        .padding(.trailing, PVSpacing.s4)
+                        .padding(.top, PVSpacing.s8)
+                        .padding(.bottom, PVSpacing.s4)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1) // DS-exempt: contrast over photos
+                        .accessibilityAddTraits(.isHeader)
+                    }
+                }
                 .refreshable { await vm.refresh() }
                 .scrollDismissesKeyboard(.immediately)
+                // D7: Photos-style pinch-to-zoom grid. Simultaneous so it never
+                // blocks tap/long-press/scroll. `gridScale` commits on end, so
+                // the zoom level persists across gestures (Photos behavior).
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            columnCount = TimelineGridZoom.columns(
+                                forEffectiveScale: TimelineGridZoom.effectiveScale(
+                                    base: gridScale,
+                                    magnification: value.magnification,
+                                    defaultColumns: defaultColumnCount,
+                                    minColumns: minColumnCount,
+                                    maxColumns: maxColumnCount
+                                ),
+                                defaultColumns: defaultColumnCount,
+                                minColumns: minColumnCount,
+                                maxColumns: maxColumnCount
+                            )
+                        }
+                        .onEnded { value in
+                            gridScale = TimelineGridZoom.effectiveScale(
+                                base: gridScale,
+                                magnification: value.magnification,
+                                defaultColumns: defaultColumnCount,
+                                minColumns: minColumnCount,
+                                maxColumns: maxColumnCount
+                            )
+                        }
+                )
                 // D6: tap on empty grid area exits selection mode. Cell taps
                 // win via their own onTapGesture (hit-tested first).
                 .onTapGesture {
@@ -53,26 +125,30 @@ struct TimelineView: View {
                 .overlay(alignment: .bottomTrailing) {
                     if showScrollToTop && !vm.selectionMode {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.35)) {
+                            withAnimation(PVMotion.adaptive(PVMotion.gentle, reduceMotion: reduceMotion)) {
                                 proxy.scrollTo("top", anchor: .top)
                             }
                         } label: {
                             Image(systemName: "arrow.up")
-                                .font(.title3.weight(.medium))
-                                .foregroundStyle(.blue)
+                                .font(.pvHeadline)
+                                .foregroundStyle(Color.accentInfo)
                                 .frame(width: 44, height: 44)
                                 .background(.regularMaterial, in: Circle())
-                                .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                                .pvFloatingShadow()
                         }
                         .accessibilityLabel(String(localized: "Scroll to top"))
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 24)
+                        .padding(.trailing, PVSpacing.s16)
+                        .padding(.bottom, PVSpacing.s24)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
-                .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : "Photos")
-                .navigationBarTitleDisplayMode(.large)
+                .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : "")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
+                // Photos-style: no top bar normally (photos start right under
+                // the island); the bar returns in selection mode for the
+                // xmark + favorite/delete/add-to-album controls.
+                .toolbar(vm.selectionMode ? .visible : .hidden, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
             }
             .sensoryFeedback(.selection, trigger: vm.selectionMode)
@@ -80,7 +156,7 @@ struct TimelineView: View {
             .sensoryFeedback(.success, trigger: lastFavoriteTick)
             .sensoryFeedback(.warning, trigger: lastDeleteTick)
             // Spring on selection-mode transitions (AC-V04).
-            .animation(.spring(duration: 0.35, bounce: 0.18), value: vm.selectionMode)
+            .animation(PVMotion.standard, value: vm.selectionMode)
         }
         .task {
             if vm.items.isEmpty {
@@ -139,9 +215,9 @@ struct TimelineView: View {
     private var content: some View {
         if vm.items.isEmpty {
             if vm.isLoading {
-                SkeletonShimmerGrid(rows: 4)
-                    .padding(.horizontal, 4)
-                    .padding(.top, 4)
+                SkeletonShimmerGrid(rows: 4, columnCount: columnCount)
+                    .padding(.horizontal, PVSpacing.s4)
+                    .padding(.top, PVSpacing.s4)
             } else if vm.errorMessage != nil {
                 ContentUnavailableView {
                     Label("Couldn't load photos", systemImage: "wifi.exclamationmark")
@@ -149,7 +225,7 @@ struct TimelineView: View {
                     Text(vm.errorMessage ?? "")
                 } actions: {
                     Button("Try Again") { Task { await vm.refresh() } }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(PVPrimaryButtonStyle())
                 }
                 .padding(.top, 80)
             } else {
@@ -163,43 +239,51 @@ struct TimelineView: View {
                 .padding(.top, 80)
             }
         } else {
-            // spacing: 0 — month banners carry vertical breathing room via
-            // their own top padding (32pt). Pinned section headers sit flush.
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                ForEach(timelineSections) { section in
-                    switch section {
-                    case .monthHeader(_, let display):
-                        MonthYearBanner(display: display)
-                            .id(section.id)
+            // Continuous grid (Photos-style): ONE LazyVGrid across all day
+            // groups so rows always fill completely — no empty trailing cells
+            // from per-day grid restarts. No per-day labels: the floating
+            // month/day header is driven by the first item cell of each day.
+            LazyVStack(alignment: .leading, spacing: PVSpacing.s2) {
+                LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
+                    ForEach(timelineSections) { section in
+                        switch section {
+                        case .monthHeader(_, _):
+                            // Month banner retired — the sticky header carries it.
+                            EmptyView()
 
-                    case .dayGroup(let group):
-                        Section {
-                            LazyVGrid(columns: columns, spacing: 0) {
-                                ForEach(group.items) { item in
-                                    cellView(for: item)
-                                        .task {
-                                            // Global last-item trigger — stays correct
-                                            // under section restructure because the
-                                            // id compared is the VM's flat last id.
-                                            if item.id == vm.items.last?.id {
-                                                await vm.loadMore()
+                        case .dayGroup(let group):
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
+                                cellView(for: item)
+                                    .task {
+                                        // Global last-item trigger — stays correct
+                                        // under section restructure because the
+                                        // id compared is the VM's flat last id.
+                                        if item.id == vm.items.last?.id {
+                                            await vm.loadMore()
+                                        }
+                                    }
+                                    // First cell of each day reports the day's
+                                    // start edge (its grid position) so the
+                                    // floating header resolves the current day.
+                                    .background {
+                                        if index == 0 {
+                                            GeometryReader { proxy in
+                                                Color.clear.preference(
+                                                    key: PinnedDayPreferenceKey.self,
+                                                    value: [group.day: proxy.frame(in: .named(Self.scrollSpaceName)).minY]
+                                                )
                                             }
                                         }
-                                }
+                                    }
                             }
-                            .padding(.horizontal, 4)
-                        } header: {
-                            TimelineSectionHeader(
-                                label: DateHeaderFormatter.displayString(for: group.day)
-                            )
                         }
-                        .id(section.id)
                     }
                 }
+                .padding(.horizontal, PVSpacing.s4)
                 if vm.canLoadMore {
-                    SkeletonShimmerGrid(rows: 1)
-                        .padding(.horizontal, 4)
-                        .padding(.top, 4)
+                    SkeletonShimmerGrid(rows: 1, columnCount: columnCount)
+                        .padding(.horizontal, PVSpacing.s4)
+                        .padding(.top, PVSpacing.s4)
                 }
             }
         }
@@ -320,40 +404,25 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.isEmpty)
                 .accessibilityIdentifier("addToAlbumButton")
-            } else {
-                // Premium account-style menu: tap the avatar opens a destructive
-                // "Log Out" action. One extra tap isolates logout from fat-finger
-                // taps (safer than a bare button in the corner).
-                Menu {
-                    Button(role: .destructive) {
-                        Task { await auth.logout() }
-                    } label: {
-                        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                } label: {
-                    Image(systemName: "person.circle")
-                        .font(.title3)
-                }
-                .accessibilityLabel(String(localized: "Account"))
             }
         }
     }
 }
 
-// MARK: - Section header (refined typographic hierarchy)
+// MARK: - Pinned header support
 
-private struct TimelineSectionHeader: View {
-    let label: String
+/// Coordinate space each day grid reports its top edge into.
+private extension TimelineView {
+    static let scrollSpaceName = "timeline"
+}
 
-    var body: some View {
-        Text(label)
-            .font(.headline.weight(.medium))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
-            .accessibilityAddTraits(.isHeader)
+/// Collects each visible day grid's top edge (`minY`) in the timeline's
+/// coordinate space. LazyVStack instantiates only on-screen grids, so the
+/// dictionary stays small; `PinnedHeaderResolver` turns it into a day.
+private struct PinnedDayPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
 
@@ -364,11 +433,15 @@ private struct TimelineSectionHeader: View {
 /// `systemGray5`. NOT a spinner.
 private struct SkeletonShimmerGrid: View {
     let rows: Int
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
+    var columnCount: Int = 3
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: columnCount)
+    }
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 0) {
-            ForEach(0..<(rows * 3), id: \.self) { _ in
+        LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
+            ForEach(0..<(rows * columnCount), id: \.self) { _ in
                 SkeletonCell()
             }
         }
@@ -379,8 +452,8 @@ private struct SkeletonCell: View {
     @State private var phase: CGFloat = -1.2
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 0, style: .continuous)
-            .fill(Color(.systemGray5))
+        RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous)
+            .fill(Color.bgTertiary)
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 // Narrow highlight band (~20% of width) for a crisp sweep
@@ -397,10 +470,11 @@ private struct SkeletonCell: View {
                     endPoint: .trailing
                 )
                 .offset(x: phase * 240)
-                .mask(RoundedRectangle(cornerRadius: 0, style: .continuous))
+                .mask(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
             }
             .clipped()
             .onAppear {
+                // DS-exempt: infinite shimmer, not interactive
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 1.2
                 }
