@@ -19,10 +19,10 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-    resources:
       - path: Resources/Assets.xcassets
-      - path: Resources/Info.plist
+        buildPhase: resources
       - path: Resources/Localizable.xcstrings
+        buildPhase: resources
     info:
       path: Resources/Info.plist
       properties:

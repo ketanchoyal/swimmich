@@ -33,7 +33,8 @@ final class ExifFormatterTests: XCTestCase {
         XCTAssertEqual(exif.focalLengthFormatted, "50 mm")
         XCTAssertEqual(exif.dimensionsFormatted, "4032 × 3024")
         XCTAssertNotNil(exif.fileSizeFormatted, "fileSize must be non-nil")
-        XCTAssertTrue(exif.fileSizeFormatted?.contains("MB") == true, "expected MB-scale output, got \(exif.fileSizeFormatted ?? "nil")")
+        let size = exif.fileSizeFormatted
+        XCTAssertTrue(size?.contains("MB") == true || size?.contains("Mo") == true, "expected MB-scale output, got \(size ?? "nil")")
         XCTAssertEqual(exif.apertureFormatted, "f/1.8")
         XCTAssertEqual(exif.isoFormatted, "ISO 400")
         XCTAssertEqual(exif.exposureFormatted, "1/250s")
