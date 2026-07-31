@@ -23,8 +23,8 @@ struct AuthenticatedAsyncImage: View {
                     .aspectRatio(contentMode: .fill)
                     .transition(.opacity)
             } else if didFail {
-                Rectangle().fill(Color.gray.opacity(0.2))
-                    .overlay(Image(systemName: "photo").foregroundStyle(.secondary))
+                Rectangle().fill(Color.bgTertiary.opacity(0.2))
+                    .overlay(Image(systemName: "photo").foregroundStyle(Color.textSecondaryPV))
             } else {
                 ShimmerPlaceholder()
             }
@@ -91,12 +91,12 @@ struct ShimmerPlaceholder: View {
 
     var body: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.12))
+            .fill(Color.bgTertiary.opacity(0.12))
             .overlay(
                 LinearGradient(
                     colors: [
                         .clear,
-                        Color.white.opacity(0.35),
+                        Color.white.opacity(0.35), // DS-exempt: infinite shimmer, not interactive
                         .clear
                     ],
                     startPoint: .leading,
@@ -107,6 +107,7 @@ struct ShimmerPlaceholder: View {
             )
             .clipped()
             .onAppear {
+                // DS-exempt: infinite shimmer, not interactive
                 withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
                     phase = 1
                 }

@@ -65,7 +65,7 @@ struct AssetDetailView: View {
                     ExifInfoPanel(exif: exif, placeName: vm.placeName).padding(.horizontal)
                 }
                 if let err = vm.errorMessage {
-                    Text(err).foregroundStyle(.red).padding()
+                    Text(err).foregroundStyle(Color.statusError).padding()
                 }
             }
         }
@@ -78,7 +78,7 @@ struct ExifInfoPanel: View {
     let placeName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
             if let camera = exif.cameraFormatted { LabeledContent("Camera", value: camera) }
             if let lens = exif.lensModel { LabeledContent("Lens", value: lens) }
             if let fl = exif.focalLengthFormatted { LabeledContent("Focal Length", value: fl) }
@@ -100,8 +100,8 @@ struct ExifInfoPanel: View {
                 MiniMapView(latitude: lat, longitude: lon)
                 if let place = placeName {
                     Text(place)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.textSecondaryPV)
                         .lineLimit(1)
                 }
             }
@@ -125,7 +125,7 @@ struct MiniMapView: View {
         }
         .mapStyle(.imagery(elevation: .realistic))
         .frame(height: 180)
-        .clipShape(RoundedRectangle(cornerRadius: 0))
+        .clipShape(RoundedRectangle(cornerRadius: PVRadius.none))
         .allowsHitTesting(false)
     }
 }

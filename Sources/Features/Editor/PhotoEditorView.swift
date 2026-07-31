@@ -18,7 +18,7 @@ struct PhotoEditorView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: PVSpacing.s16) {
                     previewSection
                     CropAspectPickerView(selectedRatio: Binding(
                         get: { vm.editState.aspectRatio },
@@ -51,13 +51,13 @@ struct PhotoEditorView: View {
                         vm.resetToOriginal()
                         revertTick &+= 1
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent) // DS-exempt: destructive CTA, no DS token
                     .tint(.red)
                     .disabled(!vm.canRevert)
                     .accessibilityIdentifier("revertToOriginalButton")
 
                     if let err = vm.errorMessage {
-                        Text(err).foregroundStyle(.red).font(.caption)
+                        Text(err).foregroundStyle(Color.statusError).font(.pvCaption)
                     }
                 }
                 .padding()
@@ -140,8 +140,8 @@ struct RotationSliderView: View {
     let onRotate90CCW: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Rotation").font(.headline)
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
+            Text("Rotation").font(.pvHeadline)
             HStack {
                 Button(action: onRotate90CCW) {
                     Image(systemName: "rotate.left")
@@ -152,7 +152,7 @@ struct RotationSliderView: View {
                 }
                 Text(String(format: "%+.0f°", straightenDeg))
                     .frame(width: 48, alignment: .trailing)
-                    .font(.caption.monospacedDigit())
+                    .font(.pvCaption).monospacedDigit()
                 Button(action: onRotate90CW) {
                     Image(systemName: "rotate.right")
                 }
@@ -171,8 +171,8 @@ struct AdjustmentSlidersView: View {
     @Binding var warmth: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Adjustments").font(.headline)
+        VStack(alignment: .leading, spacing: PVSpacing.s12) {
+            Text("Adjustments").font(.pvHeadline)
             adjustmentRow(label: "Exposure", value: $exposure, range: -2...2)
             adjustmentRow(label: "Contrast", value: $contrast, range: -1...1)
             adjustmentRow(label: "Saturation", value: $saturation, range: -1...1)
@@ -186,7 +186,7 @@ struct AdjustmentSlidersView: View {
             Slider(value: value, in: range, step: 0.05)
             Text(String(format: "%+.2f", value.wrappedValue))
                 .frame(width: 56, alignment: .trailing)
-                .font(.caption.monospacedDigit())
+                .font(.pvCaption).monospacedDigit()
         }
     }
 }
@@ -197,19 +197,19 @@ struct CropAspectPickerView: View {
     @Binding var selectedRatio: CropAspectRatio?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Crop Ratio").font(.headline)
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
+            Text("Crop Ratio").font(.pvHeadline)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+                HStack(spacing: PVSpacing.s8) {
                     ForEach(CropAspectRatio.allCases, id: \.self) { ratio in
                         Button {
                             selectedRatio = (selectedRatio == ratio) ? nil : ratio
                         } label: {
                             Text(displayName(ratio))
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(selectedRatio == ratio ? Color.accentColor.opacity(0.3) : Color.gray.opacity(0.1))
+                                .font(.pvCaption)
+                                .padding(.horizontal, PVSpacing.s8)
+                                .padding(.vertical, PVSpacing.s8)
+                                .background(selectedRatio == ratio ? Color.brandIndigo.opacity(0.3) : Color.bgTertiary.opacity(0.1))
                                 .clipShape(Capsule())
                         }
                         .accessibilityIdentifier("ratioButton.\(ratio.rawValue)")

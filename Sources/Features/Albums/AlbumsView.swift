@@ -10,7 +10,7 @@ struct AlbumsView: View {
     @Environment(AuthViewModel.self) private var auth
     @State private var presentingCreate = false
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 2)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s4), count: 2)
 
     var body: some View {
         NavigationStack {
@@ -25,8 +25,12 @@ struct AlbumsView: View {
                     albumGrid
                 }
             }
-            .navigationTitle("Albums")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ImmichAppBar()
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         presentingCreate = true
@@ -56,7 +60,7 @@ struct AlbumsView: View {
 
     private var albumGrid: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 4) {
+            LazyVGrid(columns: columns, spacing: PVSpacing.s4) {
                 ForEach(vm.albums, id: \.id) { album in
                     NavigationLink {
                         AlbumDetailView(albumId: album.id)
@@ -66,7 +70,7 @@ struct AlbumsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, PVSpacing.s4)
         }
     }
 }
@@ -78,7 +82,7 @@ private struct AlbumCard: View {
     let token: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
@@ -87,18 +91,18 @@ private struct AlbumCard: View {
                         AuthenticatedAsyncImage(url: url, token: token)
                     } else {
                         Image(systemName: "rectangle.stack")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
+                            .font(.pvTitleXL)
+                            .foregroundStyle(Color.textSecondaryPV)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: PVRadius.none, style: .continuous))
 
             Text(album.albumName)
-                .font(.subheadline.weight(.medium))
+                .font(.pvSubhead)
                 .lineLimit(1)
             Text("\(album.assetCount) item\(album.assetCount == 1 ? "" : "s")")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.pvCaption)
+                .foregroundStyle(Color.textSecondaryPV)
         }
     }
 }

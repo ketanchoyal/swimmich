@@ -67,8 +67,8 @@ struct BackupSettingsView: View {
                 }
                 Section("Backup") {
                     Text("Background backup is a roadmap item. The upload API surface is wired and unit-tested.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.textSecondaryPV)
                 }
                 // AC-114: Require Face ID toggle. @AppStorage mirrors the
                 // same UserDefaults key AppLockViewModel reads, and onChange
@@ -80,7 +80,13 @@ struct BackupSettingsView: View {
                         }
                 }
             }
-            .navigationTitle("Backup")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ImmichAppBar(title: "Backup")
+                }
+            }
         }
     }
 }

@@ -36,8 +36,8 @@ struct TrashView: View {
             }
             .refreshable { await vm.refresh() }
             .scrollDismissesKeyboard(.immediately)
-            .navigationTitle("Trash")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .toolbarBackground(.visible, for: .navigationBar)
             .sensoryFeedback(.success, trigger: lastRestoreTick)
@@ -103,7 +103,7 @@ struct TrashView: View {
                     Text(vm.errorMessage ?? "")
                 } actions: {
                     Button("Try Again") { Task { await vm.refresh() } }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(PVPrimaryButtonStyle())
                 }
                 .padding(.top, 80)
             } else {
@@ -129,7 +129,7 @@ struct TrashView: View {
                                     }
                             }
                         }
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, PVSpacing.s4)
                     } header: {
                         TrashSectionHeader(
                             label: DateHeaderFormatter.displayString(for: group.day)
@@ -139,7 +139,7 @@ struct TrashView: View {
                 }
                 if vm.canLoadMore {
                     ProgressView()
-                        .padding(.vertical, 12)
+                        .padding(.vertical, PVSpacing.s12)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -153,11 +153,11 @@ struct TrashView: View {
 
         var body: some View {
             Text(label)
-                .font(.headline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .font(.pvHeadline)
+                .foregroundStyle(Color.textSecondaryPV)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
+                .padding(.horizontal, PVSpacing.s24)
+                .padding(.vertical, PVSpacing.s8)
                 .background(.regularMaterial)
                 .accessibilityAddTraits(.isHeader)
         }
@@ -166,16 +166,16 @@ struct TrashView: View {
     /// 30-day info banner. Scrolls with the grid (not sticky). Cahier line 98.
     @ViewBuilder
     private var trashInfoBanner: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: PVSpacing.s8) {
             Image(systemName: "trash")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.textSecondaryPV)
             Text("Items in trash are permanently deleted after 30 days.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(.pvCaption)
+                .foregroundStyle(Color.textSecondaryPV)
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, PVSpacing.s12)
+        .padding(.vertical, PVSpacing.s8)
     }
 
     // MARK: - Cell
@@ -204,6 +204,9 @@ struct TrashView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            ImmichAppBar(title: "Trash")
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 Task {

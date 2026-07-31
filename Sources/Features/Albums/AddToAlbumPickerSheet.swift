@@ -19,12 +19,12 @@ struct AddToAlbumPickerSheet: View {
             List {
                 Section("Selected") {
                     Label("\(selectedAssetIds.count) photo\(selectedAssetIds.count == 1 ? "" : "s")", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.textSecondaryPV)
                 }
                 Section("Albums") {
                     if albumsVM.albums.isEmpty {
                         Text("No albums yet")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.textSecondaryPV)
                     }
                     ForEach(albumsVM.albums, id: \.id) { album in
                         Button {
@@ -32,13 +32,13 @@ struct AddToAlbumPickerSheet: View {
                         } label: {
                             HStack {
                                 if addedAlbumId == album.id {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.statusSuccess)
                                 }
                                 VStack(alignment: .leading) {
-                                    Text(album.albumName).foregroundStyle(.primary)
+                                    Text(album.albumName).foregroundStyle(Color.textPrimaryPV)
                                     Text("\(album.assetCount) item\(album.assetCount == 1 ? "" : "s")")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.pvCaption)
+                                        .foregroundStyle(Color.textSecondaryPV)
                                 }
                                 Spacer()
                             }

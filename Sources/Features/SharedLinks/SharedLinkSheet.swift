@@ -91,20 +91,20 @@ struct SharedLinkSheet: View {
     }
 
     private func linkRow(_ link: SharedLinkResponseDto) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
             HStack {
                 if link.password != nil {
                     Image(systemName: "lock.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.textSecondaryPV)
                 }
                 Text(link.description ?? "Untitled link")
-                    .font(.subheadline.weight(.medium))
+                    .font(.pvSubhead)
                     .lineLimit(1)
             }
             HStack {
                 Text(shareURL(for: link))
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
+                    .font(.pvCaption).monospacedDigit()
+                    .foregroundStyle(Color.textSecondaryPV)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
