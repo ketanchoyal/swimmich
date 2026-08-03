@@ -181,6 +181,14 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sharedLinks.path("/\(id)"), body: nil)
     }
 
+    // MARK: - Users (photo share — shared-album user picker)
+
+    /// `GET /api/users` — instance users. On Immich builds where this is
+    /// admin-gated, the caller surfaces a friendly empty/error state.
+    func getUsers() async throws -> [UserResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.users.path(""))
+    }
+
     // MARK: - Upload
 
     func uploadAsset(

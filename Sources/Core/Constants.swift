@@ -14,6 +14,7 @@ enum ImmichAPI {
     static let people = SubPath(root: "/people") // AC-400 (deferred People feature)
     static let albums = SubPath(root: "/albums") // AC-500
     static let sharedLinks = SubPath(root: "/shared-links") // AC-500
+    static let users = SubPath(root: "/users") // photo share — user picker
 
     struct SubPath {
         let root: String

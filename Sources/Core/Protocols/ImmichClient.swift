@@ -55,6 +55,9 @@ protocol ImmichClient: AnyObject, Sendable {
     func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto
     func deleteSharedLink(id: String) async throws
 
+    // MARK: - Users (photo share — shared-album user picker)
+    func getUsers() async throws -> [UserResponseDto]
+
     /// Uploads an asset via multipart/form-data.
     /// `checksum` is base64-encoded SHA1 (also sent as `x-immich-checksum` header).
     func uploadAsset(

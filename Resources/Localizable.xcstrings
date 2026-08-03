@@ -1,355 +1,1338 @@
 {
   "sourceLanguage" : "en",
-  "version" : "1.0",
   "strings" : {
+    "%@ item%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ item%2$@"
+          }
+        }
+      }
+    },
+    "%@ photos" : {
 
+    },
+    "%lld items" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld éléments"
+          }
+        }
+      }
+    },
+    "%lld photos selected" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld photos sélectionnées"
+          }
+        }
+      }
+    },
+    "%lld selected" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sélectionné(s)"
+          }
+        }
+      }
+    },
+    "360°" : {
+
+    },
     "Account" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Compte" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte"
+          }
+        }
+      }
     },
     "Add photos from the Timeline using “Add to Album”." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajoutez des photos depuis la Pellicule via « Ajouter à l'album »." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez des photos depuis la Pellicule via « Ajouter à l'album »."
+          }
+        }
+      }
     },
     "Add to Album" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajouter à l'album" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter à l'album"
+          }
+        }
+      }
     },
     "Adjustments" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ajustements" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustements"
+          }
+        }
+      }
+    },
+    "ADRESSE DU SERVEUR" : {
+
     },
     "Album" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Album" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album"
+          }
+        }
+      }
     },
     "Album Deleted" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Album supprimé" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album supprimé"
+          }
+        }
+      }
     },
     "Album Unavailable" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Album indisponible" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album indisponible"
+          }
+        }
+      }
     },
     "Albums" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Albums" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Albums"
+          }
+        }
+      }
     },
     "All items in trash will be permanently deleted. Action cannot be undone." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tous les éléments de la corbeille seront définitivement supprimés. Action irréversible." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les éléments de la corbeille seront définitivement supprimés. Action irréversible."
+          }
+        }
+      }
     },
     "Aperture" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ouverture" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouverture"
+          }
+        }
+      }
     },
     "Background backup is a roadmap item. The upload API surface is wired and unit-tested." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "La sauvegarde en arrière-plan est planifiée. L'API d'envoi est câblée et testée unitairement." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sauvegarde en arrière-plan est planifiée. L'API d'envoi est câblée et testée unitairement."
+          }
+        }
+      }
     },
     "Backup" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Sauvegarde" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegarde"
+          }
+        }
+      }
     },
-    "Cameras" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Appareils photo" } } }
+    "Bienvenue sur Immich" : {
+
     },
     "Camera" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Appareil photo" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appareil photo"
+          }
+        }
+      }
+    },
+    "Cameras" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appareils photo"
+          }
+        }
+      }
     },
     "Cancel" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Annuler" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        }
+      }
     },
-    "Contrast" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Contraste" } } }
+    "Compte" : {
+
+    },
+    "Configurez votre serveur et connectez-vous." : {
+
+    },
+    "Connectez votre serveur" : {
+
     },
     "Continue to login" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Continuer vers la connexion" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer vers la connexion"
+          }
+        }
+      }
+    },
+    "Continuer" : {
+
+    },
+    "Contrast" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contraste"
+          }
+        }
+      }
     },
     "Could not reach server." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible de joindre le serveur." } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de joindre le serveur."
+          }
+        }
+      }
     },
     "Couldn't load trash" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Impossible de charger la corbeille" } } }
-    },
-    "Create" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer" } } }
-    },
-    "Create an album to organize your photos." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créez un album pour organiser vos photos." } } }
-    },
-    "Create Link" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Créer le lien" } } }
-    },
-    "Credentials" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Identifiants" } } }
-    },
-    "Crop Ratio" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Ratio de recadrage" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de charger la corbeille"
+          }
+        }
+      }
     },
     "Countries" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Pays" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pays"
+          }
+        }
+      }
+    },
+    "Create" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer"
+          }
+        }
+      }
+    },
+    "Create an album to organize your photos." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créez un album pour organiser vos photos."
+          }
+        }
+      }
+    },
+    "Create Link" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer le lien"
+          }
+        }
+      }
+    },
+    "Creating shared links from here isn't available yet." : {
+
+    },
+    "Credentials" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiants"
+          }
+        }
+      }
+    },
+    "Crop Ratio" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ratio de recadrage"
+          }
+        }
+      }
     },
     "Date" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Date" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
+          }
+        }
+      }
     },
     "Delete" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer"
+          }
+        }
+      }
     },
     "Delete Album" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Supprimer l'album" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer l'album"
+          }
+        }
+      }
     },
     "Deleted photos and videos appear here for 30 days before being permanently removed." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les photos et vidéos supprimées apparaissent ici pendant 30 jours avant d'être définitivement supprimées." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos et vidéos supprimées apparaissent ici pendant 30 jours avant d'être définitivement supprimées."
+          }
+        }
+      }
     },
     "Description" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Description" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        }
+      }
     },
     "Description (optional)" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Description (facultatif)" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description (facultatif)"
+          }
+        }
+      }
     },
     "Dimensions" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Dimensions" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dimensions"
+          }
+        }
+      }
     },
     "Done" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Terminé" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminé"
+          }
+        }
+      }
     },
     "Edit" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modifier" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier"
+          }
+        }
+      }
     },
     "Email" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "E-mail" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "E-mail"
+          }
+        }
+      }
+    },
+    "Empty Trash" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vider la corbeille"
+          }
+        }
+      }
+    },
+    "Empty Trash?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vider la corbeille ?"
+          }
+        }
+      }
     },
     "Error" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Erreur" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erreur"
+          }
+        }
+      }
     },
     "Existing Links" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Liens existants" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liens existants"
+          }
+        }
+      }
     },
     "Explore" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Explorer" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explorer"
+          }
+        }
+      }
     },
     "Explore requires photos with EXIF metadata or recognized places." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Explorer nécessite des photos avec métadonnées EXIF ou des lieux reconnus." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explorer nécessite des photos avec métadonnées EXIF ou des lieux reconnus."
+          }
+        }
+      }
     },
     "Exposure" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Exposition" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exposition"
+          }
+        }
+      }
     },
     "External" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Externe" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Externe"
+          }
+        }
+      }
     },
     "Favorite" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Favori" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favori"
+          }
+        }
+      }
     },
     "File Size" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Taille du fichier" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taille du fichier"
+          }
+        }
+      }
     },
     "Find photos by place, object, camera, or natural language." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Trouvez des photos par lieu, objet, appareil photo ou langage naturel." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trouvez des photos par lieu, objet, appareil photo ou langage naturel."
+          }
+        }
+      }
     },
     "Focal Length" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Distance focale" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distance focale"
+          }
+        }
+      }
+    },
+    "Gestion" : {
+
+    },
+    "Identifiez-vous" : {
+
     },
     "Immich" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Immich" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich"
+          }
+        }
+      }
+    },
+    "Indiquez l'URL de votre instance Immich." : {
+
     },
     "Initialized" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Initialisé" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Initialisé"
+          }
+        }
+      }
     },
     "ISO" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "ISO" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISO"
+          }
+        }
+      }
     },
     "Items in trash are permanently deleted after 30 days." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les éléments de la corbeille sont définitivement supprimés après 30 jours." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les éléments de la corbeille sont définitivement supprimés après 30 jours."
+          }
+        }
+      }
     },
     "Lens" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Objectif" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objectif"
+          }
+        }
+      }
+    },
+    "Loading photos…" : {
+
     },
     "Location" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Emplacement" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emplacement"
+          }
+        }
+      }
     },
     "Log Out" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Se déconnecter" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se déconnecter"
+          }
+        }
+      }
+    },
+    "Map" : {
+
     },
     "Metadata" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Métadonnées" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Métadonnées"
+          }
+        }
+      }
     },
     "Models" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Modèles" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèles"
+          }
+        }
+      }
     },
     "Name" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nom" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom"
+          }
+        }
+      }
     },
     "New Album" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nouvel album" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvel album"
+          }
+        }
+      }
     },
     "New Link" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Nouveau lien" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau lien"
+          }
+        }
+      }
     },
     "Next" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Suivant" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suivant"
+          }
+        }
+      }
+    },
+    "No" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non"
+          }
+        }
+      }
     },
     "No albums yet" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucun album" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun album"
+          }
+        }
+      }
     },
     "No Image" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Pas d'image" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas d'image"
+          }
+        }
+      }
     },
     "No results" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucun résultat" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun résultat"
+          }
+        }
+      }
     },
     "No suggestions available" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Aucune suggestion disponible" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune suggestion disponible"
+          }
+        }
+      }
     },
     "Not selected" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Non sélectionné" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non sélectionné"
+          }
+        }
+      }
     },
     "OK" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "OK" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
     },
     "Orientation" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Orientation" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orientation"
+          }
+        }
+      }
     },
     "Password" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mot de passe" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe"
+          }
+        }
+      }
     },
     "Password protect" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Protection par mot de passe" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protection par mot de passe"
+          }
+        }
+      }
     },
     "Photos" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Photos" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos"
+          }
+        }
+      }
+    },
+    "Photos you upload to Immich will appear here." : {
+
     },
     "PhotoVault Locked" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "PhotoVault verrouillé" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PhotoVault verrouillé"
+          }
+        }
+      }
     },
     "Places" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Lieux" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lieux"
+          }
+        }
+      }
     },
     "Projection" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Projection" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projection"
+          }
+        }
+      }
     },
     "Rating" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Note" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        }
+      }
+    },
+    "Réessayer" : {
+
     },
     "Remove" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Retirer" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer"
+          }
+        }
+      }
     },
     "Remove from Album" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Retirer de l'album" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer de l'album"
+          }
+        }
+      }
     },
     "Require Face ID" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Exiger Face ID" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exiger Face ID"
+          }
+        }
+      }
     },
     "Restore All" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Tout restaurer" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout restaurer"
+          }
+        }
+      }
     },
     "Results" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Résultats" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Résultats"
+          }
+        }
+      }
     },
     "Revenir à l'original" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Revert to original" } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Revenir à l'original" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revert to original"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revenir à l'original"
+          }
+        }
       }
     },
     "Revoke" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Révoquer" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Révoquer"
+          }
+        }
+      }
     },
     "Rotation" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rotation" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotation"
+          }
+        }
+      }
     },
     "Saturation" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Saturation" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saturation"
+          }
+        }
+      }
     },
     "Scroll to top" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Revenir en haut" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revenir en haut"
+          }
+        }
+      }
+    },
+    "Se connecter" : {
+
     },
     "Search" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher"
+          }
+        }
+      }
     },
     "Search Mode" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Mode de recherche" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode de recherche"
+          }
+        }
+      }
     },
     "Search photos, places, and people" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher des photos, lieux et personnes" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des photos, lieux et personnes"
+          }
+        }
+      }
     },
     "Search your library" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Rechercher dans votre bibliothèque" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher dans votre bibliothèque"
+          }
+        }
+      }
     },
     "Security" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Sécurité" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sécurité"
+          }
+        }
+      }
     },
     "Selected" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Sélectionné" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionné"
+          }
+        }
+      }
     },
     "Server" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Serveur" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serveur"
+          }
+        }
+      }
     },
     "Server URL" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "URL du serveur" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL du serveur"
+          }
+        }
+      }
     },
     "Shared Links" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Liens partagés" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liens partagés"
+          }
+        }
+      }
     },
     "Sign in" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Se connecter" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter"
+          }
+        }
+      }
     },
     "Smart" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Intelligent" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intelligent"
+          }
+        }
+      }
     },
     "Something went wrong" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Une erreur est survenue" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une erreur est survenue"
+          }
+        }
+      }
     },
     "Straighten" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Redresser" } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redresser"
+          }
+        }
+      }
     },
     "This asset will be permanently deleted. Action cannot be undone." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Cet élément sera définitivement supprimé. Action irréversible." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet élément sera définitivement supprimé. Action irréversible."
+          }
+        }
+      }
+    },
+    "This removes it from your library. Action cannot be undone." : {
+
+    },
+    "This removes them from your library. Action cannot be undone." : {
+
     },
     "Time Zone" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Fuseau horaire" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuseau horaire"
+          }
+        }
+      }
     },
     "Timeline" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Pellicule" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pellicule"
+          }
+        }
+      }
     },
     "Trash" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Corbeille" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corbeille"
+          }
+        }
+      }
     },
     "Trash is Empty" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Corbeille vide" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corbeille vide"
+          }
+        }
+      }
     },
     "Try a different search term." : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Essayez un autre terme de recherche." } } }
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essayez un autre terme de recherche."
+          }
+        }
+      }
     },
     "Try Again" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Réessayer" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer"
+          }
+        }
+      }
     },
     "Unlock" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déverrouiller" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller"
+          }
+        }
+      }
     },
     "Unlock PhotoVault" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Déverrouiller PhotoVault" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller PhotoVault"
+          }
+        }
+      }
     },
     "User" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Utilisateur" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisateur"
+          }
+        }
+      }
+    },
+    "Utilisez votre compte Immich pour accéder à la photothèque." : {
+
+    },
+    "Vérification du serveur…" : {
+
+    },
+    "Vérifier la connexion" : {
+
     },
     "Version" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Version" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
     },
     "View" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Affichage" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affichage"
+          }
+        }
+      }
+    },
+    "Vos liens partagés apparaîtront ici." : {
+
     },
     "Warmth" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Chaleur" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaleur"
+          }
+        }
+      }
     },
     "Yes" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Oui" } } }
-    },
-    "No" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Non" } } }
-    },
-    "%lld selected" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "%lld sélectionné(s)" } } }
-    },
-    "%lld items" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "%lld éléments" } } }
-    },
-    "%lld photos selected" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "%lld photos sélectionnées" } } }
-    },
-    "Empty Trash" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vider la corbeille" } } }
-    },
-    "Empty Trash?" : {
-      "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Vider la corbeille ?" } } }
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oui"
+          }
+        }
+      }
     }
-  }
+  },
+  "version" : "1.0"
 }

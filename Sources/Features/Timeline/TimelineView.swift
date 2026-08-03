@@ -40,6 +40,7 @@ struct TimelineView: View {
     @State private var pendingDeleteSelected = false
     @State private var pendingDeleteSingleID: String?
     @State private var presentAlbumPicker = false // AC-515 — Add to Album sheet
+    @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
     init(vm: TimelineViewModel) {
         _vm = State(initialValue: vm)
@@ -207,6 +208,21 @@ struct TimelineView: View {
                 vm.exitSelectionMode()
             }
         }
+        // Full-screen photo viewer (tap any photo → Photos-style browse/zoom).
+        .photoViewer(
+            item: $viewerItem,
+            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            token: auth.accessToken,
+            onToggleFavorite: { asset in
+                Task {
+                    await vm.toggleFavorite(id: asset.id)
+                    lastFavoriteTick &+= 1
+                }
+            },
+            onDelete: { asset in
+                Task { await vm.delete(id: asset.id) }
+            }
+        )
     }
 
     // MARK: - Content (skeleton / empty / grid)
@@ -315,6 +331,8 @@ struct TimelineView: View {
                 if vm.selectionMode {
                     vm.toggleSelection(id: item.id)
                     lastSelectionTick &+= 1
+                } else {
+                    openViewer(for: item)
                 }
             },
             onToggleFavorite: {
@@ -341,19 +359,22 @@ struct TimelineView: View {
                     lastSelectionTick &+= 1
                 }
         } else {
-            NavigationLink {
-                AssetDetailView(asset: item)
-            } label: {
-                cell
-            }
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.4).onEnded { _ in
+            cell
+                .onLongPressGesture(minimumDuration: 0.4) {
                     vm.enterSelectionMode()
                     vm.toggleSelection(id: item.id)
                     lastSelectionTick &+= 1
                 }
-            )
         }
+    }
+
+    // MARK: - Full-screen photo viewer
+
+    /// Opens the Photos-style viewer at `item`, paging through the flat
+    /// timeline order (matches grid visual order — `groupedByDay` preserves it).
+    private func openViewer(for item: AssetReactItem) {
+        guard let idx = vm.items.firstIndex(where: { $0.id == item.id }) else { return }
+        viewerItem = PhotoViewerItem(assets: vm.items, index: idx)
     }
 
     // MARK: - Toolbar — swaps between normal + selection modes (SF Symbols, V03)

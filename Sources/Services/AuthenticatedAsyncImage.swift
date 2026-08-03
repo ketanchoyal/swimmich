@@ -12,6 +12,9 @@ struct AuthenticatedAsyncImage: View {
     let url: URL?
     let token: String?
 
+    /// Fitting mode: `.fill` (default, thumbnails) vs `.fit` (full-screen viewer).
+    var contentMode: ContentMode = .fill
+
     @State private var image: UIImage?
     @State private var didFail = false
 
@@ -20,7 +23,7 @@ struct AuthenticatedAsyncImage: View {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: contentMode)
                     .transition(.opacity)
             } else if didFail {
                 Rectangle().fill(Color.bgTertiary.opacity(0.2))

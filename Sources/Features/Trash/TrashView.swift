@@ -24,6 +24,7 @@ struct TrashView: View {
     @State private var lastDeleteTick = 0
     @State private var pendingDeletePermanentID: String?
     @State private var pendingEmptyAll = false
+    @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
     init(vm: TrashViewModel) {
         _vm = State(initialValue: vm)
@@ -87,6 +88,24 @@ struct TrashView: View {
                 await vm.load()
             }
         }
+        // Full-screen photo viewer (tap any photo → browse/zoom, Info-only).
+        .photoViewer(
+            item: $viewerItem,
+            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            token: auth.accessToken,
+            onRestore: { asset in
+                Task { await vm.restore(id: asset.id) }
+            },
+            onDeletePermanent: { asset in
+                Task { await vm.deletePermanently(id: asset.id) }
+            }
+        )
+    }
+
+    /// Opens the Photos-style viewer at `item`, paging through trash order.
+    private func openViewer(for item: AssetReactItem) {
+        guard let idx = vm.items.firstIndex(where: { $0.id == item.id }) else { return }
+        viewerItem = PhotoViewerItem(assets: vm.items, index: idx)
     }
 
     // MARK: - Content
@@ -186,7 +205,9 @@ struct TrashView: View {
             asset: item,
             baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
             token: auth.accessToken,
-            onTap: {}, // Trash tab: no detail navigation in MVP.
+            onTap: {
+                openViewer(for: item)
+            },
             onRestore: {
                 Task {
                     await vm.restore(id: item.id)

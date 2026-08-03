@@ -100,6 +100,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var deleteSharedLinkCallCount = 0
     var deleteSharedLinkError: Error?
 
+    // Users capture (photo share user picker)
+    var getUsersResponse: [UserResponseDto]?
+    var getUsersError: Error?
+
     // Upload capture (AC-008)
     var lastUploadData: Data?
     var lastUploadFileCreatedAt: String?
@@ -353,6 +357,12 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         deleteSharedLinkCallCount += 1
         lastDeleteSharedLinkId = id
         if let e = globalError ?? deleteSharedLinkError { throw e }
+    }
+
+    func getUsers() async throws -> [UserResponseDto] {
+        bump()
+        if let e = globalError ?? getUsersError { throw e }
+        return getUsersResponse ?? []
     }
 
     func uploadAsset(

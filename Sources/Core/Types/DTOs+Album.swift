@@ -32,10 +32,24 @@ struct AlbumResponseDto: Codable, Equatable {
 
 /// `CreateAlbumDto` body for `POST /api/albums`.
 /// Optional fields are omitted from JSON when nil (synthesized Codable behavior).
+/// `albumUsers` (Immich ≥ 1.109) creates the album pre-shared with those users.
 struct CreateAlbumDto: Codable, Equatable {
     let albumName: String
     let description: String?
     let assetIds: [String]?
+    var albumUsers: [AlbumUserDto]? = nil
+}
+
+/// `AlbumUserRole` — collaborator role in a shared album.
+enum AlbumUserRole: String, Codable, Equatable, Sendable {
+    case editor = "EDITOR"
+    case viewer = "VIEWER"
+}
+
+/// `AlbumUserDto` — a user + role attached to an album (shared albums).
+struct AlbumUserDto: Codable, Equatable, Sendable {
+    let userId: String
+    let role: AlbumUserRole
 }
 
 /// `BulkIdResponseDto` — per-asset result for bulk add/remove album assets.

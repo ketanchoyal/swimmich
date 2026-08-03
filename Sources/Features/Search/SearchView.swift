@@ -16,6 +16,8 @@ struct SearchView: View {
     @Bindable var mapVM: MapViewModel
     @Environment(AuthViewModel.self) private var auth
 
+    @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
+
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
 
     var body: some View {
@@ -50,7 +52,24 @@ struct SearchView: View {
                     }
                 }
             }
+            // Full-screen photo viewer (tap any result photo → browse/zoom).
+            // Favorite/delete run self-sufficient; re-run the search so the
+            // results grid reflects mutations after the viewer closes.
+            .photoViewer(
+                item: $viewerItem,
+                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                token: auth.accessToken,
+                onDataChanged: {
+                    Task { await vm.search() }
+                }
+            )
         }
+    }
+
+    /// Opens the Photos-style viewer at `item`, paging through search results.
+    private func openViewer(for item: AssetReactItem) {
+        guard let idx = vm.results.firstIndex(where: { $0.id == item.id }) else { return }
+        viewerItem = PhotoViewerItem(assets: vm.results, index: idx)
     }
 
     // MARK: - Shared chrome
@@ -165,16 +184,13 @@ struct SearchView: View {
 
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(vm.results) { item in
-                        NavigationLink {
-                            AssetDetailView(asset: item)
-                        } label: {
-                            AssetThumbnailCell(
-                                asset: item,
-                                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                                token: auth.accessToken
-                            )
-                            .buttonStyle(.plain)
-                        }
+                        AssetThumbnailCell(
+                            asset: item,
+                            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                            token: auth.accessToken,
+                            onTap: { openViewer(for: item) }
+                        )
+                        .buttonStyle(.plain)
                         .onAppear {
                             // AC-406: trigger next page when the last cell appears.
                             if item.id == vm.results.last?.id {

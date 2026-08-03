@@ -12,6 +12,7 @@ struct AlbumDetailView: View {
     @State private var pendingRemoveAssetId: String?
     @State private var lastRemoveTick = 0
     @State private var lastDeleteTick = 0
+    @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
 
@@ -77,6 +78,23 @@ struct AlbumDetailView: View {
         }
         .sensoryFeedback(.warning, trigger: lastDeleteTick)
         .sensoryFeedback(.success, trigger: lastRemoveTick)
+        // Full-screen photo viewer (tap any photo → browse/zoom).
+        // Favorite/delete run self-sufficient on the shared client; refresh
+        // the album grid after a mutation so badges/rows stay in sync.
+        .photoViewer(
+            item: $viewerItem,
+            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            token: auth.accessToken,
+            onDataChanged: {
+                Task { await vm.load() }
+            }
+        )
+    }
+
+    /// Opens the Photos-style viewer at `item`, paging through album order.
+    private func openViewer(for item: AssetReactItem) {
+        guard let idx = vm.assets.firstIndex(where: { $0.id == item.id }) else { return }
+        viewerItem = PhotoViewerItem(assets: vm.assets, index: idx)
     }
 
     @ViewBuilder
@@ -91,16 +109,12 @@ struct AlbumDetailView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(vm.assets, id: \.id) { item in
-                        NavigationLink {
-                            AssetDetailView(asset: item)
-                        } label: {
-                            AssetThumbnailCell(
-                                asset: item,
-                                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                                token: auth.accessToken,
-                                onTap: {}
-                            )
-                        }
+                        AssetThumbnailCell(
+                            asset: item,
+                            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                            token: auth.accessToken,
+                            onTap: { openViewer(for: item) }
+                        )
                         .buttonStyle(.plain)
                         .contextMenu {
                             Button(role: .destructive) {

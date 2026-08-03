@@ -93,6 +93,8 @@ struct MapSegmentView: View {
 /// header + one row, large = full-screen browsing).
 struct MapPhotosSheet: View {
     let vm: MapViewModel
+    @Environment(AuthViewModel.self) private var auth
+    @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
@@ -115,13 +117,9 @@ struct MapPhotosSheet: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
                         ForEach(vm.visiblePhotos) { photo in
-                            NavigationLink {
-                                AssetDetailView(asset: photo.asAssetItem)
-                            } label: {
-                                MapThumb(photo: photo)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(photo.placeName.isEmpty ? "Photo" : "Photo at \(photo.placeName)")
+                            MapThumb(photo: photo)
+                                .onTapGesture { openViewer(for: photo.asAssetItem) }
+                                .accessibilityLabel(photo.placeName.isEmpty ? "Photo" : "Photo at \(photo.placeName)")
                         }
                     }
                     .padding(.horizontal)
@@ -129,7 +127,26 @@ struct MapPhotosSheet: View {
                 }
             }
             .padding(.top, PVSpacing.s12)
+            // Full-screen photo viewer (tap any map photo → browse/zoom).
+            // Favorite/delete run self-sufficient; reload markers after a
+            // mutation so the map reflects changes.
+            .photoViewer(
+                item: $viewerItem,
+                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                token: auth.accessToken,
+                onDataChanged: {
+                    Task { await vm.reload() }
+                }
+            )
         }
+    }
+
+    /// Opens the Photos-style viewer at `item`, paging through the visible
+    /// region's photos (same order as the sheet grid).
+    private func openViewer(for item: AssetReactItem) {
+        let items = vm.visiblePhotos.map(\.asAssetItem)
+        guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
+        viewerItem = PhotoViewerItem(assets: items, index: idx)
     }
 
     /// First non-empty place name among the visible photos, else a generic label.

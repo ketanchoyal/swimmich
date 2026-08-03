@@ -230,4 +230,29 @@ final class ImmichAPIClientTests: XCTestCase {
         }
         XCTAssertEqual(captured.url?.query, nil, "no query params expected")
     }
+
+    // Photo share: GET /api/users returns the instance users.
+    func test_photoShare_getUsers_hitsUsersEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        let usersJSON = """
+        [{"id":"u1","name":"Alice","email":"alice@example.com","profileImagePath":"","avatarColor":"#4250AF","profileChangedAt":"2024-01-01T00:00:00.000Z"}]
+        """
+        CapturingURLProtocol.nextData = usersJSON.data(using: .utf8)!
+
+        let users = try await client.getUsers()
+
+        XCTAssertEqual(users.count, 1)
+        XCTAssertEqual(users.first?.id, "u1")
+        XCTAssertEqual(users.first?.name, "Alice")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/users")
+        XCTAssertEqual(captured.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
+    }
 }

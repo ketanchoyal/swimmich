@@ -254,4 +254,40 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertNil(obj2?["albumIds"])
         XCTAssertEqual(obj2?["query"] as? String, "x")
     }
+
+    // Photo share: AlbumUserRole raw values match the server contract.
+    func test_photoShare_albumUserRoleRawValues() {
+        XCTAssertEqual(AlbumUserRole.editor.rawValue, "EDITOR")
+        XCTAssertEqual(AlbumUserRole.viewer.rawValue, "VIEWER")
+    }
+
+    // Photo share: CreateAlbumDto round-trips albumUsers (shared album).
+    func test_photoShare_createAlbumWithUsersRoundTrip() throws {
+        let dto = CreateAlbumDto(
+            albumName: "Weekend",
+            description: nil,
+            assetIds: ["a1"],
+            albumUsers: [AlbumUserDto(userId: "u1", role: .editor), AlbumUserDto(userId: "u2", role: .viewer)]
+        )
+
+        let enc = try JSONEncoder.immich.encode(dto)
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+        XCTAssertEqual(obj?["albumName"] as? String, "Weekend")
+        XCTAssertEqual(obj?["assetIds"] as? [String], ["a1"])
+        let users = obj?["albumUsers"] as? [[String: Any]]
+        XCTAssertEqual(users?.count, 2)
+        XCTAssertEqual(users?.first?["userId"] as? String, "u1")
+        XCTAssertEqual(users?.first?["role"] as? String, "EDITOR")
+
+        let decoded = try JSONDecoder.immich.decode(CreateAlbumDto.self, from: enc)
+        XCTAssertEqual(decoded.albumUsers, dto.albumUsers)
+    }
+
+    // Photo share: albumUsers is omitted from the wire when nil (backward compatible).
+    func test_photoShare_createAlbumWithoutUsersOmitsField() throws {
+        let dto = CreateAlbumDto(albumName: "Plain", description: nil, assetIds: nil)
+        let enc = try JSONEncoder.immich.encode(dto)
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+        XCTAssertNil(obj?["albumUsers"])
+    }
 }
