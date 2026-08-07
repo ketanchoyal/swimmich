@@ -2,41 +2,70 @@ import SwiftUI
 import MapKit
 
 /// Map segment for the Search tab — MKMapView with real marker clustering
-/// (MKMarkerAnnotationView.clusteringIdentifier) + a bottom photo sheet of the
-/// assets inside the currently visible region.
+/// (MKMarkerAnnotationView.clusteringIdentifier) feeding a native photo sheet
+/// (presented by RootView) with the assets inside the currently visible region.
+///
+/// The map renders immediately (world view); a spinner ("Chargement des
+/// photos…") overlays it while markers load and while MapKit ingests them,
+/// then the fit zooms to the photos.
 ///
 /// Clustering handled by MapKit because SwiftUI's `Map` (iOS 17) has no
 /// native clustering; large libraries can reach thousands of markers.
 ///
 /// Performance: the wrapper only ever displays the *culled* subset
-/// (`vm.visibleAnnotations`), so MapKit never receives the full library.
+/// (`vm.visibleAnnotations`, grid-subsampled at world zoom), so MapKit never
+/// receives the full library.
 struct MapSegmentView: View {
     @Bindable var vm: MapViewModel
-    @State private var isPhotosSheetPresented = false
+    /// Local loading flag — guaranteed re-render (unlike observing the VM's
+    /// `isLoading`, which can miss the first pass), so the spinner always
+    /// shows while markers load or refresh.
+    @State private var isLoadingPhotos = false
+    /// True from the moment markers arrive until MapKit has rendered the
+    /// first wave of annotations — the spinner covers the annotation-render
+    /// cost (thousands of markers), not just the network fetch.
+    @State private var isRenderingMarkers = false
 
     var body: some View {
-        GeometryReader { proxy in
-            Group {
-                if let msg = vm.errorMessage, vm.markers.isEmpty {
-                    errorView(msg)
-                } else {
-                    mapContent
+        Group {
+            if let msg = vm.errorMessage, vm.markers.isEmpty {
+                errorView(msg)
+            } else {
+                mapContent
+            }
+        }
+        .task {
+            // AC-710: load markers once per VM lifetime.
+            isLoadingPhotos = true
+            await vm.loadMarkers()
+            isLoadingPhotos = false
+        }
+        .onAppear {
+            // Re-present the photo sheet when the map segment is re-entered
+            // (the onChange below only fires when `isEmpty` *changes*, so
+            // returning with photos already loaded would leave it closed).
+            if !vm.visiblePhotos.isEmpty, !vm.isPhotoSheetPresented {
+                vm.isPhotoSheetPresented = true
+            }
+        }
+        .onChange(of: vm.markers.isEmpty) { _, isEmpty in
+            // Markers just arrived (cache or network) — the annotation
+            // render is about to start; ClusteredMapView signals the
+            // first wave via onInitialRenderCompleted. Deferred so no
+            // state is mutated during the view update.
+            if !isEmpty {
+                DispatchQueue.main.async { isRenderingMarkers = true }
+            }
+        }
+        .onChange(of: vm.visiblePhotos.isEmpty) { _, isEmpty in
+            // Present the native photo sheet once the region has photos.
+            // Deferred one runloop so a tab switch in flight settles first;
+            // RootView (stable presenter) gates the presentation.
+            guard !isEmpty, !vm.isPhotoSheetPresented else { return }
+            DispatchQueue.main.async {
+                if !vm.visiblePhotos.isEmpty, !vm.isPhotoSheetPresented {
+                    vm.isPhotoSheetPresented = true
                 }
-            }
-            .task {
-                // AC-710: load markers once per VM lifetime.
-                await vm.loadMarkers()
-            }
-            .onChange(of: vm.visiblePhotos.isEmpty) { _, isEmpty in
-                isPhotosSheetPresented = !isEmpty
-            }
-            .sheet(isPresented: $isPhotosSheetPresented) {
-                MapPhotosSheet(vm: vm)
-                    // Fixed height: exactly one third of the screen. Single
-                    // detent → no grabber expansion, stays out of the map's way.
-                    .presentationDetents([.height(proxy.size.height / 3), .medium])
-                    .presentationBackgroundInteraction(.enabled)
-                    .presentationBackground(.regularMaterial)
             }
         }
     }
@@ -50,21 +79,43 @@ struct MapSegmentView: View {
                     // MKMapView delegate callbacks are non-isolated; hop to
                     // the MainActor ViewModel.
                     Task { @MainActor in vm.setVisibleRect(rect) }
+                },
+                onInitialRenderCompleted: {
+                    // May fire during a view update (delegate callback);
+                    // defer so no state is mutated mid-render.
+                    DispatchQueue.main.async { isRenderingMarkers = false }
+                },
+                onMarkerSelected: { id in
+                    Task { @MainActor in vm.selectMarker(id) }
+                },
+                onMarkerZoomRequested: { id in
+                    // MKMapView delegate callbacks run on the main thread, which
+                    // is the MainActor — read the VM's cell rect synchronously.
+                    MainActor.assumeIsolated { vm.zoomRect(forMarker: id) }
+                },
+                onMarkerDeselected: {
+                    Task { @MainActor in vm.deselectMarker() }
                 }
             )
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea()
 
-            if vm.isLoading && vm.markers.isEmpty {
+            // Spinner while markers are genuinely missing or being rendered:
+            // `vm.isLoading` stays true for the whole fetch even if this
+            // `.task` gets relaunched (a relaunched task finds `loadMarkers`
+            // busy and returns immediately, so the local flag alone can lie).
+            // `isRenderingMarkers` covers the MapKit annotation-render cost
+            // after markers arrive (thousands of markers).
+            if ((isLoadingPhotos || vm.isLoading) && vm.markers.isEmpty) || isRenderingMarkers {
                 HStack(spacing: PVSpacing.s8) {
                     ProgressView()
-                    Text("Loading photos…")
+                    Text("Chargement des photos…")
                         .font(.pvSubhead)
                         .foregroundStyle(Color.textSecondaryPV)
                 }
                 .padding(.horizontal, PVSpacing.s16)
                 .padding(.vertical, PVSpacing.s8)
                 .background(.regularMaterial, in: Capsule())
-                .padding(.top, PVSpacing.s12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }
     }
@@ -73,7 +124,7 @@ struct MapSegmentView: View {
         VStack(spacing: PVSpacing.s12) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.pvTitle)
-                .foregroundStyle(Color.statusPending)
+                .foregroundStyle(Color.immichWarning)
             Text(msg)
                 .font(.pvBody)
                 .foregroundStyle(Color.textSecondaryPV)
@@ -88,13 +139,17 @@ struct MapSegmentView: View {
     }
 }
 
-/// Bottom sheet showing the photos inside the current map region as a
-/// vertically scrollable 3-column grid. Works at every detent (collapsed =
-/// header + one row, large = full-screen browsing).
+/// Native bottom sheet showing the photos of the current map region (or of a
+/// tapped marker's cell) as a vertically scrollable 3-column grid — presented
+/// by RootView above the map tab (detents, swipe-down and system corner
+/// radius come for free). Photos render in a growing window (15 then +30 per
+/// scroll); thumbnails fetch lazily on appearance.
 struct MapPhotosSheet: View {
     let vm: MapViewModel
     @Environment(AuthViewModel.self) private var auth
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
+    @State private var photoLimit = 15
+    private static let photoLimitStep = 30
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
@@ -103,55 +158,101 @@ struct MapPhotosSheet: View {
             VStack(alignment: .leading, spacing: PVSpacing.s12) {
                 HStack(spacing: PVSpacing.s8) {
                     Image(systemName: "mappin.and.ellipse")
-                        .foregroundStyle(Color.brandIndigo)
+                        .foregroundStyle(Color.immichPrimary)
                     Text(placeName)
                         .font(.pvHeadline)
                         .lineLimit(1)
                     Spacer()
-                    Text("\(vm.visiblePhotos.count) photos")
+                    Text("\(displayedPhotos.count) photos")
                         .font(.pvSubhead)
                         .foregroundStyle(Color.textSecondaryPV)
+                    if vm.selectedMarkerID != nil {
+                        Button {
+                            vm.deselectMarker()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.pvSubhead)
+                                .foregroundStyle(Color.textSecondaryPV)
+                        }
+                        .accessibilityLabel("Clear marker filter")
+                    }
                 }
                 .padding(.horizontal)
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
-                        ForEach(vm.visiblePhotos) { photo in
-                            MapThumb(photo: photo)
-                                .onTapGesture { openViewer(for: photo.asAssetItem) }
-                                .accessibilityLabel(photo.placeName.isEmpty ? "Photo" : "Photo at \(photo.placeName)")
+                if displayedPhotos.isEmpty {
+                    ContentUnavailableView(
+                        "No photos in this area",
+                        systemImage: "map",
+                        description: Text("Pan the map to find photos here.")
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, PVSpacing.s24)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
+                            ForEach(shownPhotos) { photo in
+                                MapThumb(photo: photo)
+                                    .onTapGesture { openViewer(for: photo.asAssetItem) }
+                                    .accessibilityLabel(photo.placeName.isEmpty ? "Photo" : "Photo at \(photo.placeName)")
+                                    .onAppear {
+                                        // Grow the window as the last shown
+                                        // photo appears — thumbnails fetch
+                                        // lazily on appearance.
+                                        if photo.id == shownPhotos.last?.id, photoLimit < displayedPhotos.count {
+                                            photoLimit += Self.photoLimitStep
+                                        }
+                                    }
+                            }
                         }
+                        .padding(.horizontal)
+                        .padding(.bottom, PVSpacing.s12)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, PVSpacing.s12)
                 }
             }
             .padding(.top, PVSpacing.s12)
+            .onChange(of: displayedPhotos) { _, _ in
+                // New region or new marker selection: restart the window.
+                photoLimit = 15
+            }
             // Full-screen photo viewer (tap any map photo → browse/zoom).
-            // Favorite/delete run self-sufficient; reload markers after a
-            // mutation so the map reflects changes.
+            // Favorite/delete run self-sufficient; refresh markers (silently,
+            // cache preserved) so the map reflects the mutation.
             .photoViewer(
                 item: $viewerItem,
                 baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
                 token: auth.accessToken,
                 onDataChanged: {
-                    Task { await vm.reload() }
+                    Task { await vm.refreshMarkers() }
                 }
             )
         }
     }
 
-    /// Opens the Photos-style viewer at `item`, paging through the visible
-    /// region's photos (same order as the sheet grid).
+    /// The photos backing the sheet: a tapped marker's cell, or the region.
+    private var displayedPhotos: [MapPhoto] {
+        vm.selectedMarkerID == nil ? vm.visiblePhotos : vm.selectedMarkerPhotos
+    }
+
+    /// The currently rendered slice of the displayed photos.
+    private var shownPhotos: [MapPhoto] {
+        Array(displayedPhotos.prefix(photoLimit))
+    }
+
+    /// Opens the Photos-style viewer at `item`, paging through the displayed
+    /// photos (same order as the sheet grid).
     private func openViewer(for item: AssetReactItem) {
-        let items = vm.visiblePhotos.map(\.asAssetItem)
+        let items = displayedPhotos.map(\.asAssetItem)
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         viewerItem = PhotoViewerItem(assets: items, index: idx)
     }
 
-    /// First non-empty place name among the visible photos, else a generic label.
+    /// First non-empty place name among the displayed photos, else a generic
+    /// label (marker selection prefers the marker's own place name).
     private var placeName: String {
-        vm.visiblePhotos.lazy.compactMap(\.placeName).first { !$0.isEmpty } ?? "This area"
+        if vm.selectedMarkerID != nil, let name = vm.selectedMarkerPhotos.lazy.compactMap(\.placeName).first(where: { !$0.isEmpty }) {
+            return name
+        }
+        return vm.visiblePhotos.lazy.compactMap(\.placeName).first { !$0.isEmpty } ?? "This area"
     }
 }
 
@@ -174,15 +275,17 @@ private struct MapThumb: View {
     }
 }
 
-/// `MKAnnotation` carrier wrapping a `MapPhoto` (non-Sendable, UIKit-owned).
+/// `MKAnnotation` carrier wrapping a `MapAnnotationMarker` (non-Sendable,
+/// UIKit-owned). `representedCount` lets cluster/marker badges show the real
+/// photo count of the grid cell each annotation stands for.
 private final class PhotoAnnotation: NSObject, MKAnnotation {
-    let photo: MapPhoto
-    init(photo: MapPhoto) {
-        self.photo = photo
+    let marker: MapAnnotationMarker
+    init(marker: MapAnnotationMarker) {
+        self.marker = marker
         super.init()
     }
-    var coordinate: CLLocationCoordinate2D { photo.coordinate }
-    var title: String? { photo.placeName.isEmpty ? nil : photo.placeName }
+    var coordinate: CLLocationCoordinate2D { marker.photo.coordinate }
+    var title: String? { marker.photo.placeName.isEmpty ? nil : marker.photo.placeName }
 }
 
 /// UIViewRepresentable MKMapView with MKMarkerAnnotationView clustering.
@@ -195,8 +298,19 @@ struct ClusteredMapView: UIViewRepresentable {
     /// Full marker set — used once to compute the initial fit.
     let markers: [MapPhoto]
     /// Culled subset to display (region + margin), produced by the ViewModel.
-    let annotations: [MapPhoto]
+    let annotations: [MapAnnotationMarker]
     let onVisibleRectChanged: (MKMapRect) -> Void
+    /// Fired once MapKit has rendered the first wave of annotation views
+    /// (or nothing needed adding) — lets the host drop its loading spinner.
+    let onInitialRenderCompleted: () -> Void
+    /// A marker was tapped — the host filters the photo sheet to its photos.
+    let onMarkerSelected: (String) -> Void
+    /// A high-count grid marker was tapped — the host returns the bounding
+    /// rect of its cell photos so we can drill in (zoom) to reveal the spread.
+    let onMarkerZoomRequested: (String) -> MKMapRect?
+    /// The selected marker was deselected (tap elsewhere) — sheet goes back
+    /// to the region's photos.
+    let onMarkerDeselected: () -> Void
 
     private static let photoReuseID = "photoMarker"
     private static let clusterReuseID = "photoCluster"
@@ -234,27 +348,60 @@ struct ClusteredMapView: UIViewRepresentable {
             context.coordinator.parent.onVisibleRectChanged(map.visibleMapRect)
         }
 
-        // Diff the live annotation set against the desired (culled) set.
-        let current = Set(map.annotations.compactMap { ($0 as? PhotoAnnotation)?.photo.id })
-        let desired = Set(annotations.map(\.id))
-        guard current != desired else { return }
+        // Diff the live annotation set against the desired (culled) set — keyed
+        // on BOTH id and representedCount. A pure id diff (the old bug) missed
+        // count changes: when a zoom re-buckets the grid, a cell often keeps
+        // the same representative photo id but its photo count changes, so the
+        // stale `PhotoAnnotation` (whose `representedCount` is immutable) stayed
+        // on the map and its badge lied. Keying on the count forces a refresh
+        // of exactly those annotations, so badges always sum to the sheet total.
+        let currentAnnotations = map.annotations.compactMap { $0 as? PhotoAnnotation }
+        var desiredCount: [String: Int] = [:]
+        desiredCount.reserveCapacity(annotations.count)
+        for marker in annotations { desiredCount[marker.id] = marker.representedCount }
 
-        let toRemove = map.annotations.filter { annotation in
-            guard let photoAnno = annotation as? PhotoAnnotation else { return false }
-            return !desired.contains(photoAnno.photo.id)
+        // An annotation stays only if its id is still desired AND its count is
+        // unchanged; everything else is removed (missing id or stale count).
+        let toRemove = currentAnnotations.filter { annotation in
+            desiredCount[annotation.marker.photo.id] != annotation.marker.representedCount
         }
+        let liveMatch = Set(
+            currentAnnotations
+                .filter { desiredCount[$0.marker.photo.id] == $0.marker.representedCount }
+                .map(\.marker.photo.id)
+        )
+        // Add every desired marker that isn't already live with the right count.
+        let toAdd = annotations.filter { !liveMatch.contains($0.id) }
+
+        guard !toRemove.isEmpty || !toAdd.isEmpty else {
+            // Nothing changed — the desired set is already on the map, so an
+            // in-flight render is complete from the host's point of view.
+            if !annotations.isEmpty, !coordinator.didSignalInitialRender {
+                coordinator.didSignalInitialRender = true
+                coordinator.parent.onInitialRenderCompleted()
+            }
+            return
+        }
+
         if !toRemove.isEmpty {
             map.removeAnnotations(toRemove)
         }
-        let toAdd = annotations.filter { !current.contains($0.id) }
-        if !toAdd.isEmpty {
-            map.addAnnotations(toAdd.map(PhotoAnnotation.init(photo:)))
+        if toAdd.isEmpty {
+            if !annotations.isEmpty, !coordinator.didSignalInitialRender {
+                coordinator.didSignalInitialRender = true
+                coordinator.parent.onInitialRenderCompleted()
+            }
+            return
         }
+
+        map.addAnnotations(toAdd.map(PhotoAnnotation.init(marker:)))
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var parent: ClusteredMapView
         var didFitInitial = false
+        /// One-shot: true after the first render signal is delivered.
+        var didSignalInitialRender = false
 
         init(_ parent: ClusteredMapView) {
             self.parent = parent
@@ -269,7 +416,13 @@ struct ClusteredMapView: UIViewRepresentable {
                 view.annotation = cluster
                 view.clusteringIdentifier = ClusteredMapView.photoReuseID
                 view.markerTintColor = .systemIndigo
-                view.glyphText = "\(cluster.memberAnnotations.count)"
+                // Sum the represented counts so the badge shows the real
+                // number of photos, matching the photo sheet's total.
+                let total = cluster.memberAnnotations.reduce(0) { sum, member in
+                    guard let photoAnno = member as? PhotoAnnotation else { return sum }
+                    return sum + photoAnno.marker.representedCount
+                }
+                view.glyphText = "\(total)"
                 view.displayPriority = .required
                 view.canShowCallout = true
                 return view
@@ -282,11 +435,71 @@ struct ClusteredMapView: UIViewRepresentable {
                 view.annotation = photoAnno
                 view.clusteringIdentifier = ClusteredMapView.photoReuseID
                 view.markerTintColor = .systemIndigo
-                view.glyphImage = UIImage(systemName: "photo")
+                // A single photo keeps the icon; a cell holding several photos
+                // shows its count (a mini-cluster).
+                if photoAnno.marker.representedCount > 1 {
+                    view.glyphText = "\(photoAnno.marker.representedCount)"
+                    view.glyphImage = nil
+                } else {
+                    view.glyphText = nil
+                    view.glyphImage = UIImage(systemName: "photo")
+                }
                 view.canShowCallout = true
                 return view
             }
             return nil
+        }
+
+        /// Documented signal that MapKit added annotation views — the initial
+        /// render is underway; the host drops its spinner.
+        func mapView(_ mapView: MKMapView, didAdd annotationViews: [MKAnnotationView]) {
+            guard !annotationViews.isEmpty, !didSignalInitialRender else { return }
+            didSignalInitialRender = true
+            parent.onInitialRenderCompleted()
+        }
+
+        /// Tapping a marker filters the photo sheet to its cell's photos;
+        /// tapping a cluster zooms into its members (Maps-style).
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let cluster = view.annotation as? MKClusterAnnotation {
+                let rect = cluster.memberAnnotations.reduce(MKMapRect.null) { partial, annotation in
+                    let pt = MKMapPoint(annotation.coordinate)
+                    return partial.union(MKMapRect(x: pt.x - 1, y: pt.y - 1, width: 2, height: 2))
+                }
+                if !rect.isNull {
+                    mapView.setVisibleMapRect(
+                        rect,
+                        edgePadding: UIEdgeInsets(top: 80, left: 80, bottom: 80, right: 80),
+                        animated: true
+                    )
+                }
+                return
+            }
+            if let photoAnno = view.annotation as? PhotoAnnotation {
+                // A single-photo pin selects (filters the sheet). A high-count
+                // grid marker is a mini-cluster MapKit never merged (isolated
+                // area) — drill in instead so tapping "the big Madeira badge"
+                // zooms to reveal the photos, matching native Maps.
+                if photoAnno.marker.representedCount > 1,
+                   let rect = parent.onMarkerZoomRequested(photoAnno.marker.photo.id),
+                   !rect.isNull {
+                    mapView.setVisibleMapRect(
+                        rect,
+                        edgePadding: UIEdgeInsets(top: 80, left: 80, bottom: 80, right: 80),
+                        animated: true
+                    )
+                    // Don't leave the mini-cluster stuck in a selected state.
+                    mapView.deselectAnnotation(view.annotation, animated: false)
+                } else {
+                    parent.onMarkerSelected(photoAnno.marker.photo.id)
+                }
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
+            if view.annotation is PhotoAnnotation {
+                parent.onMarkerDeselected()
+            }
         }
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {

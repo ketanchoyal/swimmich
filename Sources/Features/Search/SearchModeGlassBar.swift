@@ -1,0 +1,93 @@
+import SwiftUI
+
+/// Custom segmented control for the Search tab's mode selector, styled to the
+/// Immich design language. Three modes: **Résultats** (results) · **Lieux**
+/// (explore) · **Explorer** (map).
+///
+/// Custom SwiftUI control (not the native `UISegmentedControl`): the native
+/// picker has a fixed height, shows one title *or* one image per segment, and
+/// its sliding highlight cannot be animated off. This replacement gives us a
+/// taller control (44 pt), an icon + label per segment, and an indicator that
+/// **snaps instantly** — no slide animation on segment change.
+struct SearchModeGlassBar: View {
+    @Binding var mode: SearchViewModel.ViewMode
+
+    static let height: CGFloat = 44
+    private static let segments: [(mode: SearchViewModel.ViewMode, title: String, icon: String)] = [
+        (.results, "Résultats", "magnifyingglass"),
+        (.explore, "Lieux", "mappin"),
+        (.map, "Explorer", "map"),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            let segmentWidth = geo.size.width / CGFloat(Self.segments.count)
+            let selectedIndex = Self.segments.firstIndex { $0.mode == mode } ?? 0
+
+            ZStack(alignment: .leading) {
+                // Highlight thumb — smooth slide between segments.
+                Capsule()
+                    .fill(Color.primary.opacity(0.12))
+                    .overlay(
+                        Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .frame(
+                        width: segmentWidth - PVSpacing.s8,
+                        height: Self.height - PVSpacing.s8
+                    )
+                    .offset(x: PVSpacing.s4 + CGFloat(selectedIndex) * segmentWidth)
+                    .animation(.easeOut(duration: 0.2), value: selectedIndex)
+
+                // Segments.
+                HStack(spacing: 0) {
+                    ForEach(Self.segments, id: \.mode) { segment in
+                        segmentButton(segment)
+                            .frame(width: segmentWidth, height: Self.height)
+                    }
+                }
+            }
+        }
+        .frame(height: Self.height)
+        .glassEffect(.regular, in: Capsule())
+        .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .onChange(of: mode) { _, _ in
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+    }
+
+    private func segmentButton(
+        _ segment: (mode: SearchViewModel.ViewMode, title: String, icon: String)
+    ) -> some View {
+        let isSelected = segment.mode == mode
+        return Button {
+            mode = segment.mode
+        } label: {
+            Label(segment.title, systemImage: segment.icon)
+                .font(.pvSubhead)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundStyle(isSelected ? Color.immichPrimary : Color.textSecondaryPV)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+#Preview("SearchModeGlassBar") {
+    @Previewable @State var mode: SearchViewModel.ViewMode = .explore
+    return ZStack {
+        LinearGradient(
+            colors: [.blue, .purple, .orange],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+        VStack {
+            SearchModeGlassBar(mode: $mode)
+                .padding(.horizontal, PVSpacing.s16)
+            Spacer()
+        }
+        .padding(.top, PVSpacing.s24)
+    }
+}

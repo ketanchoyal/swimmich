@@ -12,7 +12,6 @@ struct RootView: View {
     @State private var appLock: AppLockViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
-    @State private var showSearch = false
     @State private var showCreateAlbum = false
     @State private var showSharedPlaceholder = false
     @State private var confirmLogout = false
@@ -67,10 +66,13 @@ struct RootView: View {
     /// (`role: .search`) rendered as a floating Liquid Glass bubble pinned to
     /// the tab bar's trailing edge, perfectly aligned by the system.
     ///
-    /// The bubble is intercepted: instead of landing on the search tab, its tap
-    /// opens the screen matching the active tab (search on Photos, create on
-    /// Albums/Shared, logout on Me) and the selection snaps back to the
-    /// originating tab. The bubble icon mirrors the active tab.
+    /// From Photos the bubble lands on the real Search tab (a plain tab, so a
+    /// `.sheet` can be presented safely on top of it — the search full-screen
+    /// cover was removed because SwiftUI serializes presentations from the
+    /// same presenter, which made a sheet above it impossible, and a sheet
+    /// inside the cover crashed on teardown). From Albums/Shared/Me the bubble
+    /// keeps its contextual action (create / placeholder / logout) and the
+    /// selection snaps back. The bubble icon mirrors the active tab.
     private var authenticatedTabView: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
@@ -93,17 +95,35 @@ struct RootView: View {
         .tabBarMinimizeBehavior(.never)
         .onChange(of: selection) { _, newValue in
             if newValue == .search {
-                handleBubbleTap()
-                selection = lastContentTab
+                if lastContentTab == .photos {
+                    // Bubble from Photos: land on the Search tab itself.
+                    lastContentTab = newValue
+                } else {
+                    handleBubbleTap()
+                    selection = lastContentTab
+                }
             } else {
                 lastContentTab = newValue
+                // Leaving the search tab takes the map photo sheet down with
+                // it (stable presenter — RootView — so no teardown trap).
+                map.isPhotoSheetPresented = false
             }
         }
         .sheet(isPresented: $showCreateAlbum) {
             CreateAlbumSheet(vm: albums, preselectedAssetIds: nil)
         }
-        .fullScreenCover(isPresented: $showSearch) {
-            SearchView(vm: search, mapVM: map)
+        // Native map photo sheet, owned by RootView (never deallocated): the
+        // only presentation active while browsing the map tab, so SwiftUI
+        // presents it directly above the tab — detents, swipe-down and the
+        // system corner radius for free.
+        .sheet(isPresented: Binding(
+            get: { map.isPhotoSheetPresented },
+            set: { map.isPhotoSheetPresented = $0 }
+        )) {
+            MapPhotosSheet(vm: map)
+                .presentationDetents([.fraction(1.0 / 3.0), .medium])
+                .presentationBackgroundInteraction(.enabled)
+                .presentationBackground(.regularMaterial)
         }
         .alert("Shared links coming soon", isPresented: $showSharedPlaceholder) {
             Button("OK", role: .cancel) {}
@@ -129,7 +149,7 @@ struct RootView: View {
 
     private func handleBubbleTap() {
         switch lastContentTab {
-        case .photos: showSearch = true
+        case .photos: break // Landing on the Search tab is handled by the TabView itself.
         case .albums: showCreateAlbum = true
         case .shared: showSharedPlaceholder = true
         case .me: confirmLogout = true

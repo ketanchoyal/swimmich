@@ -9,12 +9,12 @@ final class MapViewModelTests: XCTestCase {
         MapMarkerResponseDto(id: id, lat: lat, lon: lon, city: city, state: nil, country: nil)
     }
 
-    /// Isolated cache per test — prevents UserDefaults.standard pollution
-    /// across tests (MapMarkerCache reads/writes the same key).
-    private func makeIsolatedCache() -> (MapMarkerCache, String) {
-        let suite = "MapViewModelTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        return (MapMarkerCache(defaults: defaults), suite)
+    /// Isolated cache per test — a throwaway temp directory so the file-backed
+    /// cache never collides across tests.
+    private func makeIsolatedCache() -> (MapMarkerCache, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MapViewModelTests-\(UUID().uuidString)", isDirectory: true)
+        return (MapMarkerCache(directory: dir), dir)
     }
 
     // MARK: - Load (AC-710)
@@ -25,8 +25,8 @@ final class MapViewModelTests: XCTestCase {
             makeMarker(id: "paris", lat: 48.8566, lon: 2.3522),
             makeMarker(id: "nyc", lat: 40.7128, lon: -74.0060)
         ]
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
 
         await vm.loadMarkers()
@@ -41,8 +41,8 @@ final class MapViewModelTests: XCTestCase {
     func test_loadMarkers_idempotent() async {
         let mock = MockImmichClient()
         mock.mapMarkersResponse = [makeMarker(id: "a1", lat: 48.85, lon: 2.35)]
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
 
         await vm.loadMarkers()
@@ -55,8 +55,8 @@ final class MapViewModelTests: XCTestCase {
         let mock = MockImmichClient()
         struct Boom: Error {}
         mock.mapMarkersError = Boom()
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
 
         await vm.loadMarkers()
@@ -68,40 +68,64 @@ final class MapViewModelTests: XCTestCase {
     // MARK: - Cache (AC-710 perf)
 
     func test_loadMarkers_servesCache_thenRefreshes() async {
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         cache.save([makeMarker(id: "c1", lat: 48.85, lon: 2.35)])
 
         let mock = MockImmichClient()
         mock.mapMarkersResponse = [makeMarker(id: "c1", lat: 48.85, lon: 2.35)]
         let vm = MapViewModel(client: mock, cache: cache)
+        vm.refreshTTL = .zero // force the stale-cache background refresh path
 
         await vm.loadMarkers()
+        // The background refresh now runs fire-and-forget; give it a beat to
+        // land before asserting the network request.
+        try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(vm.markers.map(\.id), ["c1"], "cached markers rendered")
-        XCTAssertEqual(mock.requestCount, 1, "background refresh still fetches once")
+        XCTAssertEqual(mock.requestCount, 1, "stale cache triggers one background refresh")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_loadMarkers_freshCache_skipsRefresh() async {
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        cache.save([makeMarker(id: "c1", lat: 48.85, lon: 2.35)])
+
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "c1", lat: 48.85, lon: 2.35)]
+        let vm = MapViewModel(client: mock, cache: cache)
+        // Default TTL (10 min): a just-saved cache is fresh → no refetch.
+
+        await vm.loadMarkers()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(vm.markers.map(\.id), ["c1"], "fresh cache rendered")
+        XCTAssertEqual(mock.requestCount, 0, "fresh cache skips the background refresh")
         XCTAssertNil(vm.errorMessage)
     }
 
     func test_loadMarkers_cacheRefreshFailure_keepsCache() async {
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         cache.save([makeMarker(id: "c1", lat: 48.85, lon: 2.35)])
 
         let mock = MockImmichClient()
         struct Boom: Error {}
         mock.mapMarkersError = Boom()
         let vm = MapViewModel(client: mock, cache: cache)
+        vm.refreshTTL = .zero // exercise the refresh path so its failure is tested
 
         await vm.loadMarkers()
+        try? await Task.sleep(for: .milliseconds(50))
 
         XCTAssertEqual(vm.markers.map(\.id), ["c1"], "refresh failure keeps cached markers")
         XCTAssertNil(vm.errorMessage, "background refresh failure is silent")
     }
 
     func test_cache_roundTrip() {
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
 
         XCTAssertNil(cache.load(), "empty cache")
 
@@ -118,12 +142,27 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertNil(cache.load())
     }
 
+    func test_cache_age_tracksFreshness() {
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        XCTAssertNil(cache.age(), "no cache → no age")
+
+        cache.save([makeMarker(id: "a", lat: 1, lon: 2)])
+        let age = cache.age()
+        XCTAssertNotNil(age, "saved cache has an age")
+        XCTAssertLessThan(age ?? .infinity, 5, "just-saved cache is fresh")
+
+        cache.clear()
+        XCTAssertNil(cache.age(), "cleared cache → no age")
+    }
+
     func test_reload_after_error_retries() async {
         let mock = MockImmichClient()
         struct Boom: Error {}
         mock.mapMarkersError = Boom()
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
         await vm.loadMarkers()
         XCTAssertNotNil(vm.errorMessage)
@@ -145,8 +184,8 @@ final class MapViewModelTests: XCTestCase {
             makeMarker(id: "paris", lat: 48.8566, lon: 2.3522),
             makeMarker(id: "nyc", lat: 40.7128, lon: -74.0060)
         ]
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
         vm.debounceInterval = .zero
         await vm.loadMarkers()
@@ -161,36 +200,11 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertEqual(vm.visibleAnnotations.map(\.id), ["paris"])
     }
 
-    func test_setVisibleRect_expanded_annotations_include_margin() async {
-        let mock = MockImmichClient()
-        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
-        // MKMapPoint.x ≈ 745,654 units per degree of longitude. Exact rect
-        // half-width = 150,000 (~22km), expanded half = 300,000 (~45km).
-        mock.mapMarkersResponse = [
-            makeMarker(id: "center", lat: 48.8566, lon: 2.3522),
-            makeMarker(id: "margin", lat: 48.8566, lon: 2.7), // ≈38km east: outside exact, inside expanded
-            makeMarker(id: "far", lat: 48.8566, lon: 4.0)     // ≈183km east: outside both
-        ]
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let vm = MapViewModel(client: mock, cache: cache)
-        vm.debounceInterval = .zero
-        await vm.loadMarkers()
-
-        let rect = MKMapRect(x: center.x - 150_000, y: center.y - 150_000, width: 300_000, height: 300_000)
-
-        vm.setVisibleRect(rect)
-        try? await Task.sleep(for: .milliseconds(80))
-
-        XCTAssertEqual(vm.visiblePhotos.map(\.id), ["center"], "exact rect keeps only in-region photos")
-        XCTAssertEqual(Set(vm.visibleAnnotations.map(\.id)), Set(["center", "margin"]), "expanded rect adds margin markers for culling")
-    }
-
     func test_setVisibleRect_empty_region() async {
         let mock = MockImmichClient()
         mock.mapMarkersResponse = [makeMarker(id: "paris", lat: 48.8566, lon: 2.3522)]
-        let (cache, suite) = makeIsolatedCache()
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let vm = MapViewModel(client: mock, cache: cache)
         vm.debounceInterval = .zero
         await vm.loadMarkers()
@@ -205,7 +219,248 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertTrue(vm.visibleAnnotations.isEmpty)
     }
 
+    func test_setVisibleRect_worldZoom_subsamplesAnnotations() async {
+        let mock = MockImmichClient()
+        // 3000 markers spread across the whole world (a real library can be
+        // 10k+); at world zoom the annotation set must stay bounded so MapKit
+        // ingestion stays fast, while the photo sheet keeps every marker.
+        var dtos: [MapMarkerResponseDto] = []
+        for i in 0..<3000 {
+            let lat = Double(i % 60) * 3.0 - 90.0
+            let lon = Double(i % 120) * 3.0 - 180.0
+            dtos.append(makeMarker(id: "m\(i)", lat: lat, lon: lon))
+        }
+        mock.mapMarkersResponse = dtos
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let world = MKMapRect(x: 0, y: 0, width: 268_435_456, height: 268_435_456)
+        vm.setVisibleRect(world)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertEqual(vm.visiblePhotos.count, 3000, "photo sheet keeps every marker of the region")
+        XCTAssertGreaterThan(vm.visibleAnnotations.count, 0)
+        XCTAssertLessThanOrEqual(vm.visibleAnnotations.count, 44 * 44, "world zoom subsamples annotations")
+    }
+
+    func test_setVisibleRect_fineZoom_keepsAllMarkersInRegion() async {
+        let mock = MockImmichClient()
+        // Markers ~0.02° apart around Paris (≈23k MKMapPoint units at this
+        // latitude — Mercator stretches y by ~1.13M units/°): a tight region's
+        // grid cells are finer than the spacing, so every marker must show.
+        var dtos: [MapMarkerResponseDto] = []
+        for i in 0..<10 {
+            dtos.append(makeMarker(id: "p\(i)", lat: 48.85 + Double(i) * 0.02, lon: 2.35))
+        }
+        mock.mapMarkersResponse = dtos
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        // Rect centred on the middle marker, ±120k units ≈ covers all 10
+        // (spread over ~204k units) while cellWidth 240k/44 ≈ 5.4k < spacing.
+        let midLat = 48.85 + 0.09
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: midLat, longitude: 2.35))
+        let rect = MKMapRect(x: center.x - 120_000, y: center.y - 120_000, width: 240_000, height: 240_000)
+        vm.setVisibleRect(rect)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertEqual(vm.visiblePhotos.count, 10)
+        XCTAssertEqual(vm.visibleAnnotations.count, 10, "fine zoom shows every marker of the region")
+    }
+
+    func test_setVisibleRect_worldZoom_annotationCountsSumToPhotos() async {
+        let mock = MockImmichClient()
+        // Same world-spread library as the subsampling test: every marker in
+        // the region must be accounted for by exactly one annotation badge.
+        var dtos: [MapMarkerResponseDto] = []
+        for i in 0..<3000 {
+            let lat = Double(i % 60) * 3.0 - 90.0
+            let lon = Double(i % 120) * 3.0 - 180.0
+            dtos.append(makeMarker(id: "m\(i)", lat: lat, lon: lon))
+        }
+        mock.mapMarkersResponse = dtos
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let world = MKMapRect(x: 0, y: 0, width: 268_435_456, height: 268_435_456)
+        vm.setVisibleRect(world)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        let badgeTotal = vm.visibleAnnotations.reduce(0) { $0 + $1.representedCount }
+        XCTAssertEqual(vm.visiblePhotos.count, 3000)
+        XCTAssertEqual(badgeTotal, vm.visiblePhotos.count, "cluster/marker badges sum to the sheet total")
+        XCTAssertLessThanOrEqual(vm.visibleAnnotations.count, 44 * 44, "still subsampled for fast ingestion")
+    }
+
+    func test_selectMarker_filtersToCellPhotos() async {
+        let mock = MockImmichClient()
+        // Two markers in the same grid cell (tight cluster), one far away.
+        mock.mapMarkersResponse = [
+            makeMarker(id: "a", lat: 48.8566, lon: 2.3522),
+            makeMarker(id: "b", lat: 48.8567, lon: 2.3523),
+            makeMarker(id: "nyc", lat: 40.7128, lon: -74.0060)
+        ]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        let rect = MKMapRect(x: center.x - 1_000_000, y: center.y - 1_000_000, width: 2_000_000, height: 2_000_000)
+        vm.setVisibleRect(rect)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        let badge = vm.visibleAnnotations.first { $0.photo.id == "a" }?.representedCount
+        XCTAssertEqual(badge, 2, "same-cell markers share the badge")
+
+        vm.selectMarker("a")
+        XCTAssertEqual(vm.selectedMarkerID, "a")
+        XCTAssertEqual(Set(vm.selectedMarkerPhotos.map(\.id)), Set(["a", "b"]), "selection shows the marker's cell photos")
+
+        vm.selectMarker("unknown")
+        XCTAssertNil(vm.selectedMarkerID)
+        XCTAssertTrue(vm.selectedMarkerPhotos.isEmpty, "unknown marker clears the filter")
+
+        vm.selectMarker("a")
+        vm.deselectMarker()
+        XCTAssertNil(vm.selectedMarkerID)
+        XCTAssertTrue(vm.selectedMarkerPhotos.isEmpty, "deselect returns to the area photos")
+    }
+
+    func test_zoomRect_boundsCellPhotos_andNilForUnknown() async {
+        let mock = MockImmichClient()
+        // Two markers in the same grid cell, one far away.
+        mock.mapMarkersResponse = [
+            makeMarker(id: "a", lat: 48.8566, lon: 2.3522),
+            makeMarker(id: "b", lat: 48.8567, lon: 2.3523),
+            makeMarker(id: "nyc", lat: 40.7128, lon: -74.0060)
+        ]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        let rect = MKMapRect(x: center.x - 1_000_000, y: center.y - 1_000_000, width: 2_000_000, height: 2_000_000)
+        vm.setVisibleRect(rect)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        let zoom = vm.zoomRect(forMarker: "a")
+        XCTAssertNotNil(zoom, "a live high-count marker yields a drill-in rect")
+        let ptA = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        let ptB = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8567, longitude: 2.3523))
+        XCTAssertTrue(zoom?.contains(ptA) ?? false, "rect bounds the first cell photo")
+        XCTAssertTrue(zoom?.contains(ptB) ?? false, "rect bounds the second cell photo")
+
+        XCTAssertNil(vm.zoomRect(forMarker: "unknown"), "unknown id → no zoom rect")
+    }
+
+    func test_selectMarker_dropsStaleSelectionAfterRefilter() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "a", lat: 48.8566, lon: 2.3522)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        let rect = MKMapRect(x: center.x - 100_000, y: center.y - 100_000, width: 200_000, height: 200_000)
+        vm.setVisibleRect(rect)
+        try? await Task.sleep(for: .milliseconds(80))
+        vm.selectMarker("a")
+        XCTAssertEqual(vm.selectedMarkerPhotos.count, 1)
+
+        // Pan far away: the selected marker leaves the region → filter drops.
+        let far = MKMapPoint(CLLocationCoordinate2D(latitude: -33.8688, longitude: 151.2093))
+        let farRect = MKMapRect(x: far.x - 100_000, y: far.y - 100_000, width: 200_000, height: 200_000)
+        vm.setVisibleRect(farRect)
+        try? await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertNil(vm.selectedMarkerID, "selection cleared when its marker leaves the region")
+        XCTAssertTrue(vm.selectedMarkerPhotos.isEmpty)
+    }
+
     // MARK: - MapPhoto adapter
+
+    func test_reload_preserves_visiblePhotos_until_refresh() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "paris", lat: 48.8566, lon: 2.3522)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        let rect = MKMapRect(x: center.x - 1_000_000, y: center.y - 1_000_000, width: 2_000_000, height: 2_000_000)
+        vm.setVisibleRect(rect)
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(vm.visiblePhotos.map(\.id), ["paris"])
+
+        // Reload with a temporarily failing server: the visible sets must
+        // survive the failed refetch instead of churning to empty (which
+        // tears down the map photo sheet mid-presentation).
+        struct Boom: Error {}
+        mock.mapMarkersError = Boom()
+        await vm.reload()
+        XCTAssertEqual(vm.visiblePhotos.map(\.id), ["paris"], "visiblePhotos survive a failed reload")
+        XCTAssertEqual(vm.visibleAnnotations.map(\.id), ["paris"])
+
+        // Once the server recovers, reload re-filters against the last rect.
+        mock.mapMarkersError = nil
+        mock.mapMarkersResponse = [
+            makeMarker(id: "paris", lat: 48.8566, lon: 2.3522),
+            makeMarker(id: "sydney", lat: -33.8688, lon: 151.2093)
+        ]
+        await vm.reload()
+        XCTAssertEqual(vm.visiblePhotos.map(\.id), ["paris"], "re-filter after successful reload")
+    }
+
+    func test_refreshMarkers_updatesMarkersAndCacheWithoutClearing() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "a1", lat: 48.85, lon: 2.35)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        await vm.loadMarkers()
+        XCTAssertEqual(vm.markers.map(\.id), ["a1"])
+
+        mock.mapMarkersResponse = [makeMarker(id: "a2", lat: 40.71, lon: -74.0)]
+        await vm.refreshMarkers()
+
+        XCTAssertEqual(vm.markers.map(\.id), ["a2"])
+        XCTAssertEqual(cache.load()?.map(\.id), ["a2"], "cache re-saved, never cleared")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_refreshMarkers_failure_keepsStaleMarkersAndCache() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "a1", lat: 48.85, lon: 2.35)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache)
+        await vm.loadMarkers()
+
+        struct Boom: Error {}
+        mock.mapMarkersError = Boom()
+        await vm.refreshMarkers()
+
+        XCTAssertEqual(vm.markers.map(\.id), ["a1"], "stale markers survive a failed refresh")
+        XCTAssertEqual(cache.load()?.map(\.id), ["a1"])
+        XCTAssertNil(vm.errorMessage, "refresh is silent")
+    }
 
     func test_mapPhoto_asAssetItem_keeps_identity_and_coords() {
         let dto = MapMarkerResponseDto(id: "a1", lat: 48.8566, lon: 2.3522, city: "Paris", state: "Île-de-France", country: "France")

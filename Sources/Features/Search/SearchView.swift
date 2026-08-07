@@ -22,47 +22,76 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.viewMode == .results {
-                    resultsStack
-                        .searchable(
-                            text: $vm.query,
-                            placement: .navigationBarDrawer(displayMode: .always),
-                            prompt: "Search photos and places"
-                        )
-                        .onChange(of: vm.query) { _, _ in vm.queryDidChange() }
-                        .searchSuggestions { searchSuggestions }
-                } else {
-                    VStack(spacing: 0) {
-                        modePicker
-                        Divider()
-                        content
+            modeContent
+                .onChange(of: vm.viewMode) { _, newMode in
+                    // Leaving the map segment takes the map photo sheet down
+                    // (and clears any marker filter) — the sheet is owned by
+                    // RootView and would otherwise stay open over the other
+                    // segments.
+                    if newMode != .map {
+                        mapVM.isPhotoSheetPresented = false
+                        mapVM.deselectMarker()
                     }
                 }
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    ImmichAppBar()
+                // Floating Liquid-Glass segmented control over all three modes.
+                // The map ignores the safe area and extends *under* this pill
+                // (Apple Maps-style); Résultats/Explorer content sits below it.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    // Compact pill centered with guaranteed side margins (never
+                    // kisses the screen edges).
+                    HStack {
+                        Spacer(minLength: PVSpacing.s16)
+                        SearchModeGlassBar(mode: $vm.viewMode)
+                        Spacer(minLength: PVSpacing.s16)
+                    }
+                    .padding(.top, PVSpacing.s8)
+                    .padding(.bottom, PVSpacing.s4)
                 }
-                if vm.viewMode == .results {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        searchModeMenu
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if vm.viewMode == .results {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            searchModeMenu
+                        }
                     }
                 }
-            }
-            // Full-screen photo viewer (tap any result photo → browse/zoom).
-            // Favorite/delete run self-sufficient; re-run the search so the
-            // results grid reflects mutations after the viewer closes.
-            .photoViewer(
-                item: $viewerItem,
-                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                token: auth.accessToken,
-                onDataChanged: {
-                    Task { await vm.search() }
+                // Full-screen photo viewer (tap any result photo → browse/zoom).
+                // Favorite/delete run self-sufficient; re-run the search so the
+                // results grid reflects mutations after the viewer closes.
+                .photoViewer(
+                    item: $viewerItem,
+                    baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                    token: auth.accessToken,
+                    onDataChanged: {
+                        Task { await vm.search() }
+                    }
+                )
+        }
+    }
+
+    /// The active mode's content. Results keeps the native `.searchable` field;
+    /// Explore loads its curated suggestions once; Map is full-screen.
+    @ViewBuilder
+    private var modeContent: some View {
+        switch vm.viewMode {
+        case .results:
+            resultsContent
+                .searchable(
+                    text: $vm.query,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search photos and places"
+                )
+                .onChange(of: vm.query) { _, _ in vm.queryDidChange() }
+                .searchSuggestions { searchSuggestions }
+        case .explore:
+            exploreView
+                .task {
+                    // AC-404a / AC-404c: load explore once per VM lifetime.
+                    await vm.loadExplore()
                 }
-            )
+        case .map:
+            MapSegmentView(vm: mapVM)
         }
     }
 
@@ -74,26 +103,6 @@ struct SearchView: View {
 
     // MARK: - Shared chrome
 
-    private var resultsStack: some View {
-        VStack(spacing: 0) {
-            modePicker
-            Divider()
-            content
-        }
-    }
-
-    private var modePicker: some View {
-        Picker("View", selection: $vm.viewMode) {
-            Text("Results").tag(SearchViewModel.ViewMode.results)
-            Text("Explore").tag(SearchViewModel.ViewMode.explore)
-            Text("Map").tag(SearchViewModel.ViewMode.map)
-        }
-        .pickerStyle(.segmented)
-        .padding(.horizontal)
-        .padding(.top, PVSpacing.s8)
-        .padding(.bottom, PVSpacing.s4)
-    }
-
     /// Smart (CLIP semantic) vs Metadata (EXIF fields) search — folded into a
     /// compact menu so the Results area stays uncluttered.
     private var searchModeMenu: some View {
@@ -103,10 +112,11 @@ struct SearchView: View {
                 Label("Metadata", systemImage: "character.magnify").tag(SearchViewModel.SearchMode.metadata)
             }
         } label: {
-            Label(
-                vm.searchMode == .smart ? "Smart" : "Metadata",
-                systemImage: vm.searchMode == .smart ? "sparkles" : "character.magnify"
-            )
+            Image(systemName: vm.searchMode == .smart ? "sparkles" : "character.magnify")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.immichPrimary)
+                .frame(width: 30, height: 30)
+                .glassEffect(.regular, in: Circle())
         }
         .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
     }
@@ -129,22 +139,6 @@ struct SearchView: View {
     }
 
     // MARK: - Content (results grid | explore cards | map | loading | error)
-
-    @ViewBuilder
-    private var content: some View {
-        switch vm.viewMode {
-        case .results:
-            resultsContent
-        case .explore:
-            exploreView
-                .task {
-                    // AC-404a / AC-404c: load explore once per VM lifetime.
-                    await vm.loadExplore()
-                }
-        case .map:
-            MapSegmentView(vm: mapVM)
-        }
-    }
 
     @ViewBuilder
     private var resultsContent: some View {
@@ -267,7 +261,7 @@ struct SearchView: View {
         VStack(spacing: PVSpacing.s12) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.pvTitle)
-                .foregroundStyle(Color.statusPending)
+                .foregroundStyle(Color.immichWarning)
             Text(msg)
                 .font(.pvBody)
                 .foregroundStyle(Color.textSecondaryPV)
