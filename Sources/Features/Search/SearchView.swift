@@ -214,14 +214,14 @@ struct SearchView: View {
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: PVSpacing.s16) {
-                    ForEach(Array(vm.exploreData.enumerated()), id: \.offset) { _, section in
+                    ForEach(vm.exploreData, id: \.fieldName) { section in
                         VStack(alignment: .leading, spacing: PVSpacing.s8) {
                             Text(Self.prettyFieldName(section.fieldName))
                                 .font(.pvHeadline)
                                 .padding(.horizontal)
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: PVSpacing.s8) {
-                                    ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
+                                    ForEach(section.items, id: \.data.id) { item in
                                         Button {
                                             Task { await vm.searchByCity(item.value) }
                                         } label: {

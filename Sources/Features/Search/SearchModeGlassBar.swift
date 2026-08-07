@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Custom segmented control for the Search tab's mode selector, styled to the
-/// Immich design language. Three modes: **Résultats** (results) · **Lieux**
-/// (explore) · **Explorer** (map).
+/// Immich design language. Three modes: **Résultats** (results) · **Explorer**
+/// (curated suggestions) · **Carte** (map).
 ///
 /// Custom SwiftUI control (not the native `UISegmentedControl`): the native
 /// picker has a fixed height, shows one title *or* one image per segment, and
@@ -15,8 +15,8 @@ struct SearchModeGlassBar: View {
     static let height: CGFloat = 44
     private static let segments: [(mode: SearchViewModel.ViewMode, title: String, icon: String)] = [
         (.results, "Résultats", "magnifyingglass"),
-        (.explore, "Lieux", "mappin"),
-        (.map, "Explorer", "map"),
+        (.explore, "Explorer", "sparkles"),
+        (.map, "Carte", "map"),
     ]
 
     var body: some View {
