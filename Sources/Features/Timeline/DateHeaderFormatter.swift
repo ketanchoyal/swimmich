@@ -16,6 +16,53 @@ import Foundation
 /// output both honor it. Default is `Calendar.current`, matching device locale.
 enum DateHeaderFormatter {
 
+    // MARK: Cached formatters
+
+    /// Stateless UTC parser for the `"YYYY-MM-DD"` → UTC-noon parse step.
+    /// Allocated once, reused across every call (was per-call — audit P2).
+    private static let utcParser: ISO8601DateFormatter = {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime]
+        parser.timeZone = TimeZone(identifier: "UTC")
+        return parser
+    }()
+
+    /// `DateFormatter` is expensive to allocate and depends on the injected
+    /// `calendar` (calendar + timeZone + locale — tests force `Pacific/Honolulu`
+    /// and `fr_FR`). Cache one `DateFormatter` per distinct calendar signature
+    /// + date format so we allocate at most a handful instead of one per call
+    /// (was up to 4 per call — audit P2). Main-thread-only call sites, but the
+    /// lock keeps it safe if that ever changes.
+    private static let formatterCacheLock = NSLock()
+    private static var formatterCache: [FormatterKey: DateFormatter] = [:]
+
+    private struct FormatterKey: Hashable {
+        let calendarIdentifier: String
+        let timeZoneIdentifier: String
+        let localeIdentifier: String
+        let dateFormat: String
+    }
+
+    /// Returns a cached `DateFormatter` configured for `calendar` + `dateFormat`,
+    /// creating one on first use for that signature.
+    private static func formatter(calendar: Calendar, dateFormat: String) -> DateFormatter {
+        let key = FormatterKey(
+            calendarIdentifier: "\(calendar.identifier)",
+            timeZoneIdentifier: calendar.timeZone.identifier,
+            localeIdentifier: calendar.locale?.identifier ?? "",
+            dateFormat: dateFormat
+        )
+        formatterCacheLock.lock()
+        defer { formatterCacheLock.unlock() }
+        if let cached = formatterCache[key] { return cached }
+        let df = DateFormatter()
+        df.calendar = calendar
+        df.locale = calendar.locale
+        df.dateFormat = dateFormat
+        formatterCache[key] = df
+        return df
+    }
+
     /// Returns a human-readable label for `isoPrefix` relative to `reference`.
     ///
     /// - Parameters:
@@ -66,10 +113,7 @@ enum DateHeaderFormatter {
         guard let date = parseUTCPrefix(isoPrefix) else {
             return isoPrefix
         }
-        let df = DateFormatter()
-        df.calendar = calendar
-        df.locale = calendar.locale
-        df.dateFormat = "yyyy"
+        let df = Self.formatter(calendar: calendar, dateFormat: "yyyy")
         return df.string(from: date)
     }
 
@@ -85,20 +129,9 @@ enum DateHeaderFormatter {
         guard let date = parseUTCPrefix(isoPrefix) else {
             return isoPrefix
         }
-        let weekdayFormatter = DateFormatter()
-        weekdayFormatter.calendar = calendar
-        weekdayFormatter.locale = calendar.locale
-        weekdayFormatter.dateFormat = "EEEE"
-
-        let dayFormatter = DateFormatter()
-        dayFormatter.calendar = calendar
-        dayFormatter.locale = calendar.locale
-        dayFormatter.dateFormat = "d"
-
-        let monthFormatter = DateFormatter()
-        monthFormatter.calendar = calendar
-        monthFormatter.locale = calendar.locale
-        monthFormatter.dateFormat = "MMMM"
+        let weekdayFormatter = Self.formatter(calendar: calendar, dateFormat: "EEEE")
+        let dayFormatter = Self.formatter(calendar: calendar, dateFormat: "d")
+        let monthFormatter = Self.formatter(calendar: calendar, dateFormat: "MMMM")
 
         let weekday = Self.capitalized(weekdayFormatter.string(from: date))
         let month = Self.capitalized(monthFormatter.string(from: date))
@@ -110,10 +143,10 @@ enum DateHeaderFormatter {
     private static func format(
         date: Date, calendar: Calendar, includeYear: Bool
     ) -> String {
-        let df = DateFormatter()
-        df.calendar = calendar
-        df.locale = calendar.locale
-        df.dateFormat = includeYear ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d"
+        let df = Self.formatter(
+            calendar: calendar,
+            dateFormat: includeYear ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d"
+        )
         return df.string(from: date)
     }
 
@@ -131,9 +164,6 @@ enum DateHeaderFormatter {
     /// "tomorrow" or vice-versa.
     private static func parseUTCPrefix(_ isoPrefix: String) -> Date? {
         let iso = "\(isoPrefix)T12:00:00Z"
-        let parser = ISO8601DateFormatter()
-        parser.formatOptions = [.withInternetDateTime]
-        parser.timeZone = TimeZone(identifier: "UTC")
-        return parser.date(from: iso)
+        return utcParser.date(from: iso)
     }
 }

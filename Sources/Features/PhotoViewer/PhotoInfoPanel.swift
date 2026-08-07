@@ -132,16 +132,7 @@ struct PhotoInfoPanel: View {
 
     /// Long-form localized date for the current photo ("July 29, 2024").
     private var dateLabel: String {
-        let prefix = String(asset.fileCreatedAt.prefix(10))
-        let parser = ISO8601DateFormatter()
-        parser.formatOptions = [.withInternetDateTime]
-        parser.timeZone = TimeZone(identifier: "UTC")
-        guard let date = parser.date(from: "\(prefix)T12:00:00Z") else { return prefix }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        LongDateFormatter.format(isoPrefix: asset.fileCreatedAt)
     }
 }
 

@@ -13,6 +13,29 @@ import Foundation
 /// `TimelineViewModel.groupedByDay`).
 enum TimelineSectionBuilder {
 
+    // MARK: Cached formatters (hoisted from build() — audit P2)
+
+    /// Stateless UTC parser for the `"YYYY-MM-DD"` → UTC-noon parse step.
+    /// Reused across every `build` call (was per-call).
+    private static let utcParser: ISO8601DateFormatter = {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime]
+        parser.timeZone = TimeZone(identifier: "UTC")
+        return parser
+    }()
+
+    /// Localized `"MMMM yyyy"` formatter (e.g. "July 2024"). Pinned to
+    /// `.current`: every production call site passes the default calendar, and
+    /// `TimelineSectionBuilderTests` asserts structure/year, not locale-specific
+    /// month names. (Was allocated per `build` call.)
+    private static let monthYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = .current
+        formatter.locale = Calendar.current.locale
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter
+    }()
+
     /// One renderable section in the timeline vertical stack.
     enum Section: Identifiable, Equatable {
         /// Full-width month-year banner (e.g. "July 2024").
@@ -33,31 +56,17 @@ enum TimelineSectionBuilder {
     /// Interleaves `.monthHeader` cases between `.dayGroup` cases whenever the
     /// ISO year-month prefix (`"YYYY-MM"`) changes.
     ///
-    /// - Parameters:
-    ///   - groupedByDay: day-descending groups (from `TimelineViewModel.groupedByDay`).
-    ///   - calendar: calendar used for month-name formatting. Defaults to
-    ///     `.current` to match `DateHeaderFormatter` convention.
+    /// - Parameter groupedByDay: day-descending groups (from
+    ///   `TimelineViewModel.groupedByDay`).
     /// - Returns: Ordered sections ready for `ForEach` in the timeline
     ///   `LazyVStack`. Empty input → empty output.
     static func build(
-        from groupedByDay: [(day: String, items: [AssetReactItem])],
-        calendar: Calendar = .current
+        from groupedByDay: [(day: String, items: [AssetReactItem])]
     ) -> [Section] {
         guard !groupedByDay.isEmpty else { return [] }
 
         var result: [Section] = []
         result.reserveCapacity(groupedByDay.count + 4) // rough: +1 banner per month
-
-        // ISO year-month parser — strict format, UTC for stable day boundary.
-        let keyParser = ISO8601DateFormatter()
-        keyParser.formatOptions = [.withInternetDateTime]
-        keyParser.timeZone = TimeZone(identifier: "UTC")
-
-        // Localized "MMMM yyyy" formatter (e.g. "July 2024").
-        let displayFormatter = DateFormatter()
-        displayFormatter.calendar = calendar
-        displayFormatter.locale = calendar.locale
-        displayFormatter.dateFormat = "MMMM yyyy"
 
         var lastMonth: String?
 
@@ -72,9 +81,7 @@ enum TimelineSectionBuilder {
             }
 
             if monthKey != lastMonth {
-                let display = Self.displayString(forMonthKey: monthKey,
-                                                 parser: keyParser,
-                                                 formatter: displayFormatter)
+                let display = Self.displayString(forMonthKey: monthKey)
                 result.append(.monthHeader(month: monthKey, display: display))
                 lastMonth = monthKey
             }
@@ -86,15 +93,11 @@ enum TimelineSectionBuilder {
     /// Formats an ISO `"YYYY-MM"` key as a localized `"MMMM yyyy"` display
     /// string. Falls back to the raw key if parsing fails — never crashes the
     /// grid over malformed input.
-    private static func displayString(
-        forMonthKey monthKey: String,
-        parser: ISO8601DateFormatter,
-        formatter: DateFormatter
-    ) -> String {
+    private static func displayString(forMonthKey monthKey: String) -> String {
         // Parse as UTC noon (mid-month would also work; noon avoids DST edges).
-        guard let date = parser.date(from: "\(monthKey)-15T12:00:00Z") else {
+        guard let date = utcParser.date(from: "\(monthKey)-15T12:00:00Z") else {
             return monthKey
         }
-        return formatter.string(from: date)
+        return monthYearFormatter.string(from: date)
     }
 }
