@@ -50,7 +50,10 @@ struct AlbumsView: View {
             .sheet(isPresented: $presentingCreate) {
                 CreateAlbumSheet(vm: vm, preselectedAssetIds: nil)
             }
-            .alert("Error", isPresented: .constant(vm.errorMessage != nil)) {
+            .alert("Error", isPresented: Binding(
+                get: { vm.errorMessage != nil },
+                set: { if !$0 { vm.errorMessage = nil } }
+            )) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(vm.errorMessage ?? "")
