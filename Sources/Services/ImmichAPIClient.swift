@@ -128,6 +128,14 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.GET, path: ImmichAPI.search.path("/explore"))
     }
 
+    func getAssetsByCity() async throws -> [AssetResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.search.path("/cities"))
+    }
+
+    func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.search.path("/statistics"), body: AnyEncodable(dto))
+    }
+
     // MARK: - Map (AC-710)
 
     func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto] {

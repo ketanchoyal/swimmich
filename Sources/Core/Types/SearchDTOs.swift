@@ -31,6 +31,23 @@ struct SmartSearchDto: Codable, Equatable {
     var withExif: Bool?
 }
 
+/// Body for `POST /api/search/statistics` — returns a total count for a given
+/// metadata filter. Used by Explore to show "247 photos" per place. Mirrors
+/// the subset of `BaseSearchSchema` field filters the server honors.
+struct SearchStatisticsDto: Codable, Equatable {
+    var city: String?
+    var state: String?
+    var country: String?
+    var make: String?
+    var model: String?
+    var lensModel: String?
+}
+
+/// Response for `POST /api/search/statistics`.
+struct SearchStatisticsResponseDto: Codable, Equatable {
+    let total: Int
+}
+
 // MARK: - Search Response DTOs
 
 /// Top-level response wrapper. Immich server also serializes `albums`, which

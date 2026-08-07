@@ -6,8 +6,10 @@ import SwiftUI
 ///   LazyVGrid of `AssetThumbnailCell` (corner radius 0 — project convention).
 ///   Tap → `AssetDetailView` (NavigationLink pattern from TimelineView.swift:253).
 ///   Smart/Metadata mode toggle lives in a toolbar `Menu` (default Smart/CLIP).
-/// - **Explore**: curated city/object suggestions via `GET /api/search/explore`.
-///   Tap a card → `searchByCity(_:)` filters results by that city.
+/// - **Explore**: a vertical list of every place you've photographed, powered by
+///   `GET /api/search/cities` (one representative asset per city) + per-place
+///   counts from `POST /api/search/statistics`. Tap a card →
+///   `searchByExplore(field: .city, value:)` filters results by that city.
 /// - **Map**: clustered MapKit view of all geolocated photos (AC-710).
 ///
 /// People / faces deferred to a future iteration (cahier L136).
@@ -201,57 +203,39 @@ struct SearchView: View {
 
     @ViewBuilder
     private var exploreView: some View {
-        if vm.exploreData.isEmpty {
+        // Distinguish "loading first page" from "genuinely empty" so the user
+        // sees a spinner on first open instead of the empty-state.
+        if vm.explorePlaces.isEmpty && !vm.isLoading {
             ContentUnavailableView(
-                "No suggestions available",
-                systemImage: "safari",
-                description: Text("Explore requires photos with EXIF metadata or recognized places.")
+                "No places yet",
+                systemImage: "mappin.and.ellipse",
+                description: Text("Photos with a recognized location will appear here as places you can explore.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if vm.explorePlaces.isEmpty {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: PVSpacing.s16) {
-                    ForEach(vm.exploreData, id: \.fieldName) { section in
-                        VStack(alignment: .leading, spacing: PVSpacing.s8) {
-                            Text(Self.prettyFieldName(section.fieldName))
-                                .font(.pvHeadline)
-                                .padding(.horizontal)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: PVSpacing.s8) {
-                                    ForEach(section.items, id: \.data.id) { item in
-                                        Button {
-                                            Task { await vm.searchByCity(item.value) }
-                                        } label: {
-                                            exploreCard(value: item.value, item: item.data)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(vm.isLoading)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
+                LazyVStack(spacing: PVSpacing.s12) {
+                    ForEach(vm.explorePlaces) { place in
+                        Button {
+                            Task { await vm.searchByExplore(field: .city, value: place.city) }
+                        } label: {
+                            ExplorePlaceCard(
+                                place: place,
+                                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+                                token: auth.accessToken
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .disabled(vm.isLoading)
                     }
                 }
+                .padding(.horizontal, PVSpacing.s12)
                 .padding(.vertical, PVSpacing.s8)
             }
+            .refreshable { await vm.refreshExplore() }
         }
-    }
-
-    @ViewBuilder
-    private func exploreCard(value: String, item: AssetResponseDto) -> some View {
-        VStack(alignment: .leading, spacing: PVSpacing.s8) {
-            let url = AssetReactItem(from: item).thumbnailURL(
-                base: auth.baseURL ?? URL(string: "https://example.com")!
-            )
-            AuthenticatedAsyncImage(url: url, token: auth.accessToken)
-                .frame(width: 140, height: 140)
-                .clipShape(RoundedRectangle(cornerRadius: PVRadius.none, style: .continuous))
-            Text(value)
-                .font(.pvSubhead)
-                .lineLimit(1)
-        }
-        .frame(width: 140)
     }
 
     private func errorView(_ msg: String) -> some View {
@@ -267,15 +251,86 @@ struct SearchView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    /// Translates Immich field names (e.g. "exifInfo.city") into human labels.
-    private static func prettyFieldName(_ raw: String) -> String {
-        switch raw {
-        case "exifInfo.city": return "Places"
-        case "exifInfo.country": return "Countries"
-        case "exifInfo.make": return "Cameras"
-        case "exifInfo.model": return "Models"
-        default: return raw
+/// Full-width hero card for one place: a 3:2 representative photo with a
+/// darkened bottom gradient and overlaid flag + city + state/country + photo
+/// count + most-recent date. The thumbnail URL is precomputed once (preview
+/// size for sharper hero imagery than the grid thumbnail).
+private struct ExplorePlaceCard: View {
+    let place: ExplorePlace
+    let baseURL: URL
+    let token: String?
+
+    private let url: URL
+
+    init(place: ExplorePlace, baseURL: URL, token: String?) {
+        self.place = place
+        self.baseURL = baseURL
+        self.token = token
+        self.url = ImmichAssetURL.thumbnail(
+            assetId: place.assetId, thumbhash: place.thumbhash ?? "", baseURL: baseURL, size: .preview
+        )
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            AuthenticatedAsyncImage(url: url, token: token)
+                .frame(maxWidth: .infinity)
+                .frame(height: 220)
+                .clipped()
+
+            // Legibility gradient under the text.
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.65)],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: 140)
+            .allowsHitTesting(false)
+
+            // Overlaid metadata.
+            VStack(alignment: .leading, spacing: PVSpacing.s2) {
+                Text(headline)
+                    .font(.pvH4)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .shadow(radius: 4)
+                if !place.subtitle.isEmpty {
+                    Text(place.subtitle)
+                        .font(.pvSubhead)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+                Text(footer)
+                    .font(.pvCaption)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(1)
+            }
+            .padding(PVSpacing.s12)
         }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+        .pvFloatingShadow()
+        .contentShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+    }
+
+    /// "🇫🇷 Paris" or just "Paris" when no flag resolved.
+    private var headline: String {
+        if let flag = place.flag { return "\(flag) \(place.city)" }
+        return place.city
+    }
+
+    /// "247 photos  ·  Jul 2024" — count shows a placeholder dash while loading.
+    private var footer: String {
+        var parts: [String] = []
+        if let count = place.photoCount {
+            parts.append("\(count) photos")
+        } else {
+            parts.append("·") // count still loading
+        }
+        if let date = place.date {
+            parts.append(date.formatted(.dateTime.month(.abbreviated).year()))
+        }
+        return parts.joined(separator: "  ·  ")
     }
 }

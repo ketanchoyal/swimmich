@@ -57,6 +57,7 @@
 		62BFF65708FB956A0A778DD9 /* MapMarkerCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8615FB2C6F9490858FF86568 /* MapMarkerCache.swift */; };
 		66B53969B765E0EDE61468F4 /* PhotoShareViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F44FD3BD401F8A82719AF19C /* PhotoShareViewModel.swift */; };
 		66D6C7EF8FF4902A42058929 /* EditPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5B88FA63626BEB67A5EB033 /* EditPipeline.swift */; };
+		AA11BB22CC33DD44EE55FF66 /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB11CC22DD33EE44FF55AA66 /* CountryFlag.swift */; };
 		67EB53F7AD8CB48FC884509B /* PinnedHeaderResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74E7C08F4EE298959335CB6 /* PinnedHeaderResolver.swift */; };
 		6CF897BBA5C7CF8E415731BC /* AuthViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F57B5A5157AE50E292F0CEA0 /* AuthViewModelTests.swift */; };
 		6DB42ADF994B02E2121B4E45 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3BB3A9E0C7AC8A15BFCFA2 /* AuthViewModel.swift */; };
@@ -229,6 +230,7 @@
 		D4A67C215509CC4179DD4F57 /* View+Shadow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Shadow.swift"; sourceTree = "<group>"; };
 		D543DF3FA536684E66F2E356 /* TimelineSectionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSectionBuilder.swift; sourceTree = "<group>"; };
 		D5B88FA63626BEB67A5EB033 /* EditPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditPipeline.swift; sourceTree = "<group>"; };
+		BB11CC22DD33EE44FF55AA66 /* CountryFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryFlag.swift; sourceTree = "<group>"; };
 		DA4C06CAD8C011DCEB7B782C /* SharedLinksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinksView.swift; sourceTree = "<group>"; };
 		DBEDC83F921DAE79D323E3CC /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
 		DD692C8B85C9F03CE679BF51 /* AssetDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailViewModelTests.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 				D5B88FA63626BEB67A5EB033 /* EditPipeline.swift */,
 				8203F1AF23108DC7982903E9 /* ExifDisplayFormatter.swift */,
 				40EBF7B9926844ECBD81918C /* LongDateFormatter.swift */,
+				BB11CC22DD33EE44FF55AA66 /* CountryFlag.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -729,6 +732,7 @@
 				99B8F1B2B2B546A9424A99E1 /* DTOs.swift in Sources */,
 				FB09A45000B8937B945F5826 /* DateHeaderFormatter.swift in Sources */,
 				0C23D558924FE6BFA7B1E509 /* DependencyContainer.swift in Sources */,
+				AA11BB22CC33DD44EE55FF66 /* CountryFlag.swift in Sources */,
 				66D6C7EF8FF4902A42058929 /* EditPipeline.swift in Sources */,
 				22C280975F044343DEB5AC9F /* EditState.swift in Sources */,
 				B0E4A61C038B75804DBB6090 /* EditStateStore.swift in Sources */,

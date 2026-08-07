@@ -11,6 +11,9 @@
         }
       }
     },
+    "%@ items" : {
+
+    },
     "%@ photos" : {
 
     },
@@ -70,6 +73,9 @@
           }
         }
       }
+    },
+    "Add to a shared album" : {
+
     },
     "Add to Album" : {
       "extractionState" : "stale",
@@ -216,6 +222,9 @@
           }
         }
       }
+    },
+    "Chargement des photos…" : {
+
     },
     "Compte" : {
 
@@ -494,6 +503,7 @@
       }
     },
     "Explore" : {
+      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -641,7 +651,24 @@
         }
       }
     },
-    "Loading photos…" : {
+    "Lenses" : {
+      "extractionState" : "translated",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lenses"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objectifs"
+          }
+        }
+      }
+    },
+    "Loading users…" : {
 
     },
     "Location" : {
@@ -665,9 +692,6 @@
           }
         }
       }
-    },
-    "Map" : {
-
     },
     "Metadata" : {
       "extractionState" : "stale",
@@ -778,6 +802,9 @@
         }
       }
     },
+    "No shared albums yet. Create one above." : {
+
+    },
     "No suggestions available" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -785,6 +812,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune suggestion disponible"
+          }
+        }
+      }
+    },
+    "No places yet" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun lieu pour le moment"
+          }
+        }
+      }
+    },
+    "Photos with a recognized location will appear here as places you can explore." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos dont le lieu est reconnu apparaîtront ici comme autant de lieux à explorer."
           }
         }
       }
@@ -821,6 +868,12 @@
           }
         }
       }
+    },
+    "Pan the map to find photos here." : {
+
+    },
+    "Partager" : {
+
     },
     "Password" : {
       "extractionState" : "stale",
@@ -904,6 +957,23 @@
     "Réessayer" : {
 
     },
+    "Regions" : {
+      "extractionState" : "translated",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regions"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Régions"
+          }
+        }
+      }
+    },
     "Remove" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -949,6 +1019,7 @@
       }
     },
     "Results" : {
+      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -1108,6 +1179,9 @@
           }
         }
       }
+    },
+    "Share with other users" : {
+
     },
     "Shared Links" : {
       "extractionState" : "stale",

@@ -62,6 +62,14 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var smartSearchError: Error?
     var exploreResponse: [SearchExploreResponseDto]?
     var exploreError: Error?
+    var citiesResponse: [AssetResponseDto]?
+    var citiesError: Error?
+    var lastStatisticsDto: SearchStatisticsDto?
+    var statisticsResponse: SearchStatisticsResponseDto?
+    /// Per-city count overrides (keyed by city name). If set, the mock returns
+    /// a custom total for that city; otherwise `statisticsResponse`.
+    var statisticsByCity: [String: Int] = [:]
+    var statisticsError: Error?
 
     // Map capture (AC-710)
     var mapMarkersResponse: [MapMarkerResponseDto]?
@@ -268,6 +276,22 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? exploreError { throw e }
         return exploreResponse ?? []
+    }
+
+    func getAssetsByCity() async throws -> [AssetResponseDto] {
+        bump()
+        if let e = globalError ?? citiesError { throw e }
+        return citiesResponse ?? []
+    }
+
+    func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto {
+        bump()
+        lastStatisticsDto = dto
+        if let e = globalError ?? statisticsError { throw e }
+        if let city = dto.city, let total = statisticsByCity[city] {
+            return SearchStatisticsResponseDto(total: total)
+        }
+        return statisticsResponse ?? SearchStatisticsResponseDto(total: 0)
     }
 
     func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto] {

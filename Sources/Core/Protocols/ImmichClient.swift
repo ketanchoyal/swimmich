@@ -38,6 +38,11 @@ protocol ImmichClient: AnyObject, Sendable {
     func searchMetadata(dto: MetadataSearchDto) async throws -> SearchResponseDto
     func searchSmart(dto: SmartSearchDto) async throws -> SearchResponseDto
     func getExploreData() async throws -> [SearchExploreResponseDto]
+    /// `GET /api/search/cities` — one representative asset per distinct city
+    /// (no 12-cap, no ≥5-photo floor). Powers the Explore Places list.
+    func getAssetsByCity() async throws -> [AssetResponseDto]
+    /// `POST /api/search/statistics` — total asset count for a metadata filter.
+    func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto
 
     // MARK: - Map (AC-710)
     func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto]

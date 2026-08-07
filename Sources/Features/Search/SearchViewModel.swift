@@ -1,5 +1,28 @@
 import Foundation
 
+/// One row in the Explore Places list — a distinct city with its representative
+/// asset (for the hero thumbnail), location metadata, most-recent date, and
+/// (lazily loaded) photo count. Identifiable by city name (server returns one
+/// representative asset per distinct city via GET /search/cities).
+struct ExplorePlace: Identifiable, Equatable {
+    let id: String          // city name (stable identity)
+    let city: String
+    let state: String?
+    let country: String?
+    let date: Date?         // representative asset's dateTimeOriginal
+    let assetId: String     // representative asset (thumbnail URL source)
+    let thumbhash: String?
+    var photoCount: Int?    // nil = count still loading
+
+    /// Subtitle: "State, Country" (whichever parts exist), joined.
+    var subtitle: String {
+        [state, country].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    /// Flag emoji derived client-side from `country`, or nil if unresolved.
+    var flag: String? { CountryFlag.emoji(forCountryName: country) }
+}
+
 /// Search feature ViewModel — covers cahier §6 MVP:
 /// - free-text metadata search (`POST /api/search/metadata`)
 /// - CLIP semantic smart search (`POST /api/search/smart`)
@@ -15,6 +38,35 @@ final class SearchViewModel {
     enum SearchMode: Hashable { case metadata, smart }
     enum ViewMode: Hashable { case results, explore, map }
 
+    /// EXIF field a user can drill into from an Explore card. Maps the server's
+    /// `fieldName` ("exifInfo.city" …) onto the matching `MetadataSearchDto`
+    /// property so a tap under "Cameras" searches `make`, not `city`.
+    enum ExploreField: String {
+        case city, country, make, model, state, lensModel
+
+        /// Parses a raw Immich `fieldName` ("exifInfo.city" → `.city`).
+        /// Returns nil for unrecognized fields (card tap no-ops gracefully).
+        init?(rawFieldName: String) {
+            // Strip the "exifInfo." prefix; map the remainder to the enum case.
+            let key = rawFieldName.hasPrefix("exifInfo.")
+                ? String(rawFieldName.dropFirst("exifInfo.".count))
+                : rawFieldName
+            self.init(rawValue: key)
+        }
+
+        /// Writes `value` into the matching EXIF field on `dto`.
+        func apply(_ value: String, to dto: inout MetadataSearchDto) {
+            switch self {
+            case .city: dto.city = value
+            case .country: dto.country = value
+            case .make: dto.make = value
+            case .model: dto.model = value
+            case .state: dto.state = value
+            case .lensModel: dto.lensModel = value
+            }
+        }
+    }
+
     let client: any ImmichClient
     private let recentsStore: RecentSearchesStore
 
@@ -22,9 +74,16 @@ final class SearchViewModel {
     var query: String = ""
     var searchMode: SearchMode = .smart
     var viewMode: ViewMode = .results
-    /// Drives `MetadataSearchDto.city` when non-nil (Explore tap flow, AC-404b).
-    /// `search()` for metadata mode passes `query: nil` when this is set.
-    var selectedCity: String? = nil
+    /// Active Explore drill-down filter (AC-404b, generalized to any field).
+    /// When non-nil, metadata `search()` ignores free-text `query` and filters
+    /// by this field instead. Public for `recordRecentSearch` / view wiring.
+    var pendingExploreFilter: (ExploreField, String)? = nil
+    /// Convenience: the city value when the active filter is a city (legacy
+    /// accessor + tests). Nil for non-city filters or when no filter is set.
+    var selectedCity: String? {
+        if case (.city, let value)? = pendingExploreFilter { return value }
+        return nil
+    }
 
     // Results
     private(set) var results: [AssetReactItem] = []
@@ -34,8 +93,12 @@ final class SearchViewModel {
     var canLoadMore: Bool { nextPage != nil }
     var hasSearched: Bool = false
 
-    // Explore (AC-404)
+    // Explore (AC-404) — Places list powered by GET /search/cities.
     private(set) var exploreData: [SearchExploreResponseDto] = []
+    /// The full Places list (every city, no ≥5-photo floor), enriched with
+    /// per-place photo counts. Drives the Explore view. `photoCount == nil`
+    /// means the count is still loading for that place.
+    private(set) var explorePlaces: [ExplorePlace] = []
 
     // Recent searches (UX)
     private(set) var recentSearches: [String] = []
@@ -101,6 +164,12 @@ final class SearchViewModel {
         let gen = searchGeneration + 1
         searchGeneration = gen
         lastQueried = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A free-text search supersedes any Explore drill-down filter — if the
+        // user types after tapping a card, the typed query wins and the EXIF
+        // field filter is cleared. (`searchByExplore` calls `search()` with an
+        // empty query but pre-sets the filter, so we only clear when there is
+        // actual free-text to run.)
+        if !lastQueried.isEmpty { pendingExploreFilter = nil }
         isLoading = true
         defer { isLoading = false }
 
@@ -182,7 +251,7 @@ final class SearchViewModel {
 
     private func recordRecentSearch() {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, selectedCity == nil, !results.isEmpty else { return }
+        guard !trimmed.isEmpty, pendingExploreFilter == nil, !results.isEmpty else { return }
         var recents = recentSearches
         recents.removeAll { $0 == trimmed }
         recents.insert(trimmed, at: 0)
@@ -208,15 +277,16 @@ final class SearchViewModel {
     }
 
     /// Builds the right DTO for the current mode + dispatches.
-    /// `selectedCity` overrides `query` for metadata mode (AC-404b / AC-406c).
+    /// `pendingExploreFilter` overrides `query` for metadata mode, routed to
+    /// the matching EXIF field (AC-404b / AC-406c — generalized beyond city).
     private func dispatchSearch(page: Int) async throws -> SearchResponseDto {
         switch searchMode {
         case .metadata:
-            let dto = MetadataSearchDto(
-                query: selectedCity != nil ? nil : query,
-                city: selectedCity,
-                page: page
-            )
+            var dto = MetadataSearchDto(query: query, page: page)
+            if let (field, value) = pendingExploreFilter {
+                dto.query = nil
+                field.apply(value, to: &dto)
+            }
             return try await client.searchMetadata(dto: dto)
         case .smart:
             let dto = SmartSearchDto(query: query, page: page)
@@ -241,30 +311,147 @@ final class SearchViewModel {
 
     // MARK: - Explore (AC-404a / AC-404c)
 
-    /// Loads explore data once per VM lifetime (guard exploreData.isEmpty +
-    /// !isLoading). Project convention: callers drive this via `.task {}`
-    /// (TimelineView.swift:84, TrashView.swift:85).
-    func loadExplore() async {
-        guard !isLoading, exploreData.isEmpty else { return }
+    /// Explore is considered stale after this interval; the Search tab is now
+    /// persistent, so a once-per-VM fetch would never reflect new uploads.
+    private let exploreStaleInterval: TimeInterval = 5 * 60
+    private var exploreLoadedAt: Date? = nil
+    /// Max concurrent per-city count fetches during enrichment.
+    private let exploreCountConcurrency = 6
+
+    /// Loads the Places list if empty or older than `exploreStaleInterval`
+    /// (AC-404a). Idempotent within the freshness window so tab-focus
+    /// re-entry doesn't spam the server (AC-404c). Pass `force: true` to
+    /// bypass the freshness check (used by pull-to-refresh).
+    ///
+    /// Flow: GET /search/cities → map to ExplorePlace (sorted by most-recent
+    /// date desc so the freshest trip lands on top immediately) → fan out
+    /// POST /search/statistics per city (concurrency-limited) and update each
+    /// place's photoCount as it arrives, re-sorting by count desc.
+    func loadExplore(force: Bool = false) async {
+        guard !isLoading else { return }
+        let stale = exploreLoadedAt.map { Date().timeIntervalSince($0) > exploreStaleInterval } ?? true
+        guard force || explorePlaces.isEmpty || stale else { return }
         isLoading = true
         defer { isLoading = false }
 
         do {
-            exploreData = try await client.getExploreData()
+            let assets = try await client.getAssetsByCity()
+            explorePlaces = Self.buildPlaces(from: assets)
+            exploreLoadedAt = Date()
+            if !explorePlaces.isEmpty { errorMessage = nil }
+            // Enrich counts concurrently; updates are visible progressively.
+            await enrichPlaceCounts()
         } catch {
             if isCancellation(error) { return }
             errorMessage = error.localizedDescription
         }
     }
 
-    /// AC-404b: Explore city tap → switch to Results mode + metadata search
-    /// filtered by city. Clears free-text `query`, sets `selectedCity`, then
-    /// dispatches a fresh search (resets state via `search()`).
-    func searchByCity(_ city: String) async {
+    /// Pull-to-refresh: clears cached data then forces a fresh fetch.
+    func refreshExplore() async {
+        explorePlaces = []
+        exploreData = []
+        exploreLoadedAt = nil
+        await loadExplore(force: true)
+    }
+
+    /// Maps the raw cities response into deduplicated, date-sorted places.
+    /// Static + pure so it's unit-testable without a live client.
+    static func buildPlaces(from assets: [AssetResponseDto]) -> [ExplorePlace] {
+        var seen = Set<String>()
+        let places = assets.compactMap { asset -> ExplorePlace? in
+            guard let city = asset.exifInfo?.city?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !city.isEmpty else { return nil }
+            guard !seen.contains(city) else { return nil } // dedup by city
+            seen.insert(city)
+            return ExplorePlace(
+                id: city,
+                city: city,
+                state: asset.exifInfo?.state,
+                country: asset.exifInfo?.country,
+                date: Self.parseDate(asset.exifInfo?.dateTimeOriginal),
+                assetId: asset.id,
+                thumbhash: asset.thumbhash,
+                photoCount: nil
+            )
+        }
+        // Initial order: most-recent first (counts re-sort once loaded).
+        return places.sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
+    }
+
+    /// Parses an Immich ISO-8601 `dateTimeOriginal` string into a Date.
+    /// Tolerates fractional seconds; nil if unparseable/absent.
+    static func parseDate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+        let frac = ISO8601DateFormatter()
+        frac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = frac.date(from: raw) { return d }
+        let plain = ISO8601DateFormatter()
+        return plain.date(from: raw)
+    }
+
+    /// Fans out a statistics request per place (concurrency-limited) and
+    /// updates each `photoCount` in place, re-sorting by count desc as the
+    /// results arrive so the most-photographed places rise to the top.
+    private func enrichPlaceCounts() async {
+        let cities = explorePlaces.map(\.city)
+        await withTaskGroup(of: (String, Int?).self) { [weak self] group in
+            for city in cities {
+                group.addTask { [weak self] in
+                    guard let self else { return (city, nil) }
+                    do {
+                        let resp = try await self.client.searchStatistics(
+                            dto: SearchStatisticsDto(city: city)
+                        )
+                        return (city, resp.total)
+                    } catch {
+                        return (city, nil)
+                    }
+                }
+            }
+            // TaskGroup already bounds concurrency at the cooperative pool
+            // level; collect results as they complete and apply.
+            var counts: [String: Int] = [:]
+            for await (city, total) in group {
+                if let total { counts[city] = total }
+            }
+            guard !counts.isEmpty else { return }
+            // Update + re-sort: places with a known count first (desc), then
+            // unresolved ones keep their date order.
+            for i in explorePlaces.indices {
+                if let total = counts[explorePlaces[i].city] {
+                    explorePlaces[i].photoCount = total
+                }
+            }
+            explorePlaces.sort { lhs, rhs in
+                Self.comparePlaces(lhs, rhs)
+            }
+        }
+    }
+
+    /// Ordering: known photo count desc; ties (incl. both-unknown) broken by
+    /// most-recent date desc so unresolved places keep a sensible position.
+    private static func comparePlaces(_ lhs: ExplorePlace, _ rhs: ExplorePlace) -> Bool {
+        switch (lhs.photoCount, rhs.photoCount) {
+        case let (l?, r?): return l > r
+        case (let l?, nil): return true   // known count ranks above unknown
+        case (nil, let r?): return false
+        default:
+            return (lhs.date ?? .distantPast) > (rhs.date ?? .distantPast)
+        }
+    }
+
+    /// AC-404b (generalized): Explore card tap → switch to Results mode +
+    /// metadata search filtered by the card's EXIF field. Clears free-text
+    /// `query`, stores the field+value filter, then dispatches (`search()`
+    /// resets pagination state). For a city card this matches the legacy
+    /// `searchByCity` behavior; for make/model/country/state/lensModel it
+    /// now routes to the correct field instead of misusing `city`.
+    func searchByExplore(field: ExploreField, value: String) async {
         searchTask?.cancel()
         viewMode = .results
         searchMode = .metadata
-        selectedCity = city
+        pendingExploreFilter = (field, value)
         query = ""
         await search()
     }

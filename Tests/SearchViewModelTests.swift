@@ -25,6 +25,30 @@ final class SearchViewModelTests: XCTestCase {
         )
     }
 
+    /// Builds an `AssetResponseDto` with full location EXIF for the cities flow.
+    private func makeCityAsset(
+        id: String, city: String, state: String? = nil, country: String? = nil,
+        dateTimeOriginal: String? = nil
+    ) -> AssetResponseDto {
+        var exif = ExifResponseDto()
+        exif.city = city
+        exif.state = state
+        exif.country = country
+        exif.dateTimeOriginal = dateTimeOriginal
+        return AssetResponseDto(
+            id: id, type: "IMAGE", thumbhash: nil, localDateTime: dateTimeOriginal ?? "2024-07-01T00:00:00.000Z",
+            duration: nil, hasMetadata: true, width: 100, height: 100,
+            createdAt: dateTimeOriginal ?? "2024-07-01T00:00:00.000Z", ownerId: "owner",
+            originalPath: "/\(id).jpg", originalFileName: "\(id).jpg",
+            fileCreatedAt: dateTimeOriginal ?? "2024-07-01T00:00:00.000Z",
+            fileModifiedAt: dateTimeOriginal ?? "2024-07-01T00:00:00.000Z",
+            updatedAt: dateTimeOriginal ?? "2024-07-01T00:00:00.000Z",
+            isFavorite: false, isArchived: false, isTrashed: false,
+            isOffline: false, visibility: "timeline", checksum: "x", isEdited: false,
+            exifInfo: exif
+        )
+    }
+
     private func makeMock(items: [AssetResponseDto] = [], nextPage: String? = nil) -> MockImmichClient {
         let mock = MockImmichClient()
         let resp = SearchResponseDto(
@@ -157,34 +181,31 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mock.requestCount, 1)
     }
 
-    // MARK: - AC-404a: loadExplore success path
+    // MARK: - AC-404a: loadExplore success path (Places via /search/cities)
 
     func test_AC_404a_loadExplore() async {
         let mock = MockImmichClient()
-        let thumbnail = makeAsset(id: "t1", city: "Paris")
-        mock.exploreResponse = [
-            SearchExploreResponseDto(
-                fieldName: "exifInfo.city",
-                items: [SearchExploreItem(value: "Paris", data: thumbnail)]
-            )
+        mock.citiesResponse = [
+            makeCityAsset(id: "t1", city: "Paris", country: "France")
         ]
         let vm = SearchViewModel(client: mock)
 
         await vm.loadExplore()
 
-        XCTAssertEqual(mock.requestCount, 1)
-        XCTAssertEqual(vm.exploreData.count, 1)
-        XCTAssertEqual(vm.exploreData.first?.fieldName, "exifInfo.city")
+        XCTAssertEqual(mock.requestCount, 2, "1 cities call + 1 statistics call")
+        XCTAssertEqual(vm.explorePlaces.count, 1)
+        XCTAssertEqual(vm.explorePlaces.first?.city, "Paris")
+        XCTAssertEqual(vm.explorePlaces.first?.country, "France")
         XCTAssertNil(vm.errorMessage)
     }
 
-    // MARK: - AC-404b: searchByCity resets state + dispatches dto.city
+    // MARK: - AC-404b: searchByExplore resets state + dispatches the right EXIF field
 
     func test_AC_404b_cityTapDispatchesCity() async {
         let mock = makeMock(items: [makeAsset(id: "p1"), makeAsset(id: "p2")])
         let vm = SearchViewModel(client: mock)
 
-        await vm.searchByCity("Paris")
+        await vm.searchByExplore(field: .city, value: "Paris")
 
         XCTAssertEqual(mock.lastMetadataSearchDto?.city, "Paris")
         XCTAssertNil(mock.lastMetadataSearchDto?.query, "free-text query must be nil when city filter active")
@@ -198,9 +219,90 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertNil(vm.nextPage)
     }
 
-    // MARK: - AC-404c: loadExplore idempotency
+    /// P0 regression: a card tap for each non-city EXIF field must route the
+    /// value into the matching DTO field, NOT into `city` (the old bug).
+    func test_exploreTap_camera_setsMake_notCity() async {
+        let mock = makeMock(items: [makeAsset(id: "c1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .make, value: "Canon")
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.make, "Canon")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city, "make tap must not misuse city field")
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+    }
+
+    func test_exploreTap_model_setsModel() async {
+        let mock = makeMock(items: [makeAsset(id: "m1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .model, value: "EOS R6")
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.model, "EOS R6")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city)
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+    }
+
+    func test_exploreTap_country_setsCountry() async {
+        let mock = makeMock(items: [makeAsset(id: "co1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .country, value: "France")
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.country, "France")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city)
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+    }
+
+    func test_exploreTap_state_setsState() async {
+        let mock = makeMock(items: [makeAsset(id: "st1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .state, value: "California")
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.state, "California")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city)
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+    }
+
+    func test_exploreTap_lensModel_setsLensModel() async {
+        let mock = makeMock(items: [makeAsset(id: "l1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .lensModel, value: "RF 24-70")
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.lensModel, "RF 24-70")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city)
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+    }
+
+    /// `ExploreField(rawFieldName:)` parses the server's "exifInfo.x" keys.
+    func test_exploreField_parsesRawFieldNames() {
+        XCTAssertEqual(SearchViewModel.ExploreField(rawFieldName: "exifInfo.city"), .city)
+        XCTAssertEqual(SearchViewModel.ExploreField(rawFieldName: "exifInfo.make"), .make)
+        XCTAssertEqual(SearchViewModel.ExploreField(rawFieldName: "exifInfo.lensModel"), .lensModel)
+        XCTAssertNil(SearchViewModel.ExploreField(rawFieldName: "exifInfo.unknown"))
+    }
+
+    // MARK: - AC-404c: loadExplore idempotency within freshness window
 
     func test_AC_404c_loadExplore_idempotent() async {
+        let mock = MockImmichClient()
+        mock.citiesResponse = [
+            makeCityAsset(id: "t1", city: "Paris", country: "France")
+        ]
+        let vm = SearchViewModel(client: mock)
+
+        await vm.loadExplore()
+        let firstCount = mock.requestCount
+        await vm.loadExplore()
+
+        XCTAssertEqual(mock.requestCount, firstCount, "second call within freshness window must no-op")
+        XCTAssertFalse(vm.explorePlaces.isEmpty)
+    }
+
+    /// `refreshExplore` bypasses the freshness guard and forces a re-fetch.
+    func test_refreshExplore_forcesRefetch() async {
         let mock = MockImmichClient()
         mock.exploreResponse = [
             SearchExploreResponseDto(
@@ -211,10 +313,88 @@ final class SearchViewModelTests: XCTestCase {
         let vm = SearchViewModel(client: mock)
 
         await vm.loadExplore()
+        XCTAssertEqual(mock.requestCount, 1)
+
+        await vm.refreshExplore()
+        XCTAssertEqual(mock.requestCount, 2, "refreshExplore must force a second fetch")
+    }
+
+    // MARK: - Explore Places (Option B: /search/cities + per-place counts)
+
+    /// buildPlaces maps assets → ExplorePlace, dedups by city, sorts by date desc.
+    func test_buildPlaces_mapsDedupsAndSortsByDate() {
+        let assets = [
+            makeCityAsset(id: "a1", city: "Lyon", state: "Rhône", country: "France",
+                          dateTimeOriginal: "2023-03-15T10:00:00.000Z"),
+            makeCityAsset(id: "a2", city: "Paris", state: "Île-de-France", country: "France",
+                          dateTimeOriginal: "2024-07-14T10:00:00.000Z"),
+            // Duplicate Paris — must be dropped.
+            makeCityAsset(id: "a3", city: "Paris", country: "France",
+                          dateTimeOriginal: "2022-01-01T10:00:00.000Z"),
+            // No city — dropped.
+            makeCityAsset(id: "a4", city: "", country: "France"),
+        ]
+        let places = SearchViewModel.buildPlaces(from: assets)
+
+        XCTAssertEqual(places.count, 2, "dedup by city + drop empty city")
+        XCTAssertEqual(places.map(\.city), ["Paris", "Lyon"], "most-recent date first")
+        XCTAssertEqual(places.first?.state, "Île-de-France")
+        XCTAssertEqual(places.first?.country, "France")
+        XCTAssertNotNil(places.first?.date, "dateTimeOriginal parsed")
+    }
+
+    /// loadExplore fetches all cities + enriches per-place counts, sorted desc.
+    func test_loadExplore_fetchesAllCitiesAndCounts() async {
+        let mock = MockImmichClient()
+        mock.citiesResponse = [
+            makeCityAsset(id: "p1", city: "Paris", country: "France",
+                          dateTimeOriginal: "2024-07-14T10:00:00.000Z"),
+            makeCityAsset(id: "l1", city: "Lyon", country: "France",
+                          dateTimeOriginal: "2024-03-14T10:00:00.000Z"),
+            makeCityAsset(id: "t1", city: "Tokyo", country: "Japan",
+                          dateTimeOriginal: "2024-09-01T10:00:00.000Z"),
+        ]
+        mock.statisticsByCity = ["Paris": 247, "Lyon": 12, "Tokyo": 89]
+        let vm = SearchViewModel(client: mock)
+
         await vm.loadExplore()
 
-        XCTAssertEqual(mock.requestCount, 1, "second call must no-op (exploreData non-empty)")
-        XCTAssertFalse(vm.exploreData.isEmpty)
+        XCTAssertEqual(mock.requestCount, 4, "1 cities call + 3 statistics calls")
+        XCTAssertEqual(vm.explorePlaces.count, 3)
+        // Sorted by count desc: Paris(247) > Tokyo(89) > Lyon(12).
+        XCTAssertEqual(vm.explorePlaces.map(\.city), ["Paris", "Tokyo", "Lyon"])
+        XCTAssertEqual(vm.explorePlaces.first?.photoCount, 247)
+        XCTAssertEqual(vm.explorePlaces.last?.photoCount, 12)
+    }
+
+    /// ExplorePlace.flag derives the emoji from the country name.
+    func test_explorePlace_flagFromCountry() {
+        let place = ExplorePlace(
+            id: "Paris", city: "Paris", state: nil, country: "France",
+            date: nil, assetId: "a", thumbhash: nil, photoCount: nil
+        )
+        XCTAssertEqual(place.flag, "🇫🇷")
+        XCTAssertEqual(place.subtitle, "France")
+    }
+
+    // MARK: - CountryFlag mapper
+
+    func test_countryFlag_knownCountries() {
+        XCTAssertEqual(CountryFlag.emoji(forCountryName: "France"), "🇫🇷")
+        XCTAssertEqual(CountryFlag.emoji(forCountryName: "Japan"), "🇯🇵")
+        XCTAssertEqual(CountryFlag.emoji(forCountryName: "United States"), "🇺🇸")
+        XCTAssertEqual(CountryFlag.emoji(forCountryName: "GERMANY"), "🇩🇪", "case-insensitive")
+    }
+
+    func test_countryFlag_unknownAndNil() {
+        XCTAssertNil(CountryFlag.emoji(forCountryName: nil))
+        XCTAssertNil(CountryFlag.emoji(forCountryName: ""))
+        XCTAssertNil(CountryFlag.emoji(forCountryName: "Atlantis"))
+    }
+
+    func test_countryFlag_fromRegionCode() {
+        XCTAssertEqual(CountryFlag.flagEmoji(forRegionCode: "FR"), "🇫🇷")
+        XCTAssertNil(CountryFlag.flagEmoji(forRegionCode: "X1"), "invalid code → nil")
     }
 
     // MARK: - AC-405: empty state after search() returns 0 results
@@ -279,7 +459,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mock.requestCount, 1, "loadMore no-op when canLoadMore false")
     }
 
-    // MARK: - AC-406c: loadMore persists city filter after searchByCity
+    // MARK: - AC-406c: loadMore persists the Explore field filter
 
     func test_AC_406c_loadMore_persists_city_filter() async {
         let mock = MockImmichClient()
@@ -290,7 +470,7 @@ final class SearchViewModelTests: XCTestCase {
         )
         let vm = SearchViewModel(client: mock)
 
-        await vm.searchByCity("Paris")
+        await vm.searchByExplore(field: .city, value: "Paris")
         XCTAssertEqual(mock.requestCount, 1)
 
         // Page 2 response (nextPage nil).
@@ -306,6 +486,34 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertNil(mock.lastMetadataSearchDto?.query)
         XCTAssertEqual(mock.lastMetadataSearchDto?.page, 2)
         XCTAssertEqual(vm.results.count, 2)
+    }
+
+    /// P0 regression: loadMore must persist a NON-city field filter too.
+    func test_AC_406c_loadMore_persists_make_filter() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = SearchResponseDto(
+            assets: SearchAssetResponseDto(
+                count: 1, items: [makeAsset(id: "c1")], nextPage: "2"
+            )
+        )
+        let vm = SearchViewModel(client: mock)
+
+        await vm.searchByExplore(field: .make, value: "Canon")
+        XCTAssertEqual(mock.requestCount, 1)
+        XCTAssertEqual(mock.lastMetadataSearchDto?.make, "Canon")
+
+        mock.searchMetadataResponse = SearchResponseDto(
+            assets: SearchAssetResponseDto(
+                count: 1, items: [makeAsset(id: "c2")], nextPage: nil
+            )
+        )
+        await vm.loadMore()
+
+        XCTAssertEqual(mock.requestCount, 2)
+        XCTAssertEqual(mock.lastMetadataSearchDto?.make, "Canon", "make filter persists across pages")
+        XCTAssertNil(mock.lastMetadataSearchDto?.city)
+        XCTAssertNil(mock.lastMetadataSearchDto?.query)
+        XCTAssertEqual(mock.lastMetadataSearchDto?.page, 2)
     }
 
     // MARK: - Live search (debounced) + clear + recents
@@ -408,7 +616,7 @@ final class SearchViewModelTests: XCTestCase {
         let vm = SearchViewModel(client: mock, recents: store)
 
         // City flow: query stays empty → nothing recorded.
-        await vm.searchByCity("Paris")
+        await vm.searchByExplore(field: .city, value: "Paris")
         XCTAssertTrue(vm.recentSearches.isEmpty, "city filter must not be recorded as a text search")
         XCTAssertTrue(store.load().isEmpty)
     }
