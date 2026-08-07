@@ -159,14 +159,53 @@ final class TimelineViewModel {
 
     /// Grouped view of loaded items by day (fileCreatedAt date portion).
     /// Provided as a convenience for the grid view.
+    ///
+    /// Memoized: the Dictionary grouping + two sorts ran on every `body`
+    /// evaluation (audit P1) even though the grouping only depends on `items`.
+    /// The cache is invalidated by a `(count, lastId)` signature — every
+    /// `items` mutation (append, replace-all, removeAll) changes one of these,
+    /// so the cache is always fresh. In-place favorite patches change neither,
+    /// but favorite state isn't part of the grouping (only `fileCreatedAt` is),
+    /// so they correctly reuse the cache.
+    private var _groupedByDay: [(day: String, items: [AssetReactItem])]?
+    private var _groupedByDayKey: (count: Int, lastId: String?)?
+
     var groupedByDay: [(day: String, items: [AssetReactItem])] {
+        let key = (count: items.count, lastId: items.last?.id)
+        if let cacheKey = _groupedByDayKey, cacheKey.count == key.count, cacheKey.lastId == key.lastId,
+           let cached = _groupedByDay {
+            return cached
+        }
         let groups = Dictionary(grouping: items) { item -> String in
             // ISO8601 YYYY-MM-DD prefix
             String(item.fileCreatedAt.prefix(10))
         }
-        return groups
+        let computed = groups
             .map { (day: $0.key, items: $0.value.sorted { $0.fileCreatedAt > $1.fileCreatedAt }) }
             .sorted { $0.day > $1.day }
+        _groupedByDay = computed
+        _groupedByDayKey = key
+        return computed
+    }
+
+    /// The interleaved month-header + day-group sections the grid renders,
+    /// built from `groupedByDay` via `TimelineSectionBuilder.build`. Memoized
+    /// on the same `(count, lastId)` signature as `groupedByDay` so the whole
+    /// section pipeline (Dictionary + sorts + banner interleave) runs only
+    /// when `items` changes, not per `body` evaluation (audit P1).
+    private var _timelineSections: [TimelineSectionBuilder.Section]?
+    private var _timelineSectionsKey: (count: Int, lastId: String?)?
+
+    var timelineSections: [TimelineSectionBuilder.Section] {
+        let key = (count: items.count, lastId: items.last?.id)
+        if let cacheKey = _timelineSectionsKey, cacheKey.count == key.count, cacheKey.lastId == key.lastId,
+           let cached = _timelineSections {
+            return cached
+        }
+        let computed = TimelineSectionBuilder.build(from: groupedByDay)
+        _timelineSections = computed
+        _timelineSectionsKey = key
+        return computed
     }
 
     // MARK: - Batch favorite (V7)
