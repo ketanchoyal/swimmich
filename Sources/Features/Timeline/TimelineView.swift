@@ -132,7 +132,7 @@ struct TimelineView: View {
                         } label: {
                             Image(systemName: "arrow.up")
                                 .font(.pvHeadline)
-                                .foregroundStyle(Color.accentInfo)
+                                .foregroundStyle(Color.immichPrimary)
                                 .frame(width: 44, height: 44)
                                 .background(.regularMaterial, in: Circle())
                                 .pvFloatingShadow()

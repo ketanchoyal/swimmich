@@ -472,7 +472,7 @@ struct PhotoViewer: View {
                     } label: {
                         Image(systemName: favoriteIDs.contains(asset.id) ? "heart.fill" : "heart")
                             .font(.pvTitle)
-                            .foregroundStyle(favoriteIDs.contains(asset.id) ? Color.statusError : Color.white)
+                            .foregroundStyle(favoriteIDs.contains(asset.id) ? Color.immichError : Color.white)
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
@@ -945,7 +945,7 @@ private struct PhotoShareSheet: View {
                                 Spacer()
                                 if vm.lastAddedAlbumId == album.id {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(Color.statusSuccess)
+                                        .foregroundStyle(Color.immichSuccess)
                                 }
                             }
                         }

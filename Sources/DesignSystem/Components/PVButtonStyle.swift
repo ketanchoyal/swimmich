@@ -12,7 +12,7 @@ struct PVPrimaryButtonStyle: ButtonStyle {
             .font(.pvHeadline)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Color.brandIndigo)
+            .background(Color.immichPrimary)
             .clipShape(RoundedRectangle(cornerRadius: PVRadius.control, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(PVMotion.snappy, value: configuration.isPressed)

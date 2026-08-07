@@ -40,7 +40,7 @@ struct ImmichLogo: View {
         HStack(spacing: PVSpacing.s4) {
             Image(systemName: "camera.aperture")
                 .font(.system(size: 22, weight: .semibold)) // DS-exempt: brand glyph §8.6
-                .foregroundStyle(Color.brandIndigo)
+                .foregroundStyle(Color.immichPrimary)
             Text(title)
                 .font(.pvH6)
                 .foregroundStyle(Color.textPrimaryPV)
@@ -56,7 +56,7 @@ struct ImmichLogo: View {
 private struct ImmichBottomBarModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .tint(Color.brandIndigo)
+            .tint(Color.immichPrimary)
             .toolbarBackground(Color.bgSecondary, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
     }

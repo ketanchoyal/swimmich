@@ -57,7 +57,7 @@ struct PhotoEditorView: View {
                     .accessibilityIdentifier("revertToOriginalButton")
 
                     if let err = vm.errorMessage {
-                        Text(err).foregroundStyle(Color.statusError).font(.pvCaption)
+                        Text(err).foregroundStyle(Color.immichError).font(.pvCaption)
                     }
                 }
                 .padding()
@@ -209,7 +209,7 @@ struct CropAspectPickerView: View {
                                 .font(.pvCaption)
                                 .padding(.horizontal, PVSpacing.s8)
                                 .padding(.vertical, PVSpacing.s8)
-                                .background(selectedRatio == ratio ? Color.brandIndigo.opacity(0.3) : Color.bgTertiary.opacity(0.1))
+                                .background(selectedRatio == ratio ? Color.immichPrimary.opacity(0.3) : Color.bgTertiary.opacity(0.1))
                                 .clipShape(Capsule())
                         }
                         .accessibilityIdentifier("ratioButton.\(ratio.rawValue)")

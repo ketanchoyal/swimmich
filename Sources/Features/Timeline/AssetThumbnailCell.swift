@@ -156,7 +156,7 @@ struct AssetThumbnailCell: View {
     private var selectionTint: some View {
         if selectionMode {
             if isSelected {
-                Color.accentInfo.opacity(0.15)
+                Color.immichPrimary.opacity(0.15)
             } else {
                 Color.black.opacity(0.06) // DS-exempt: structural dim overlay
             }
@@ -173,7 +173,7 @@ struct AssetThumbnailCell: View {
                 .font(.pvHeadline)
                 .symbolEffect(.bounce, value: isSelected)
                 .contentTransition(.symbolEffect(.replace))
-                .foregroundStyle(isSelected ? Color.accentInfo : Color.white) // DS-exempt: badge contrast on material (white branch)
+                .foregroundStyle(isSelected ? Color.immichPrimary : Color.white) // DS-exempt: badge contrast on material (white branch)
                 .shadow(color: .black.opacity(0.25), radius: 1.5) // DS-exempt: micro-badge shadow
                 .padding(8)
                 .accessibilityLabel(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))

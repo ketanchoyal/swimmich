@@ -108,7 +108,7 @@ struct PhotoInfoPanel: View {
         } else if let error = vm?.errorMessage {
             Text(error)
                 .font(.pvCaption)
-                .foregroundStyle(Color.statusError)
+                .foregroundStyle(Color.immichError)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ProgressView()

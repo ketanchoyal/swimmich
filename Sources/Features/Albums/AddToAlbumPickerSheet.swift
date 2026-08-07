@@ -32,7 +32,7 @@ struct AddToAlbumPickerSheet: View {
                         } label: {
                             HStack {
                                 if addedAlbumId == album.id {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.statusSuccess)
+                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.immichSuccess)
                                 }
                                 VStack(alignment: .leading) {
                                     Text(album.albumName).foregroundStyle(Color.textPrimaryPV)
