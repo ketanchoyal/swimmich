@@ -22,12 +22,29 @@ enum APIError: Error, LocalizedError, Equatable {
         }
     }
 
+    /// `true` when this error represents cooperative `Task` cancellation (a
+    /// `URLError(.cancelled)` surfacing from `URLSession.data(for:)` when the
+    /// enclosing Task was cancelled). Cancellation is a normal outcome of
+    /// debounced live search / pagination and must NOT be surfaced to the user.
+    var isCancellation: Bool {
+        switch self {
+        case .network(let e): return e.code == .cancelled
+        default: return false
+        }
+    }
+
     /// Maps a raw URL response error to the APIError domain.
     static func from(_ error: Error) -> APIError {
         if let api = error as? APIError { return api }
         if let url = error as? URLError {
             // URLSession surfaces 401 via status code path, not URLError, but defensive.
             return .network(url)
+        }
+        // Cooperative `Task` cancellation (`error` is `CancellationError`) —
+        // round-trip through `.network(.cancelled)` so callers can detect it
+        // via `isCancellation` instead of mislabeling it a decoding failure.
+        if error is CancellationError {
+            return .network(URLError(.cancelled))
         }
         return .decoding(String(describing: error))
     }

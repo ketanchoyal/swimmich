@@ -12,6 +12,10 @@ import SwiftUI
 struct SearchModeGlassBar: View {
     @Binding var mode: SearchViewModel.ViewMode
 
+    /// Bumped on each mode change so `.sensoryFeedback` re-fires. Mirrors the
+    /// TimelineView.swift:155 selection-tick pattern (native API, no UIKit).
+    @State private var modeChangeTick = 0
+
     static let height: CGFloat = 44
     private static let segments: [(mode: SearchViewModel.ViewMode, title: String, icon: String)] = [
         (.results, "Résultats", "magnifyingglass"),
@@ -20,38 +24,41 @@ struct SearchModeGlassBar: View {
     ]
 
     var body: some View {
-        GeometryReader { geo in
-            let segmentWidth = geo.size.width / CGFloat(Self.segments.count)
-            let selectedIndex = Self.segments.firstIndex { $0.mode == mode } ?? 0
+        GlassEffectContainer {
+            GeometryReader { geo in
+                let segmentWidth = geo.size.width / CGFloat(Self.segments.count)
+                let selectedIndex = Self.segments.firstIndex { $0.mode == mode } ?? 0
 
-            ZStack(alignment: .leading) {
-                // Highlight thumb — smooth slide between segments.
-                Capsule()
-                    .fill(Color.primary.opacity(0.12))
-                    .overlay(
-                        Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                    )
-                    .frame(
-                        width: segmentWidth - PVSpacing.s8,
-                        height: Self.height - PVSpacing.s8
-                    )
-                    .offset(x: PVSpacing.s4 + CGFloat(selectedIndex) * segmentWidth)
-                    .animation(.easeOut(duration: 0.2), value: selectedIndex)
+                ZStack(alignment: .leading) {
+                    // Highlight thumb — smooth slide between segments.
+                    Capsule()
+                        .fill(Color.primary.opacity(0.12))
+                        .overlay(
+                            Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                        )
+                        .frame(
+                            width: segmentWidth - PVSpacing.s8,
+                            height: Self.height - PVSpacing.s8
+                        )
+                        .offset(x: PVSpacing.s4 + CGFloat(selectedIndex) * segmentWidth)
+                        .animation(.easeOut(duration: 0.2), value: selectedIndex)
 
-                // Segments.
-                HStack(spacing: 0) {
-                    ForEach(Self.segments, id: \.mode) { segment in
-                        segmentButton(segment)
-                            .frame(width: segmentWidth, height: Self.height)
+                    // Segments.
+                    HStack(spacing: 0) {
+                        ForEach(Self.segments, id: \.mode) { segment in
+                            segmentButton(segment)
+                                .frame(width: segmentWidth, height: Self.height)
+                        }
                     }
                 }
             }
+            .frame(height: Self.height)
+            .glassEffect(.regular, in: Capsule())
+            .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
         }
-        .frame(height: Self.height)
-        .glassEffect(.regular, in: Capsule())
-        .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .sensoryFeedback(.selection, trigger: modeChangeTick)
         .onChange(of: mode) { _, _ in
-            UISelectionFeedbackGenerator().selectionChanged()
+            modeChangeTick += 1
         }
     }
 

@@ -114,10 +114,20 @@ final class SearchViewModel {
 
         do {
             let resp = try await dispatchSearch(page: 1)
+            // A superseded search (newer keystroke / clear / city tap bumped the
+            // generation) must never overwrite the fresher state. We don't check
+            // `Task.isCancelled` here because `search()` runs inside the very
+            // `searchTask` it cancels on line above — that self-cancel is benign
+            // (it only clears the debounce sleep) and must not short-circuit a
+            // successful response. Cancellation from a *newer* search is caught
+            // by the generation guard.
             guard gen == searchGeneration else { return }
             applyResponse(resp)
             recordRecentSearch()
         } catch {
+            // Cancellation is a normal outcome of debounced live search
+            // (rapid typing cancels the in-flight request). Never surface it.
+            if isCancellation(error) { return }
             guard gen == searchGeneration else { return }
             errorMessage = error.localizedDescription
         }
@@ -133,10 +143,12 @@ final class SearchViewModel {
         let nextPageNumber = currentPage + 1
         do {
             let resp = try await dispatchSearch(page: nextPageNumber)
+            // Only apply if no newer search superseded this pagination.
             guard gen == searchGeneration else { return }
             currentPage = nextPageNumber
             applyResponse(resp, append: true)
         } catch {
+            if isCancellation(error) { return }
             guard gen == searchGeneration else { return }
             errorMessage = error.localizedDescription
         }
@@ -176,6 +188,23 @@ final class SearchViewModel {
         recents.insert(trimmed, at: 0)
         recentSearches = Array(recents.prefix(recentsCapacity))
         recentsStore.save(recentSearches)
+    }
+
+    /// `true` when `error` represents cooperative Task cancellation — either a
+    /// `URLError(.cancelled)` (what `URLSession.data(for:)` throws when its
+    /// enclosing Task is cancelled) wrapped as `APIError.network`, or a raw
+    /// `CancellationError`. Cancellation is a normal outcome of debounced live
+    /// search and must never surface as a user-visible error.
+    ///
+    /// We check only the *error type*, not `Task.isCancelled`: `search()` runs
+    /// inside the very `searchTask` it cancels (`:100`), so `Task.isCancelled`
+    /// is true for the current search even when the dispatched request itself
+    /// failed with a genuine (non-cancellation) error.
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let api = error as? APIError, api.isCancellation { return true }
+        if let url = error as? URLError, url.code == .cancelled { return true }
+        return false
     }
 
     /// Builds the right DTO for the current mode + dispatches.
@@ -223,6 +252,7 @@ final class SearchViewModel {
         do {
             exploreData = try await client.getExploreData()
         } catch {
+            if isCancellation(error) { return }
             errorMessage = error.localizedDescription
         }
     }

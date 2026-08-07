@@ -18,7 +18,7 @@ struct SearchView: View {
 
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
     var body: some View {
         NavigationStack {
@@ -113,9 +113,9 @@ struct SearchView: View {
             }
         } label: {
             Image(systemName: vm.searchMode == .smart ? "sparkles" : "character.magnify")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.pvBody.weight(.semibold))
                 .foregroundStyle(Color.immichPrimary)
-                .frame(width: 30, height: 30)
+                .frame(minWidth: 44, minHeight: 44)
                 .glassEffect(.regular, in: Circle())
         }
         .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
@@ -169,14 +169,10 @@ struct SearchView: View {
 
     private var resultsGrid: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: PVSpacing.s4) {
-                Text("\(vm.results.count) photos")
-                    .font(.pvSubhead)
-                    .foregroundStyle(Color.textSecondaryPV)
-                    .padding(.horizontal)
-                    .padding(.top, PVSpacing.s8)
-
-                LazyVGrid(columns: columns, spacing: 0) {
+            // Mirrors the Photos timeline grid: LazyVStack + LazyVGrid with 2pt
+            // seams and a 4pt horizontal inset — no count header above the grid.
+            LazyVStack(alignment: .leading, spacing: PVSpacing.s2) {
+                LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
                     ForEach(vm.results) { item in
                         AssetThumbnailCell(
                             asset: item,
@@ -193,6 +189,7 @@ struct SearchView: View {
                         }
                     }
                 }
+                .padding(.horizontal, PVSpacing.s4)
                 if vm.isLoading {
                     ProgressView()
                         .padding(.vertical, PVSpacing.s12)

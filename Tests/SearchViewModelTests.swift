@@ -97,6 +97,38 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    // MARK: - Cancellation must not surface as a user-visible error
+
+    /// A `URLError(.cancelled)` (what `URLSession.data(for:)` throws when the
+    /// enclosing debounced Task is cancelled mid-flight) must be swallowed —
+    /// it is a normal outcome of typing/clearing/recents, never an error.
+    func test_searchCancelled_doesNotSurfaceError_urlError() async {
+        let mock = makeMock()
+        mock.smartSearchError = URLError(.cancelled)
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .smart
+        vm.query = "beach"
+
+        await vm.search()
+
+        XCTAssertNil(vm.errorMessage, "URLError(.cancelled) must not surface as an error")
+        XCTAssertTrue(vm.hasSearched, "the search attempt was registered")
+    }
+
+    /// A cooperative `CancellationError` (e.g. `Task.cancel()` propagating into
+    /// a non-URLSession await) must likewise be swallowed.
+    func test_searchCancelled_doesNotSurfaceError_cancellationError() async {
+        let mock = makeMock()
+        mock.smartSearchError = CancellationError()
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .smart
+        vm.query = "beach"
+
+        await vm.search()
+
+        XCTAssertNil(vm.errorMessage, "CancellationError must not surface as an error")
+    }
+
     // MARK: - AC-402: dto dispatched selon mode
 
     func test_AC_402_metadata_dto_dispatched() async {
