@@ -328,50 +328,52 @@ struct PhotoViewer: View {
     // MARK: - Top bar (back · location+date glass · info)
 
     private func topBar(_ asset: AssetReactItem) -> some View {
-        HStack(spacing: PVSpacing.s16) {
-            Button {
-                dismissAction()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.pvHeadline)
-                    .foregroundStyle(Color.white)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Back")
-
-            Spacer()
-
-            VStack(spacing: 2) {
-                if let place = placeName(for: asset) {
-                    Text(place)
-                        .font(.pvSubhead.weight(.semibold))
+        GlassEffectContainer {
+            HStack(spacing: PVSpacing.s16) {
+                Button {
+                    dismissAction()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.pvHeadline)
                         .foregroundStyle(Color.white)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+
+                Spacer()
+
+                VStack(spacing: 2) {
+                    if let place = placeName(for: asset) {
+                        Text(place)
+                            .font(.pvSubhead.weight(.semibold))
+                            .foregroundStyle(Color.white)
+                            .lineLimit(1)
+                    }
+                    Text(headerDate(for: asset))
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.white.opacity(0.8))
                         .lineLimit(1)
                 }
-                Text(headerDate(for: asset))
-                    .font(.pvCaption)
-                    .foregroundStyle(Color.white.opacity(0.8))
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, PVSpacing.s16)
-            .padding(.vertical, PVSpacing.s4)
-            .glassEffect(.regular, in: Capsule())
+                .padding(.horizontal, PVSpacing.s16)
+                .padding(.vertical, PVSpacing.s4)
+                .glassEffect(.regular, in: Capsule())
 
-            Spacer()
+                Spacer()
 
-            Button {
-                openInfo()
-            } label: {
-                Image(systemName: "info")
-                    .font(.pvHeadline)
-                    .foregroundStyle(Color.white)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
+                Button {
+                    openInfo()
+                } label: {
+                    Image(systemName: "info")
+                        .font(.pvHeadline)
+                        .foregroundStyle(Color.white)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Details")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Details")
         }
         .padding(.horizontal, PVSpacing.s16)
         .padding(.top, PVSpacing.s8)
@@ -436,82 +438,84 @@ struct PhotoViewer: View {
     // MARK: - Bottom bar (share · favorite/edit glass · delete)
 
     private func bottomBar(_ asset: AssetReactItem) -> some View {
-        HStack(spacing: PVSpacing.s16) {
-            if !isTrash {
-                Button {
-                    presentShare = true
+        GlassEffectContainer {
+            HStack(spacing: PVSpacing.s16) {
+                if !isTrash {
+                    Button {
+                        presentShare = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.pvHeadline)
+                            .foregroundStyle(Color.white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Share")
+                }
+
+                Spacer()
+
+                // Center glass capsule: favorite + edit (or restore in Trash).
+                HStack(spacing: PVSpacing.s24) {
+                    if isTrash {
+                        Button {
+                            restore(asset)
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.pvHeadline)
+                                .foregroundStyle(Color.white)
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Restore")
+                    } else {
+                        Button {
+                            toggleFavorite(asset)
+                        } label: {
+                            Image(systemName: favoriteIDs.contains(asset.id) ? "heart.fill" : "heart")
+                                .font(.pvTitle)
+                                .foregroundStyle(favoriteIDs.contains(asset.id) ? Color.immichError : Color.white)
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(favoriteIDs.contains(asset.id) ? "Unfavorite" : "Favorite")
+
+                        Button {
+                            presentEdit = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.pvHeadline)
+                                .foregroundStyle(Color.white)
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Edit")
+                    }
+                }
+                .padding(.horizontal, PVSpacing.s8)
+                .padding(.vertical, PVSpacing.s4)
+                .glassEffect(.regular, in: Capsule())
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    if isTrash {
+                        deleteIsPermanent = true
+                    } else {
+                        deleteIsPermanent = false
+                    }
+                    pendingDeleteIndex = selectedIndex
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
+                    Image(systemName: isTrash ? "trash.slash" : "trash")
                         .font(.pvHeadline)
                         .foregroundStyle(Color.white)
                         .frame(width: 40, height: 40)
                         .glassEffect(.regular, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Share")
+                .accessibilityLabel(isTrash ? "Delete Permanently" : "Delete")
             }
-
-            Spacer()
-
-            // Center glass capsule: favorite + edit (or restore in Trash).
-            HStack(spacing: PVSpacing.s24) {
-                if isTrash {
-                    Button {
-                        restore(asset)
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.pvHeadline)
-                            .foregroundStyle(Color.white)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Restore")
-                } else {
-                    Button {
-                        toggleFavorite(asset)
-                    } label: {
-                        Image(systemName: favoriteIDs.contains(asset.id) ? "heart.fill" : "heart")
-                            .font(.pvTitle)
-                            .foregroundStyle(favoriteIDs.contains(asset.id) ? Color.immichError : Color.white)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(favoriteIDs.contains(asset.id) ? "Unfavorite" : "Favorite")
-
-                    Button {
-                        presentEdit = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.pvHeadline)
-                            .foregroundStyle(Color.white)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Edit")
-                }
-            }
-            .padding(.horizontal, PVSpacing.s8)
-            .padding(.vertical, PVSpacing.s4)
-            .glassEffect(.regular, in: Capsule())
-
-            Spacer()
-
-            Button(role: .destructive) {
-                if isTrash {
-                    deleteIsPermanent = true
-                } else {
-                    deleteIsPermanent = false
-                }
-                pendingDeleteIndex = selectedIndex
-            } label: {
-                Image(systemName: isTrash ? "trash.slash" : "trash")
-                    .font(.pvHeadline)
-                    .foregroundStyle(Color.white)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isTrash ? "Delete Permanently" : "Delete")
         }
         .padding(.horizontal, PVSpacing.s16)
         .padding(.vertical, PVSpacing.s8)
@@ -824,37 +828,39 @@ private struct PhotoShareSheet: View {
     }
 
     private var header: some View {
-        HStack(spacing: PVSpacing.s16) {
-            Button {
-                Task { await presentNativeShare() }
-            } label: {
-                Image(systemName: "square.and.arrow.up")
+        GlassEffectContainer {
+            HStack(spacing: PVSpacing.s16) {
+                Button {
+                    Task { await presentNativeShare() }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.pvHeadline)
+                        .foregroundStyle(Color.immichPrimary)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Share")
+
+                Spacer()
+
+                Text("Partager")
                     .font(.pvHeadline)
-                    .foregroundStyle(Color.immichPrimary)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.pvHeadline)
+                        .foregroundStyle(Color.immichPrimary)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share")
-
-            Spacer()
-
-            Text("Partager")
-                .font(.pvHeadline)
-
-            Spacer()
-
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.pvHeadline)
-                    .foregroundStyle(Color.immichPrimary)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
         }
         .padding(.horizontal, PVSpacing.s16)
         .padding(.vertical, PVSpacing.s8)
