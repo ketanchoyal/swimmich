@@ -149,6 +149,11 @@ struct MapPhotosSheet: View {
     @Environment(AuthViewModel.self) private var auth
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
     @State private var photoLimit = 15
+    /// Cached `asAssetItem` mapping of `displayedPhotos` so `openViewer`
+    /// doesn't re-map the whole region on every tap (audit P5). Invalidated
+    /// alongside `photoLimit` when `displayedPhotos` changes.
+    @State private var cachedAssets: [AssetReactItem]?
+    @State private var cachedAssetsKey: [MapPhoto]?
     private static let photoLimitStep = 30
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
@@ -211,8 +216,11 @@ struct MapPhotosSheet: View {
             }
             .padding(.top, PVSpacing.s12)
             .onChange(of: displayedPhotos) { _, _ in
-                // New region or new marker selection: restart the window.
+                // New region or new marker selection: restart the window and
+                // drop the viewer-assets cache (audit P5).
                 photoLimit = 15
+                cachedAssets = nil
+                cachedAssetsKey = nil
             }
             // Full-screen photo viewer (tap any map photo → browse/zoom).
             // Favorite/delete run self-sufficient; refresh markers (silently,
@@ -239,9 +247,19 @@ struct MapPhotosSheet: View {
     }
 
     /// Opens the Photos-style viewer at `item`, paging through the displayed
-    /// photos (same order as the sheet grid).
+    /// photos (same order as the sheet grid). The `asAssetItem` mapping is
+    /// cached per `displayedPhotos` change so repeated taps don't re-map the
+    /// whole region (audit P5).
     private func openViewer(for item: AssetReactItem) {
-        let items = displayedPhotos.map(\.asAssetItem)
+        let photos = displayedPhotos
+        let items: [AssetReactItem]
+        if let cachedAssetsKey, cachedAssetsKey == photos, let cachedAssets {
+            items = cachedAssets
+        } else {
+            items = photos.map(\.asAssetItem)
+            cachedAssetsKey = photos
+            cachedAssets = items
+        }
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
         viewerItem = PhotoViewerItem(assets: items, index: idx)
     }
