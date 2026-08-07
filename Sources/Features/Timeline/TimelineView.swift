@@ -312,7 +312,9 @@ struct TimelineView: View {
     private typealias TimelineSection = TimelineSectionBuilder.Section
 
     /// Interleaves month-year banners between day groups when the month
-    /// changes. Computed on every render — cheap (linear scan).
+    /// changes. Recomputed on every body evaluation; `build` allocates two
+    /// date formatters per call (`TimelineSectionBuilder.swift:52,57`) — see
+    /// audit P1/P2. Memoize on large libraries.
     private var timelineSections: [TimelineSection] {
         TimelineSectionBuilder.build(from: vm.groupedByDay)
     }
