@@ -25,10 +25,10 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Immich needs Photos access to add uploaded assets.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>PhotoVault uses Face ID to unlock the app.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Immich needs Photos access to add uploaded assets.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Immich needs Photos access to upload and back up your library.</string>
 	<key>UIApplicationSceneManifest</key>

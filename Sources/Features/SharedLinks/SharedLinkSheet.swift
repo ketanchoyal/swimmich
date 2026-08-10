@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Shared-link management sheet for an album (AC-512, AC-513).
 /// Create new link (optional password) + list/revoke existing links + copy URL.
@@ -15,8 +14,8 @@ struct SharedLinkSheet: View {
     @State private var description = ""
     @State private var usePassword = false
     @State private var password = ""
-    @State private var copiedLinkKey: String?
     @State private var pendingRevokeId: String?
+    @State private var showRevokeConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +25,9 @@ struct SharedLinkSheet: View {
                     existingSection
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Shared Links")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -34,21 +36,22 @@ struct SharedLinkSheet: View {
                 }
             }
             .task { await vm.loadSharedLinks() }
-            .confirmationDialog(
-                "Revoke this shared link?",
-                isPresented: Binding(
-                    get: { pendingRevokeId != nil },
-                    set: { if !$0 { pendingRevokeId = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
+            .alert("Revoke this shared link?", isPresented: $showRevokeConfirm) {
                 Button("Revoke", role: .destructive) {
                     if let id = pendingRevokeId {
                         Task { await vm.revokeSharedLink(id: id) }
+                    }
+                    withAnimation(PVMotion.snappy) {
                         pendingRevokeId = nil
+                        showRevokeConfirm = false
                     }
                 }
-                Button("Cancel", role: .cancel) { pendingRevokeId = nil }
+                Button("Cancel", role: .cancel) {
+                    withAnimation(PVMotion.snappy) {
+                        pendingRevokeId = nil
+                        showRevokeConfirm = false
+                    }
+                }
             }
             .alert("Error", isPresented: Binding(
                 get: { vm.errorMessage != nil },
@@ -62,76 +65,80 @@ struct SharedLinkSheet: View {
     }
 
     private var createSection: some View {
-        Section("New Link") {
-            TextField("Description (optional)", text: $description)
-            Toggle("Password protect", isOn: $usePassword)
-            if usePassword {
-                SecureField("Password", text: $password)
-            }
-            Button {
-                Task {
-                    await vm.createSharedLink(
-                        password: usePassword ? password : nil,
-                        description: description.isEmpty ? nil : description
-                    )
-                    description = ""
-                    password = ""
-                    usePassword = false
+        Section {
+            VStack(spacing: PVSpacing.s0) {
+                TextField("Description (optional)", text: $description)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.vertical, PVSpacing.s12)
+                Divider()
+                Toggle("Password protect", isOn: $usePassword)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.vertical, PVSpacing.s8)
+                if usePassword {
+                    Divider()
+                    SecureField("Password", text: $password)
+                        .padding(.horizontal, PVSpacing.s16)
+                        .padding(.vertical, PVSpacing.s12)
                 }
-            } label: {
-                Label("Create Link", systemImage: "square.and.arrow.up")
+                Divider()
+                Button {
+                    Task {
+                        await vm.createSharedLink(
+                            password: usePassword ? password : nil,
+                            description: description.isEmpty ? nil : description
+                        )
+                        description = ""
+                        password = ""
+                        usePassword = false
+                    }
+                } label: {
+                    Label("Create Link", systemImage: "square.and.arrow.up")
+                }
+                .disabled(vm.isLoading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(PVSpacing.s16)
             }
-            .disabled(vm.isLoading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(
+                top: PVSpacing.s4,
+                leading: PVSpacing.s16,
+                bottom: PVSpacing.s4,
+                trailing: PVSpacing.s16
+            ))
+        } header: {
+            Text("New Link")
         }
     }
 
     private var existingSection: some View {
         Section("Existing Links") {
             ForEach(vm.sharedLinks, id: \.id) { link in
-                linkRow(link)
-            }
-        }
-    }
-
-    private func linkRow(_ link: SharedLinkResponseDto) -> some View {
-        VStack(alignment: .leading, spacing: PVSpacing.s8) {
-            HStack {
-                if link.password != nil {
-                    Image(systemName: "lock.fill")
-                        .foregroundStyle(Color.textSecondaryPV)
-                }
-                Text(link.description ?? "Untitled link")
-                    .font(.pvSubhead)
-                    .lineLimit(1)
-            }
-            HStack {
-                Text(shareURL(for: link))
-                    .font(.pvCaption).monospacedDigit()
-                    .foregroundStyle(Color.textSecondaryPV)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                Button {
-                    UIPasteboard.general.string = shareURL(for: link)
-                    copiedLinkKey = link.id
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if copiedLinkKey == link.id { copiedLinkKey = nil }
+                SharedLinkRow(
+                    link: link,
+                    baseURL: baseURL,
+                    isPendingRevoke: pendingRevokeId == link.id,
+                    onRevoke: { pendingRevokeId = link.id },
+                    cardBackground: Color(uiColor: .systemBackground)
+                )
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button("Revoke", systemImage: "trash", role: .destructive) {
+                        withAnimation(PVMotion.snappy) {
+                            pendingRevokeId = link.id
+                        }
+                        // Present the confirmation after the row has finished
+                        // sliding out, so the popup never has to snap the row
+                        // back from an open swipe state.
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(300))
+                            guard pendingRevokeId == link.id else { return }
+                            showRevokeConfirm = true
+                        }
                     }
-                } label: {
-                    Image(systemName: copiedLinkKey == link.id ? "checkmark" : "doc.on.doc")
                 }
-                .buttonStyle(.plain)
-                Button(role: .destructive) {
-                    pendingRevokeId = link.id
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.plain)
+                .tint(.red)
             }
         }
-    }
-
-    private func shareURL(for link: SharedLinkResponseDto) -> String {
-        baseURL.appendingPathComponent("/share/\(link.key)").absoluteString
     }
 }

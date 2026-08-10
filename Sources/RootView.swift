@@ -9,11 +9,12 @@ struct RootView: View {
     @State private var search: SearchViewModel
     @State private var map: MapViewModel
     @State private var albums: AlbumsViewModel
+    @State private var sharedLinks: SharedLinksViewModel
     @State private var appLock: AppLockViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var showCreateAlbum = false
-    @State private var showSharedPlaceholder = false
+    @State private var showCreateSharedLink = false
     @State private var confirmLogout = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -25,6 +26,7 @@ struct RootView: View {
         _search = State(initialValue: container.makeSearchViewModel())
         _map = State(initialValue: container.makeMapViewModel())
         _albums = State(initialValue: container.makeAlbumsViewModel())
+        _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
         _appLock = State(initialValue: container.appLock)
     }
 
@@ -82,7 +84,7 @@ struct RootView: View {
                 AlbumsView(vm: albums)
             }
             Tab("Shared", systemImage: "person.2.fill", value: RootTab.shared) {
-                SharedLinksView()
+                SharedLinksView(vm: sharedLinks)
             }
             Tab("Me", systemImage: "person.crop.circle", value: RootTab.me) {
                 ProfileView(trash: trash)
@@ -92,7 +94,6 @@ struct RootView: View {
             }
         }
         .immichBottomBar()
-        .tabBarMinimizeBehavior(.never)
         .onChange(of: selection) { _, newValue in
             if newValue == .search {
                 if lastContentTab == .photos {
@@ -112,6 +113,9 @@ struct RootView: View {
         .sheet(isPresented: $showCreateAlbum) {
             CreateAlbumSheet(vm: albums, preselectedAssetIds: nil)
         }
+        .sheet(isPresented: $showCreateSharedLink) {
+            CreateSharedLinkSheet(vm: sharedLinks, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+        }
         // Native map photo sheet, owned by RootView (never deallocated): the
         // only presentation active while browsing the map tab, so SwiftUI
         // presents it directly above the tab — detents, swipe-down and the
@@ -124,11 +128,6 @@ struct RootView: View {
                 .presentationDetents([.fraction(1.0 / 3.0), .medium])
                 .presentationBackgroundInteraction(.enabled)
                 .presentationBackground(.regularMaterial)
-        }
-        .alert("Shared links coming soon", isPresented: $showSharedPlaceholder) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Creating shared links from here isn't available yet.")
         }
         .confirmationDialog("Log out?", isPresented: $confirmLogout, titleVisibility: .visible) {
             Button("Log Out", role: .destructive) {
@@ -151,7 +150,7 @@ struct RootView: View {
         switch lastContentTab {
         case .photos: break // Landing on the Search tab is handled by the TabView itself.
         case .albums: showCreateAlbum = true
-        case .shared: showSharedPlaceholder = true
+        case .shared: showCreateSharedLink = true
         case .me: confirmLogout = true
         case .search: break
         }
