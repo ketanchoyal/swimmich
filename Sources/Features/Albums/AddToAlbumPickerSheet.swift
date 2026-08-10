@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Picker sheet launched from Timeline selection toolbar (AC-515, AC-520).
-/// Lists existing albums (shared AlbumsViewModel via @Environment) + a
-/// "New Album" action that creates one with the selected assets pre-populated.
+/// Lists existing albums (shared AlbumsViewModel via @Environment) as thumbnail
+/// rows — cover + name + count — + a "New Album" action that creates one with
+/// the selected assets pre-populated.
 struct AddToAlbumPickerSheet: View {
     let selectedAssetIds: Set<String>
     var onCompleted: () -> Void = {}
@@ -30,18 +31,7 @@ struct AddToAlbumPickerSheet: View {
                         Button {
                             Task { await add(to: album.id) }
                         } label: {
-                            HStack {
-                                if addedAlbumId == album.id {
-                                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.immichSuccess)
-                                }
-                                VStack(alignment: .leading) {
-                                    Text(album.albumName).foregroundStyle(Color.textPrimaryPV)
-                                    Text("\(album.assetCount) item\(album.assetCount == 1 ? "" : "s")")
-                                        .font(.pvCaption)
-                                        .foregroundStyle(Color.textSecondaryPV)
-                                }
-                                Spacer()
-                            }
+                            albumRow(album)
                         }
                         .disabled(albumsVM.isLoading)
                     }
@@ -54,7 +44,12 @@ struct AddToAlbumPickerSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("New Album") { presentingCreate = true }
+                    Button {
+                        presentingCreate = true
+                    } label: {
+                        Label("New Album", systemImage: "plus")
+                            .labelStyle(.titleAndIcon)
+                    }
                 }
             }
             .task { await albumsVM.load() }
@@ -66,12 +61,53 @@ struct AddToAlbumPickerSheet: View {
         }
     }
 
+    /// Thumbnail row: 44×44 cover + name + count, with a success checkmark when
+    /// the add for this album has just completed.
+    @ViewBuilder
+    private func albumRow(_ album: AlbumResponseDto) -> some View {
+        let baseURL = auth.baseURL ?? URL(string: "https://example.com")!
+        HStack(spacing: PVSpacing.s12) {
+            Color.clear
+                .frame(width: 44, height: 44)
+                .overlay {
+                    if let thumbId = album.albumThumbnailAssetId {
+                        AuthenticatedAsyncImage(
+                            url: ImmichAssetURL.thumbnail(assetId: thumbId, thumbhash: "", baseURL: baseURL),
+                            token: auth.accessToken
+                        )
+                    } else {
+                        Image(systemName: "rectangle.stack")
+                            .font(.system(size: 18, weight: .semibold)) // DS-exempt: small placeholder glyph
+                            .foregroundStyle(Color.textSecondaryPV)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
+
+            VStack(alignment: .leading, spacing: PVSpacing.s2) {
+                Text(album.albumName)
+                    .font(.pvBody)
+                    .foregroundStyle(Color.textPrimaryPV)
+                    .lineLimit(1)
+                Text("\(album.assetCount) item\(album.assetCount == 1 ? "" : "s")")
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.textSecondaryPV)
+            }
+            Spacer()
+            if addedAlbumId == album.id {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.immichSuccess)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .contentShape(Rectangle())
+        .animation(PVMotion.snappy, value: addedAlbumId)
+    }
+
     private func add(to albumId: String) async {
         await albumsVM.addAssets(ids: Array(selectedAssetIds), toAlbumId: albumId)
         if albumsVM.errorMessage == nil {
             addedAlbumId = albumId
             lastAddTick &+= 1
-            // Refresh the shared list so the count badge updates.
             await albumsVM.refresh()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 dismiss()

@@ -25,7 +25,6 @@
 		13025AF5B1167AA39D11EA3F /* AuthenticatedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF59DA9133D4929044AB198C /* AuthenticatedAsyncImage.swift */; };
 		14C7ECD9CC34DC3743B55740 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1664E7D5F5F8AE5D34FC2AD0 /* ProfileView.swift */; };
 		16A15FE17FE057D4F3F4B5A8 /* TimelineViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AAAC623B25E2F58794D2DE8 /* TimelineViewModelTests.swift */; };
-		188CB8C4ACC828ABD2F2E4B3 /* PVEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5E113A943411A2C5411521 /* PVEmptyState.swift */; };
 		1BE14FDCA4CDFD1302EB1924 /* AppLockService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2679282C07C9C8BC18DC066 /* AppLockService.swift */; };
 		1BF291E3C493E40B144B18CD /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = EFAA3C714B2F0D7284D3FA95 /* Localizable.xcstrings */; };
 		204FFAADE18FC675CCFC018F /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC767038DB5DA626CF3E1DB /* ImageCache.swift */; };
@@ -35,6 +34,7 @@
 		2648007DEA3B0DCABA09AB11 /* SearchDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = E958589215D0E65AF4BE8B95 /* SearchDTOs.swift */; };
 		277C60DB6031A81FFC1D3D17 /* MockPhotoLibraryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDDC8C15182914EB1CB4D3C /* MockPhotoLibraryService.swift */; };
 		292430486336389B855407C7 /* PVGridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABE70476A4B4CECA5E54C3F /* PVGridCell.swift */; };
+		C0FFEE1010A1B2C3D4E5F607 /* PVSkeletonGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F70819203A4B5 /* PVSkeletonGrid.swift */; };
 		293808534AFF743E31D0610C /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E81E937ACB2709DE7A3DAB /* OnboardingFlowView.swift */; };
 		2A5C842057BE8AE2F0055401 /* AlbumsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5D67A446823B12453ADAEE /* AlbumsView.swift */; };
 		2AD9509697C5557D06BA5633 /* AddToAlbumPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7020759F71A6236EF0FDE5A3 /* AddToAlbumPickerSheet.swift */; };
@@ -83,7 +83,6 @@
 		9D474260D75BFD884F1D56AD /* PhotoViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E02D88A25EDFEF470DE465AB /* PhotoViewer.swift */; };
 		9F3686BC1420D21C325F1045 /* RecentSearchesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20677022F1963E5B572B4144 /* RecentSearchesStore.swift */; };
 		A31CE425B83CA29591349184 /* PVHeaderBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF9477BF83A0859F5128F11 /* PVHeaderBadge.swift */; };
-		A39B7E599FFFB006E353F144 /* PVAlbumCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75802935AFBD8D343E3AB7D9 /* PVAlbumCard.swift */; };
 		A3D7F4346BC1AAF1BE2F7DD5 /* ImmichAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6892FD91BCB405574D2E2665 /* ImmichAPIClient.swift */; };
 		A468C49DD2A880890888849C /* EditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91ADA316512F5C0FDC8ADC61 /* EditorViewModelTests.swift */; };
 		ABDC870D146CBBC241BC86E2 /* MultipartBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A9E21B1633B3B0280CDDBC /* MultipartBody.swift */; };
@@ -158,7 +157,6 @@
 		32494F08196735AC40C42E65 /* MockKeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockKeychainStore.swift; sourceTree = "<group>"; };
 		33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ImmichSwiftUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockImmichClient.swift; sourceTree = "<group>"; };
-		3C5E113A943411A2C5411521 /* PVEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVEmptyState.swift; sourceTree = "<group>"; };
 		3DE9F6765E7DE075925A62C0 /* MockLocationGeocoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLocationGeocoding.swift; sourceTree = "<group>"; };
 		3F0380C7550B8A39C96AE6C6 /* AlbumDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailView.swift; sourceTree = "<group>"; };
 		40EBF7B9926844ECBD81918C /* LongDateFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LongDateFormatter.swift; sourceTree = "<group>"; };
@@ -190,7 +188,6 @@
 		712D1C56106FA8DAE37F50C8 /* MapDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapDTOs.swift; sourceTree = "<group>"; };
 		72BCC89BE645699ADC4BDC14 /* PinnedHeaderResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedHeaderResolverTests.swift; sourceTree = "<group>"; };
 		743C8155F678A0D035DCA27F /* AssetDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailViewModel.swift; sourceTree = "<group>"; };
-		75802935AFBD8D343E3AB7D9 /* PVAlbumCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVAlbumCard.swift; sourceTree = "<group>"; };
 		760A50399F97A2D325FEB14D /* AlbumDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailViewModel.swift; sourceTree = "<group>"; };
 		76FD477D673E55393FBBDD4D /* Color+PhotoVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+PhotoVault.swift"; sourceTree = "<group>"; };
 		8203F1AF23108DC7982903E9 /* ExifDisplayFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExifDisplayFormatter.swift; sourceTree = "<group>"; };
@@ -225,6 +222,7 @@
 		C1069B6F6E707F25B43595C7 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		C40ACD254A955377C9DF101A /* PVInputGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVInputGroup.swift; sourceTree = "<group>"; };
 		CABE70476A4B4CECA5E54C3F /* PVGridCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVGridCell.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F70819203A4B5 /* PVSkeletonGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVSkeletonGrid.swift; sourceTree = "<group>"; };
 		CAC538A722DBF17EF78BA473 /* SharedLinkSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinkSheet.swift; sourceTree = "<group>"; };
 		1A0B2C3D4E5F607182030405 /* SharedLinksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinksViewModel.swift; sourceTree = "<group>"; };
 		CF59DA9133D4929044AB198C /* AuthenticatedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticatedAsyncImage.swift; sourceTree = "<group>"; };
@@ -344,11 +342,10 @@
 			children = (
 				57093EE39B7150E508AA7B9C /* ImmichAppBar.swift */,
 				94B3265764BD3709CAC94AD6 /* InlineErrorBadge.swift */,
-				75802935AFBD8D343E3AB7D9 /* PVAlbumCard.swift */,
 				0C579043BE4F6A7E408B4907 /* PVButtonStyle.swift */,
-				3C5E113A943411A2C5411521 /* PVEmptyState.swift */,
 				BE8B4D0F9245406D86D0C633 /* PVFieldSurface.swift */,
 				CABE70476A4B4CECA5E54C3F /* PVGridCell.swift */,
+				1A2B3C4D5E6F70819203A4B5 /* PVSkeletonGrid.swift */,
 				FDF9477BF83A0859F5128F11 /* PVHeaderBadge.swift */,
 				C40ACD254A955377C9DF101A /* PVInputGroup.swift */,
 				5B50D4A922CF1A0C2F3FD209 /* PVStatusBadge.swift */,
@@ -762,11 +759,10 @@
 				F2441CCAA3BADAA839F0F137 /* Motion+PhotoVault.swift in Sources */,
 				ABDC870D146CBBC241BC86E2 /* MultipartBody.swift in Sources */,
 				293808534AFF743E31D0610C /* OnboardingFlowView.swift in Sources */,
-				A39B7E599FFFB006E353F144 /* PVAlbumCard.swift in Sources */,
 				0B1E36D253FF5663C799F7D9 /* PVButtonStyle.swift in Sources */,
-				188CB8C4ACC828ABD2F2E4B3 /* PVEmptyState.swift in Sources */,
 				E223ADADD07A290B16E1A603 /* PVFieldSurface.swift in Sources */,
 				292430486336389B855407C7 /* PVGridCell.swift in Sources */,
+				C0FFEE1010A1B2C3D4E5F607 /* PVSkeletonGrid.swift in Sources */,
 				A31CE425B83CA29591349184 /* PVHeaderBadge.swift in Sources */,
 				9243301C309BE0F2F08E0DB0 /* PVInputGroup.swift in Sources */,
 				FE878E244F2125507ECDCB36 /* PVStatusBadge.swift in Sources */,

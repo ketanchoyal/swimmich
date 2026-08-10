@@ -231,7 +231,7 @@ struct TimelineView: View {
     private var content: some View {
         if vm.items.isEmpty {
             if vm.isLoading {
-                SkeletonShimmerGrid(rows: 4, columnCount: columnCount)
+                PVSkeletonGrid(rows: 4, columnCount: columnCount)
                     .padding(.horizontal, PVSpacing.s4)
                     .padding(.top, PVSpacing.s4)
             } else if vm.errorMessage != nil {
@@ -297,7 +297,7 @@ struct TimelineView: View {
                 }
                 .padding(.horizontal, PVSpacing.s4)
                 if vm.canLoadMore {
-                    SkeletonShimmerGrid(rows: 1, columnCount: columnCount)
+                    PVSkeletonGrid(rows: 1, columnCount: columnCount)
                         .padding(.horizontal, PVSpacing.s4)
                         .padding(.top, PVSpacing.s4)
                 }
@@ -445,61 +445,5 @@ private struct PinnedDayPreferenceKey: PreferenceKey {
     static var defaultValue: [String: CGFloat] = [:]
     static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
-// MARK: - Skeleton shimmer grid (V7)
-
-/// Animated skeleton placeholder grid — N rows × 3 cols of square rounded
-/// rectangles w/ a horizontal gradient sweep (clear → white → clear) over
-/// `systemGray5`. NOT a spinner.
-private struct SkeletonShimmerGrid: View {
-    let rows: Int
-    var columnCount: Int = 3
-
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: columnCount)
-    }
-
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
-            ForEach(0..<(rows * columnCount), id: \.self) { _ in
-                SkeletonCell()
-            }
-        }
-    }
-}
-
-private struct SkeletonCell: View {
-    @State private var phase: CGFloat = -1.2
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous)
-            .fill(Color.bgTertiary)
-            .aspectRatio(1, contentMode: .fit)
-            .overlay {
-                // Narrow highlight band (~20% of width) for a crisp sweep
-                // rather than a whole-cell brighten/dim (D4).
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: .clear, location: 0.4),
-                        .init(color: Color.white.opacity(0.4), location: 0.5),
-                        .init(color: .clear, location: 0.6),
-                        .init(color: .clear, location: 1.0),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .offset(x: phase * 240)
-                .mask(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
-            }
-            .clipped()
-            .onAppear {
-                // DS-exempt: infinite shimmer, not interactive
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1.2
-                }
-            }
     }
 }

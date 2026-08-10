@@ -14,7 +14,20 @@
     "%@ items" : {
 
     },
+    "%@ Photo%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ Photo%2$@"
+          }
+        }
+      }
+    },
     "%@ photos" : {
+
+    },
+    "%@ Photos" : {
 
     },
     "%lld items" : {
@@ -271,6 +284,17 @@
         }
       }
     },
+    "Couldn't load shared links" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de charger les liens partagés"
+          }
+        }
+      }
+    },
     "Couldn't load trash" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -304,6 +328,17 @@
         }
       }
     },
+    "Create Album" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un album"
+          }
+        }
+      }
+    },
     "Create an album to organize your photos." : {
       "localizations" : {
         "fr" : {
@@ -324,9 +359,6 @@
           }
         }
       }
-    },
-    "Creating shared links from here isn't available yet." : {
-
     },
     "Credentials" : {
       "extractionState" : "stale",
@@ -378,6 +410,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supprimer l'album"
+          }
+        }
+      }
+    },
+    "Delete this album? The photos themselves are not deleted." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer cet album ? Les photos elles-mêmes ne seront pas supprimées."
           }
         }
       }
@@ -514,6 +557,7 @@
       }
     },
     "Explore requires photos with EXIF metadata or recognized places." : {
+      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -668,6 +712,16 @@
         }
       }
     },
+    "Links you create to share albums will appear here." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les liens que vous créez pour partager des albums apparaîtront ici."
+          }
+        }
+      }
+    },
     "Loading users…" : {
 
     },
@@ -748,6 +802,17 @@
         }
       }
     },
+    "New Shared Link" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau lien partagé"
+          }
+        }
+      }
+    },
     "Next" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -791,6 +856,28 @@
         }
       }
     },
+    "No Photos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune photo"
+          }
+        }
+      }
+    },
+    "No places yet" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun lieu pour le moment"
+          }
+        }
+      }
+    },
     "No results" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -805,6 +892,16 @@
     "No shared albums yet. Create one above." : {
 
     },
+    "No shared links" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun lien partagé"
+          }
+        }
+      }
+    },
     "No suggestions available" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -812,26 +909,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune suggestion disponible"
-          }
-        }
-      }
-    },
-    "No places yet" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aucun lieu pour le moment"
-          }
-        }
-      }
-    },
-    "Photos with a recognized location will appear here as places you can explore." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les photos dont le lieu est reconnu apparaîtront ici comme autant de lieux à explorer."
           }
         }
       }
@@ -854,6 +931,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Options" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Options"
           }
         }
       }
@@ -897,13 +985,33 @@
         }
       }
     },
-    "Photos" : {
+    "Photo" : {
       "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "Photo"
+          }
+        }
+      }
+    },
+    "Photos" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "Photos"
+          }
+        }
+      }
+    },
+    "Photos with a recognized location will appear here as places you can explore." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos dont le lieu est reconnu apparaîtront ici comme autant de lieux à explorer."
           }
         }
       }
@@ -996,6 +1104,17 @@
         }
       }
     },
+    "Remove this photo from the album?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer cette photo de l'album ?"
+          }
+        }
+      }
+    },
     "Require Face ID" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1047,12 +1166,22 @@
       }
     },
     "Revoke" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Révoquer"
+          }
+        }
+      }
+    },
+    "Revoke this shared link?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Révoquer ce lien partagé ?"
           }
         }
       }
@@ -1182,6 +1311,28 @@
     },
     "Share with other users" : {
 
+    },
+    "Shared" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagé"
+          }
+        }
+      }
+    },
+    "Shared album" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album partagé"
+          }
+        }
+      }
     },
     "Shared Links" : {
       "extractionState" : "stale",
@@ -1340,6 +1491,17 @@
         }
       }
     },
+    "Untitled link" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lien sans titre"
+          }
+        }
+      }
+    },
     "User" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1382,9 +1544,6 @@
         }
       }
     },
-    "Vos liens partagés apparaîtront ici." : {
-
-    },
     "Warmth" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1403,6 +1562,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oui"
+          }
+        }
+      }
+    },
+    "You have no albums yet." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous n'avez pas encore d'album."
           }
         }
       }
