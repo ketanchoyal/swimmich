@@ -1,5 +1,7 @@
 # Task: exif-map-detail
 
+Status: shipped — PhotoViewer/PhotoInfoPanel EXIF + Search/MapView present.
+
 ## Plan
 
 ### Objectif

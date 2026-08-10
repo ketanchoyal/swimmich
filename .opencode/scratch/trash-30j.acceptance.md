@@ -1,5 +1,7 @@
 # Task: trash-30j
 
+Status: shipped — Sources/Features/Trash/ (restore/delete-permanently, Restore All/Empty Trash).
+
 ## Plan
 **Objectif**: Implémenter la Corbeille (Trash) MVP — tab dédié listant les assets trashed (isTrashed=true via filtre timeline buckets), restore single/all, permanent delete single (force:true) + empty all. Style Apple Photos "Recently Deleted".
 

@@ -1,5 +1,7 @@
 # Task: immich-redesign
 
+Status: shipped — cross-cutting redesign applied (commits 60c5d0d, 8a46062).
+
 ## Plan
 **Objectif:** Redesign all 12+ screens of PhotoVault to match ORIGINAL immich design system, keeping SwiftUI native components + iOS HIG + MVVM intact.
 

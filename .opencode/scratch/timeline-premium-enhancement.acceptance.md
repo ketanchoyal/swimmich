@@ -1,5 +1,7 @@
 # Task: timeline-premium-enhancement
 
+Status: shipped — Timeline pinch-zoom 2-7 cols, skeleton shimmer, pinned headers.
+
 ## Plan
 Enhance timeline to Apple-Photos-grade premium SwiftUI experience. iOS 17 target.
 

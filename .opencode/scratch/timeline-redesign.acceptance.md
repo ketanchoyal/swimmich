@@ -1,5 +1,7 @@
 # Task: timeline-redesign
 
+Status: shipped — Sources/Features/Timeline/.
+
 ## Plan
 **Objectif**: Redesign TimelineView.swift + AssetThumbnailCell.swift pour rendre la grille élégante et professionnelle (l'utilisateur juge l'UI actuelle "ugly"). Approche A retenue: Apple Photos Refinement.
 

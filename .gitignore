@@ -15,3 +15,7 @@ xcuserdata/
 
 # Pods (not used)
 Pods/
+
+# Agent tooling artifacts + backups
+.zcode/
+*.pbxproj.bak

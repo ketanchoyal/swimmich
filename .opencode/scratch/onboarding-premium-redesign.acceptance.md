@@ -1,5 +1,7 @@
 # Task: onboarding-premium-redesign
 
+Status: shipped — 3-step onboarding flow rebuilt (commit 5085f3e).
+
 ## Plan
 
 **Objectif** : Redesign l'onboarding Immich SwiftUI vers "state of the art" SwiftUI iOS 17+ (premium hero redesign, Apple Photos/iCloud feel).

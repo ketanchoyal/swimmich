@@ -1,5 +1,7 @@
 # Task: onboarding-apple-revamp
 
+Status: shipped — Sources/Features/Auth/OnboardingFlowView + Welcome/ServerURL/Login screens.
+
 ## Plan
 
 **Objectif** : Revamp total de l'onboarding ImmichSwiftUI dans le style Apple (iOS Setup Assistant / "What's New"). Éliminer les anti-patterns "generic AI app" (gradients full-bleed, carousel paged, motion en boucle, icônes géantes flottantes) au profit du pattern Apple moderne : écran unique par étape, hero en conteneur (PVHeaderBadge), typographie sémantique, CTA primaire piné en bas sur material, motion one-shot respectant Reduce Motion. Supprimer l'écran Success (mort : RootView gate swap synchrone). Périmètre interdit : AuthViewModel, RootView, mécanisme NavigationStack(path:) root-inline path=[] (pitfall documenté — ne pas réintroduire path:[.welcome]).

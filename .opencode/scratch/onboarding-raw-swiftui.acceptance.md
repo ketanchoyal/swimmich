@@ -1,5 +1,7 @@
 # Task: onboarding-raw-swiftui
 
+Status: shipped — native NavigationStack(path:) onboarding.
+
 ## Plan
 
 **Objectif** : Revamp onboarding "trop custom" → "raw SwiftUI comme Apple". Restyle natif des 5 écrans (Welcome/ServerURL/Verify/Login/Success) avec primitives système (Form+Section insetGrouped, `.buttonStyle(.borderedProminent)` + `.controlSize(.large)`, polices sémantiques, couleurs système + tint, navigationTitle natifs), suppression des 4 composants DS devenus dead code (PVInputGroup/PVFieldSurface/PVHeaderBadge/InlineErrorBadge, utilisés UNIQUEMENT par onboarding — vérifié grep), disparition des artefacts custom (gradient hero, phaseAnimator, symbolEffect, carousel 3 slides, .toolbar(.hidden), .tracking(1) labels uppercase, fonds bgPrimary custom, PVPrimaryButtonStyle onboarding). Comportements PRD §5.10 préservés : 5 écrans UN focus, erreurs inline sous champ (jamais Alert), retry sur erreur réseau, clavier jamais fermé auto après erreur, chaînes submitLabel/onSubmit, autofocus, keyboardTypes, disabled states, TODO stubs $PHASE_*. Gate RootView + AuthViewModel + PVButtonStyle hors scope.

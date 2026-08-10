@@ -1,8 +1,6 @@
 # PhotoVault Design System — Acceptance Contract
 
-Status: new feature. Scope: introduce `Sources/DesignSystem/` (tokens, modifiers,
-components) + matching Asset Catalog colorsets, with zero edits to
-`Sources/Features/` (regression guard AC-022).
+Status: shipped — Sources/DesignSystem/ (tokens, modifiers, components) + matching Asset Catalog colorsets present; zero edits to Sources/Features/ (regression guard AC-022).
 
 Source spec: `PhotoVault-DesignSystem.md`.
 

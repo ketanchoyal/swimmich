@@ -272,3 +272,87 @@ Ajout via :
 **Décision/apprentissage** : Décision/apprentissage : le memberwise init d'un `let` avec valeur par défaut NE prend PAS de paramètre (propriété non-réassignable, valeur figée). Un `var x: T? = nil` le prend en paramètre defaulté ET reste omis du JSON quand nil (synthesized Codable encodeIfPresent).
 **Pourquoi** : Pourquoi : garder le memberwise init compatible (CreateAlbumSheet) + champ optionnel du wire.
 **Fichiers concernés** : Sources/Core/Types/DTOs+Album.swift (CreateAlbumDto.albumUsers en var)
+
+## [2026-08-05] Crash SheetBridge map — sheet flapping + reload churn — [tag: sheetbridge]
+
+**Contexte** : Crash EXC_BREAKPOINT SheetBridge.presenter lors de dealloc hosting view de la bottom sheet MapSegmentView (recherche par carte). Causes: (1) onChange(visiblePhotos.isEmpty) auto-dismiss+re-present à chaque pan (debounce 250ms) pendant la transition de dismissal; (2) reload() vidait visiblePhotos → delete dans le viewer fullScreenCover (commit 49d3a03) → dismissal de sheet pendant fullScreenCover présentée.
+**Décision/apprentissage** : Sheet de la map = sticky: présentation one-shot (guard !isPhotosSheetPresented), jamais d'auto-dismiss (swipe-down utilisateur). reload() préserve visiblePhotos/visibleAnnotations + re-filtre sur lastRect après refetch. Empty state dans MapPhotosSheet pour region sans photo.
+**Pourquoi** : SwiftUI piège: présentations imbriquées (sheet + fullScreenCover) + binding piloté par données live = invariant SheetBridge violé pendant teardown. Toujours présent one-shot et jamais dismiss programmatique pendant qu'une autre présentation est active.
+**Fichiers concernés** : Sources/Features/Search/MapView.swift, Sources/Features/Search/MapViewModel.swift
+
+## [2026-08-05] Crash SheetBridge map — VRAIE cause racine: présentateur éphémère + race cover — [tag: sheetbridge]
+
+**Contexte** : Le crash SheetBridge.presenter persistait après le fix sticky/flapping. Cause réelle: la sheet map était présentée depuis MapSegmentView, vue éphémère dans la fullScreenCover search. Map charge longtemps (réseau) → onChange visiblePhotos présente la sheet TARDIVEMENT → race avec le swipe-down de la cover par l'utilisateur: soit crash (dismiss cover pendant présentation, MapSegmentView dealloc avec sheet) soit timeline+bottom sheet (cover meurt avant la présentation, sheet en vol s'affiche sur la timeline).
+**Décision/apprentissage** : La sheet map est désormais présentée depuis RootView (présentateur stable, attachée APRÈS la fullScreenCover → z-order au-dessus), pilotée par vm.isPhotoSheetPresented (prop observable MapViewModel). Présentation différée d'un runloop + guard isAppeared (onAppear/onDisappear de MapSegmentView) pour annuler toute présentation pendant un dismissal de cover. onDisappear segment + onDismiss cover ferment la sheet proprement.
+**Pourquoi** : Règle: ne JAMAIS présenter de sheet depuis une vue qui peut être retirée de la hiérarchie pendant la transition (vue conditionnelle, contenu de cover). Présentation = objet stable (RootView/VM). Auto-présentation déclenchée par des données chargées tardivement = toujours différer + guard visibilité.
+**Fichiers concernés** : Sources/RootView.swift, Sources/Features/Search/MapView.swift, Sources/Features/Search/MapViewModel.swift
+
+## [2026-08-05] Fix map: boucle onDisappear sheet + cache vidé par reload — [tag: sheetbridge]
+
+**Contexte** : Après le hoist RootView: (1) aucune bottom sheet ne s'ouvrait — le onDisappear de MapSegmentView (présentation de la sheet au-dessus de la cover déclenche onDisappear sur le contenu de la cover) fermait la sheet dès qu'elle s'ouvrait, boucle. (2) map 10s à chaque ouverture — reload() (appelé par onDataChanged du viewer après mutation) vidait le cache disque à chaque fois.
+**Décision/apprentissage** : Sheet: binding RootView gaté get: { showSearch && map.isPhotoSheetPresented } — la sheet est structurellement impossible sans la cover, dismissal propre sans crash. Plus AUCUNE logique onDisappear/onAppear dans MapSegmentView (vue éphémère). Fermeture mode switch → SearchView.onChange(viewMode). Refresh: refreshMarkers() public (fetch → markers → cache.save → refilter, sans clear) remplace reload() pour les mutations viewer. Tooltip 'Loading photos…' = if vm.isLoading (visible aussi pendant refresh cache).
+**Pourquoi** : Piège SwiftUI: présenter une sheet/fullScreenCover au-dessus d'une autre présentation déclenche onDisappear sur le contenu recouvert — ne JAMAIS mettre de logique de dismissal dans onDisappear d'une vue sous une présentation. Toujours garder le cache si on peut servir stale + refresh silencieux.
+**Fichiers concernés** : Sources/RootView.swift, Sources/Features/Search/MapView.swift, Sources/Features/Search/MapViewModel.swift, Sources/Features/Search/SearchView.swift
+
+## [2026-08-05] Map: panneau intégré au lieu de sheet native — [tag: sheetbridge]
+
+**Contexte** : La sheet native au-dessus de la fullScreenCover search est IMPOSSIBLE: SwiftUI sérialise les présentations du même présentateur ('only presenting a single sheet is supported' — la sheet attend la dismissal de la cover, ne s'affiche jamais, rend en taille 0: warnings CAMetalLayer/clip empty path). La sheet depuis le contenu de la cover crash au teardown (SheetBridge).
+**Décision/apprentissage** : MapPhotosPanel: panneau overlay intégré dans le ZStack de MapSegmentView (GeometryReader height/3, regularMaterial, chevron.down toggle). Zéro présentation native → zéro conflit, zéro SheetBridge. Tooltip 'Chargement des photos…' piloté par @State local isLoadingPhotos (re-render garanti, contrairement à l'observation du VM) autour de await loadMarkers().
+**Pourquoi** : Règle: iOS 26 sérialise les présentations — sheet + fullScreenCover depuis le même présentateur = la sheet attend la cover. Pour un panneau au-dessus d'une cover: overlay intégré, pas de sheet. Spinner de chargement: toujours état local @State, jamais dépendre de l'observation d'un @Observable pour un overlay.
+**Fichiers concernés** : Sources/Features/Search/MapView.swift, Sources/RootView.swift, Sources/Features/Search/SearchView.swift, Sources/Features/Search/MapViewModel.swift
+
+## [2026-08-05] Map: panneau bord-à-bord + refresh non-bloquant — [tag: map]
+
+**Contexte** : Panneau tronqué: le ZStack de mapContent n'avait pas ignoresSafeArea(bottom) → s'arrêtait au safe area (home indicator), paddings horizontal/bottom 8 créaient un look carte flottante. 12s perçu: loadMarkers cache path await refreshMarkers() (réseau 12s) bloquait le spinner local isLoadingPhotos → spinner 12s même avec cache servi.
+**Décision/apprentissage** : mapContent ZStack: .ignoresSafeArea(edges: .bottom) + suppression des paddings du panel → bord à bord jusqu'au bas (la cover est fullscreen, pas de tab bar). Cache path: Task { await refreshMarkers() } fire-and-forget → loadMarkers retourne dès le cache rendu, spinner bref, refresh silencieux en fond. Test adapté (sleep 50ms avant assertion requestCount).
+**Pourquoi** : Spinner de chargement piloté par await d'un réseau lent = spinner menteur. Toujours retourner dès les données locales dispo et rafraîchir en fire-and-forget.
+**Fichiers concernés** : Sources/Features/Search/MapView.swift, Sources/Features/Search/MapViewModel.swift, Tests/MapViewModelTests.swift
+
+## [2026-08-05] Map: batching annotations + spinner couvrant le rendu MapKit — [tag: map]
+
+**Contexte** : Diagnostic via logs [MapVM]: cache HIT 10696 markers → le 12s n'était PAS le réseau mais le RENDU: addAnnotations(10696) en une fois bloque le main thread ~12s (simulateur). Le spinner s'éteignait dès markers non vide → rien ne couvrait le rendu. Doc MapKit (via Xcode): pas de batching documenté; mapView(_:didAdd:) documenté comme signal d'ajout des vues.
+**Décision/apprentissage** : ClusteredMapView: addAnnotations par paquets de 1000 via DispatchQueue.main.async séquentiels + token UUID d'annulation dans le Coordinator (updateUIView re-diff + nouveau token invalide les batchs en vol). Spinner: onInitialRenderCompleted callback (via didAdd documenté OU immédiat si diff vide) → isRenderingMarkers @State éteint le tooltip. Condition spinner: ((isLoadingPhotos || vm.isLoading) && vm.markers.isEmpty) || isRenderingMarkers. Panel: sheet look natif = frame + ignoresSafeArea(bottom) + UnevenRoundedRectangle top 36 (bas droit au ras), PAS de padding (le padding 8 + radius 24 créait l'effet 'carré/tronqué').
+**Pourquoi** : Pattern: ingestion en masse de données dans une API UIKit = toujours batcher pour laisser le runloop respirer. Spinner piloté par les DEUX phases (fetch + rendu) sinon il ment.
+**Fichiers concernés** : Sources/Features/Search/MapView.swift
+
+## [2026-08-05] Map: bloc complet + sheet paginée + carte flottante — [tag: map]
+
+**Contexte** : Retours UX: vagues de marqueurs pas ouf (batching rejeté), sheet tronquée en bas, warning 'Modifying state during view update'. Fix: retour à addAnnotations complet d'un bloc (spinner isRenderingMarkers couvre l'ingestion, didAdd signale la fin — callbacks @State différés via DispatchQueue.main.async pour éviter le warning). MapPhotosPanel: photoLimit 15 initial + +30 au scroll (onAppear dernier item) + reset à 15 sur onChange(visiblePhotos) — les vignettes se fetchent lazy. Panel: carte flottante = frame + padding horizontal 12 + bottom 12 + RoundedRectangle 24, SANS ignoresSafeArea (la troncature basse venait du panel collé au bord via ignoresSafeArea).
+**Décision/apprentissage** : Ingestion massif MapKit: bloc complet + spinner honnête > vagues. Sheet avec gros datasets: windowing (prefix + step au scroll). Jamais de set @State synchrone dans un callback de UIViewRepresentable pendant le cycle de rendu.
+**Pourquoi** : Sources/Features/Search/MapView.swift
+**Fichiers concernés** : non précisés
+
+## [2026-08-05] Refacto: tab search réel + sheet map native + subsampling annotations — [tag: sheetbridge]
+
+**Contexte** : Refacto accepté: la search quitte la fullScreenCover → vrai onglet TabView (le bubble sur Photos atterrit sur le tab search, les autres tabs gardent leurs actions contextuelles + snap back). La sheet map native (detents 1/3+.medium, presentationBackgroundInteraction) est présentée par RootView au-dessus du tab — seule présentation active pendant la map → plus de conflit 'single sheet', plus de crash SheetBridge (plus de cover à teardown). Changement d'onglet → onChange(selection) ferme la sheet. PERFORMANCE: le 12s = ingestion MapKit de 10696 annotations au zoom monde → subsampling par grille 44×44 dans filterVisible (1 marker/cellule, ~1900 max au monde; zoom → grille plus fine → tous les markers de la région). visiblePhotos reste COMPLET (sheet paginée 15+30). LEÇON: MKMapPoint en Mercator — à lat 49°, 1° ≈ 1.13M unités y (pas 111k) — les tests de géométrie doivent tenir compte de la distorsion.
+**Décision/apprentissage** : iOS 26 sérialise les présentations: sheet au-dessus d'une cover du même présentateur = file d'attente invisible. Sheet dans le contenu d'une cover = crash au teardown. SEULE solution sheet native: présenter depuis un conteneur stable (TabView root) sans autre présentation active. Subsampling par grille = la vraie réponse aux librairies de 10k+ marqueurs (clustering visuel identique au monde, ingestion bornée).
+**Pourquoi** : Sources/RootView.swift, Sources/Features/Search/MapView.swift, Sources/Features/Search/MapViewModel.swift, Tests/MapViewModelTests.swift
+**Fichiers concernés** : non précisés
+
+## [2026-08-05] Map: badges marqueurs = vrais comptes photos — [tag: map]
+
+**Contexte** : Après subsampling: la somme des chiffres des clusters (memberAnnotations.count = annotations subsamplées) ≠ total de la sheet (visiblePhotos complet). Fix: chaque annotation porte representedCount = nombre de markers de sa cellule dans la région (MapAnnotationMarker{photo, representedCount}); clusters = somme des representedCount des membres; annotation individuelle count>1 → badge chiffre (mini-cluster), count 1 → icône photo. Somme des badges = visiblePhotos.count EXACTEMENT (propriété testée). Piège implémentation: les markers de la marge (expanded) doivent être traités APRÈS ceux de la rect pour ne pas voler le badge d'une cellule mixte.
+**Décision/apprentissage** : Subsampling + badges réels: le user doit pouvoir additionner les chiffres visibles et retrouver le total de la sheet.
+**Pourquoi** : Sources/Features/Search/MapViewModel.swift, Sources/Features/Search/MapView.swift, Tests/MapViewModelTests.swift
+**Fichiers concernés** : non précisés
+
+## [2026-08-05] Map: suppression marge de culling → badges exacts à tout zoom — [tag: map]
+
+**Contexte** : Au zoom, marqueurs/clusters à 0 : la marge (cullMargin 0.5) affichait les markers de la région élargie avec representedCount 0 (hors rect exacte → pas dans la sheet). Fix : annotations = EXACTEMENT les markers de la rect visible (marge supprimée) → chaque badge count >= 1, somme des badges = visiblePhotos.count à tout zoom, aucun 0. Test 'expanded_annotations_include_margin' supprimé. Pan : marqueurs aux bords avec debounce 250ms (acceptable).
+**Décision/apprentissage** : Cohérence badge/sheet stricte = annotations identiques à visiblePhotos. Une marge d'affichage détruit l'invariant somme=total.
+**Pourquoi** : Sources/Features/Search/MapViewModel.swift, Tests/MapViewModelTests.swift
+**Fichiers concernés** : non précisés
+
+## [2026-08-05] Map: sélection marqueur → sheet filtrée sur sa cellule — [tag: map]
+
+**Contexte** : Feature: tap marqueur → la bottom sheet n'affiche que les photos de sa cellule (subsampling); tap ailleurs (didDeselect) ou bouton × dans la sheet → retour aux photos de l'area. Tap cluster → zoom Maps-style sur la région des membres (setVisibleMapRect + padding, la sheet suit via le flux region existant). VM: photoCells [CellKey:[MapPhoto]] + cellOfPhotoID [id:CellKey] remplis par filterVisible; selectMarker(id)/deselectMarker(); désélection auto si le marqueur quitte la région (refilter). Sheet: displayedPhotos = selected ? cell : region; placeName préfère le marqueur; pagination reset sur displayedPhotos; viewer page sur displayedPhotos.
+**Décision/apprentissage** : Sélection d'annotation: toujours passer par le VM (observable) et gérer la désélection native MapKit (didDeselect). Le cluster tap = zoom (jamais filtrer 10696 photos).
+**Pourquoi** : Sources/Features/Search/MapViewModel.swift, Sources/Features/Search/MapView.swift, Tests/MapViewModelTests.swift
+**Fichiers concernés** : non précisés
+
+## [2026-08-07] Timeline perf — DateFormatter per-render + pipeline en body — [tag: timeline,performance,pitfall,audit]
+
+**Contexte** : Audit read-only (`docs/audit-2026-08.md`) a confirmé deux points chauds sur grosse bibliothèque. (1) `TimelineView.timelineSections` (`TimelineView.swift:316-318`) est une propriété calculée dans `body` → recomputée à chaque changement d'état (tick sélection, scroll-to-top, etc.) ; elle appelle `TimelineSectionBuilder.build(from: vm.groupedByDay)`. (2) `vm.groupedByDay` (`TimelineViewModel.swift:162-170`) est lui-même un `Dictionary(grouping:)` + 2 sorts (O(n log n)) par accès. (3) `build(...)` alloue un `ISO8601DateFormatter` ET un `DateFormatter` à chaque appel (`TimelineSectionBuilder.swift:52,57`). L'ancien commentaire source disait "cheap (linear scan)" — c'était faux (le scan est linéaire, mais les allocations de formatters ne le sont pas). Le commentaire a été corrigé le 2026-08-07 ; le code n'a pas bougé.
+**Décision/apprentissage** : Pas de fix code dans ce passe (audit doc-only). Les leviers identifiés pour un futur fix : (a) mémoïser `groupedByDay` + `timelineSections` (recompute sur changement de `items`, pas par body) — plus gros gain grosse bibliothèque ; (b) hoister tous les `DateFormatter`/`ISO8601DateFormatter` en `static let` (ou un helper partagé — `PhotoInfoPanel.dateLabel` et `PhotoViewer.headerDate` sont byte-pour-byte identiques, cible de dédup évidente). Mêmes patterns per-call à `PhotoInfoPanel.swift:136,140`, `PhotoViewer.swift:787,791`, `DateHeaderFormatter.swift:69,88,93,98,113,134`.
+**Pourquoi** : `docs/audit-2026-08.md` §2 P1/P2 (+ §0.1 re-vérification : tous deux STILL VALID, aucun fixé dans les fichiers modifiés).
+**Fichiers concernés** : Sources/Features/Timeline/TimelineView.swift, Sources/Features/Timeline/TimelineViewModel.swift, Sources/Features/Timeline/TimelineSectionBuilder.swift, Sources/Features/Timeline/DateHeaderFormatter.swift, Sources/Features/PhotoViewer/PhotoInfoPanel.swift, Sources/Features/PhotoViewer/PhotoViewer.swift

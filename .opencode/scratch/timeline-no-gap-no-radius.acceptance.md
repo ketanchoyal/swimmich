@@ -1,5 +1,7 @@
 # Task: timeline-no-gap-no-radius
 
+Status: shipped — Timeline grid radius 4pt + continuous grid.
+
 ## Plan
 **Objectif**: Timeline grid — no spacing between photo/video cells + no border radius anywhere (cells + skeleton). User explicit constraint overriding pending redesign values (spacing 4, radius 8).
 

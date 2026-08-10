@@ -1,5 +1,7 @@
 # Task: immich-swiftui-foundation
 
+Status: shipped — app foundation (ImmichSwiftUIApp, RootView, DependencyContainer, ImmichAPIClient).
+
 > User verbatim: "I want you to develop a clone of the immich app but the original
 > one is made in flutter. I want you to implement a pure swiftui ios immich client
 > with all actual features."

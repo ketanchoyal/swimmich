@@ -1,5 +1,7 @@
 # Task: prd-phase0-design-system-nav
 
+Status: shipped — 5-tab TabView + design system (commit 5085f3e).
+
 ## User intent (verbatim)
 "I want you to implement @immich-swiftui-prd-design-system.md @ImmichColors.swift in the current project."
 Scope choisi : **Full PRD Phase 0** (PRD §8 = Setup projet, client API généré, auth, design system composants de base — 3 semaines). Projet DÉJÀ mature. Tâche = aligner projet existant sur spec PRD Phase 0.

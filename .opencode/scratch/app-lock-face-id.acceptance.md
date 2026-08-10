@@ -1,5 +1,7 @@
 # Task: app-lock-face-id
 
+Status: shipped — Auth/AppLockViewModel + LockView present.
+
 ## Plan
 **Objectif**: App Lock Face ID/Touch ID (cahier §1 MVP). Gate app launch + retour background via LocalAuthentication. Toggle persistant dans réglages. Fallback passcode. Apple-Photos-grade.
 

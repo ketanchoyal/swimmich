@@ -1,5 +1,7 @@
 # Task: apply-design-system-everywhere
 
+Status: shipped — Sources/DesignSystem/ tokens + components in use across features.
+
 ## Plan
 Objectif: appliquer le design system PhotoVault EXISTANT à TOUTE l'UI (Features/*, Services/AuthenticatedAsyncImage.swift, RootView.swift, ImmichSwiftUIApp.swift). Token swap couleurs + fonts + spacing + radius, adoption composants (PVPrimaryButtonStyle, pvFloatingShadow), motion tokenization via PVMotion.{standard,snappy,gentle,adaptive}, exemptions documentées inline pour cas hors-DS (micro-badges, hero illustrations §8.6, destructive button, infinite shimmer, white-overlay-on-image).
 

@@ -1,5 +1,7 @@
 # Task: search-ia
 
+Status: shipped — Sources/Features/Search/ (3-mode Results/Explore/Map).
+
 ## Plan
 - **Objectif**: Implémenter la feature Recherche pour PhotoVault (cahier §6 L132-141, MVP scope).
 - **Scope MVP (session)**: Search tab unique (SearchViewModel + SearchView) avec 2 modes:

@@ -1,5 +1,7 @@
 # Task: albums-share-link
 
+Status: shipped — Albums + SharedLinks features present (Sources/Features/Albums, SharedLinks).
+
 ## Plan
 
 **Objectif**: Implémenter la feature "Albums + partage par lien public" du cahier §8 (MVP scope: L156 création+ajout par sélection, L158 lien public avec mot de passe optionnel). L157 (collaboratif sharedUsers) DEFERRED per cahier summary L197 "Albums de base + partage par lien".

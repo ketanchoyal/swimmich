@@ -1,5 +1,7 @@
 # Task: editor-non-destructive
 
+Status: shipped — Sources/Features/Editor/ (PhotoEditorView + VM with render debounce).
+
 ## Plan
 
 ### Objectif

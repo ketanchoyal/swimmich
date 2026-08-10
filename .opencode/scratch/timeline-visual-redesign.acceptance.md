@@ -1,5 +1,7 @@
 # Task: timeline-visual-redesign
 
+Status: shipped — Timeline visual redesign (year + day-month + weekday headers).
+
 ## Plan
 Elevate timeline from "trainee" to Apple-Photos-grade professional aesthetics. iOS 17 target. Purely visual — no new endpoints, no VM behavior changes, no breaking the 29 passing tests.
 

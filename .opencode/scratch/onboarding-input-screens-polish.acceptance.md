@@ -1,5 +1,7 @@
 # Task: onboarding-input-screens-polish
 
+Status: shipped — ServerURLScreen + LoginScreen (cards, focus ring, badge header).
+
 ## Plan
 
 **Objectif** : Redesign esthétique des 2 écrans d'input de l'onboarding (ServerURLScreen + LoginScreen) — champs groupés en carte, focus ring, headers en badge "bg-accent", erreur repositionnée sous le champ avec bouton Réessayer (PRD:237/252), InlineErrorBadge extrait en composant DS. Flow 5 étapes PRD §5.10 INTACT (pas de fusion d'écrans — PRD:220 l'interdit explicitement).
