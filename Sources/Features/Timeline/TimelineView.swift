@@ -87,6 +87,34 @@ struct TimelineView: View {
                         .accessibilityAddTraits(.isHeader)
                     }
                 }
+                .overlay(alignment: .topTrailing) {
+                    // Explicit "Select" entry point (Photos-style): a liquid
+                    // glass pill that rides alongside the pinned date header.
+                    // Long-press entry still works; this makes selection
+                    // discoverable for mass/bulk actions. Hidden once selection
+                    // mode is active (toolbar takes over).
+                    if pinnedDay != nil && !vm.selectionMode {
+                        GlassEffectContainer {
+                            Button {
+                                vm.enterSelectionMode()
+                            } label: {
+                                Text("Select")
+                                    .font(.pvHeadline)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, PVSpacing.s16)
+                                    .padding(.vertical, PVSpacing.s8)
+                                    // Dark-tinted glass for legibility over
+                                    // photos (shared-album badge recipe).
+                                    .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .accessibilityIdentifier("selectButton")
+                        .padding(.trailing, PVSpacing.s16)
+                        .padding(.top, PVSpacing.s8)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
                 .refreshable { await vm.refresh() }
                 .scrollDismissesKeyboard(.immediately)
                 // D7: Photos-style pinch-to-zoom grid. Simultaneous so it never
@@ -343,12 +371,7 @@ struct TimelineView: View {
                 }
             },
             onDelete: {
-                if vm.selectionMode {
-                    vm.toggleSelection(id: item.id)
-                    lastSelectionTick &+= 1
-                } else {
-                    pendingDeleteSingleID = item.id
-                }
+                pendingDeleteSingleID = item.id
             }
         )
         .buttonStyle(.plain)
@@ -399,9 +422,13 @@ struct TimelineView: View {
                         let target = !vm.selectedIds.allSatisfy { id in
                             vm.items.first { $0.id == id }?.isFavorite ?? false
                         }
-                        await vm.batchSetFavorite(vm.selectedIds, favorite: target)
+                        // Exit only on success so a failed batch keeps the
+                        // selection intact for retry (audit fix — mirrors
+                        // deleteSelected's try-then-mutate discipline).
+                        if await vm.batchSetFavorite(vm.selectedIds, favorite: target) {
+                            vm.exitSelectionMode()
+                        }
                         lastFavoriteTick &+= 1
-                        vm.exitSelectionMode()
                     }
                 } label: {
                     Label("Favorite", systemImage: "heart")

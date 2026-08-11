@@ -43,8 +43,8 @@ final class TimelineViewModel {
         selectedIds.removeAll()
     }
 
-    /// Toggles membership of `id` in `selectedIds`. No-op outside selection mode
-    /// unless callers explicitly enter it first (avoids accidental state drift).
+    /// Toggles membership of `id` in `selectedIds`. Callers enter selection
+    /// mode first (long-press / Select button); the toggle itself is mode-agnostic.
     func toggleSelection(id: String) {
         if selectedIds.contains(id) {
             selectedIds.remove(id)
@@ -214,8 +214,11 @@ final class TimelineViewModel {
     /// state). Backs the selection-toolbar heart action. Same try-then-mutate
     /// discipline as `toggleFavorite`; first throw stops the batch and surfaces
     /// `errorMessage` without mutating the remaining items.
+    /// - Returns: `true` when every id reached the target state, `false` on
+    ///   error — callers exit selection mode only on success (audit fix).
     @MainActor
-    func batchSetFavorite(_ ids: Set<String>, favorite value: Bool) async {
+    @discardableResult
+    func batchSetFavorite(_ ids: Set<String>, favorite value: Bool) async -> Bool {
         for id in ids {
             guard let current = items.first(where: { $0.id == id }), current.isFavorite != value else { continue }
             do {
@@ -225,9 +228,10 @@ final class TimelineViewModel {
                 }
             } catch let e {
                 errorMessage = e.localizedDescription
-                return
+                return false
             }
         }
+        return true
     }
 
     // MARK: - Single-asset delete (V9 context menu)

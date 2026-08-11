@@ -300,6 +300,55 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertTrue(vm.selectionMode, "still in selection mode so user can retry")
     }
 
+    // MARK: - AC-203c: batchSetFavorite reports success/failure so the view
+    // only exits selection on success (audit fix)
+
+    @MainActor
+    func test_AC_203c_batchSetFavoriteErrorKeepsSelection() async {
+        let mock = MockImmichClient()
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 2)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(ids: ["a1", "a2"], ratios: [1, 1], thumbhashes: [nil, nil], favorites: [false, false])
+        ]
+        let vm = TimelineViewModel(client: mock)
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+
+        struct BoomError: Error {}
+        mock.globalError = BoomError()
+        let succeeded = await vm.batchSetFavorite(vm.selectedIds, favorite: true)
+
+        XCTAssertFalse(succeeded, "failed batch must report failure to the view")
+        XCTAssertNotNil(vm.errorMessage, "error surfaced to UI")
+        XCTAssertTrue(vm.selectionMode, "selection survives so the user can retry")
+        XCTAssertEqual(vm.selectedIds, ["a1", "a2"])
+        XCTAssertFalse(vm.items.first { $0.id == "a1" }?.isFavorite ?? true, "no mutation on throw")
+    }
+
+    @MainActor
+    func test_AC_203d_batchSetFavoriteSuccessReportsTrue() async {
+        let mock = MockImmichClient()
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 2)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(ids: ["a1", "a2"], ratios: [1, 1], thumbhashes: [nil, nil], favorites: [false, false])
+        ]
+        let vm = TimelineViewModel(client: mock)
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+
+        let succeeded = await vm.batchSetFavorite(vm.selectedIds, favorite: true)
+
+        XCTAssertTrue(succeeded, "successful batch must report success so the view can exit")
+        XCTAssertNil(vm.errorMessage)
+        XCTAssertTrue(vm.items.allSatisfy { $0.id != "a1" || $0.isFavorite })
+    }
+
     // MARK: - AC-204: refresh re-fetches buckets then first bucket only
 
     @MainActor
