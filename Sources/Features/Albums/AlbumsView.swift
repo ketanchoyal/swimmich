@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Albums tab (AC-514). A Photos-style grid of premium portrait album cards;
-/// tapping a card zoom-morphs into `AlbumDetailView`. The `+` toolbar button
-/// and the empty-state CTA present `CreateAlbumSheet`.
+/// tapping a card pushes `AlbumDetailView`. The `+` toolbar button and the
+/// empty-state CTA present `CreateAlbumSheet`.
 ///
 /// Navigation follows Apple HIG for a top-level content tab: a native large,
 /// scroll-collapsing title (`.large`) — no custom brand wordmark in the toolbar.
@@ -15,8 +15,7 @@ struct AlbumsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var presentingCreate = false
-    @State private var openTick = 0
-    @Namespace private var albumNamespace
+    @Namespace private var zoomNamespace
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s12), count: 2)
 
@@ -91,24 +90,18 @@ struct AlbumsView: View {
             LazyVGrid(columns: columns, spacing: PVSpacing.s16) {
                 ForEach(vm.albums, id: \.id) { album in
                     NavigationLink {
-                        AlbumDetailView(
-                            albumId: album.id,
-                            albumName: album.albumName,
-                            namespace: albumNamespace,
-                            sourceID: album.id
-                        )
-                        .navigationTransition(.zoom(sourceID: album.id, in: albumNamespace))
+                        AlbumDetailView(album: album)
+                            .zoomNavigationTransitioniOS27(sourceID: album.id, in: zoomNamespace)
                     } label: {
                         AlbumCard(
                             album: album,
                             baseURL: auth.baseURL ?? defaultBaseURL,
                             token: auth.accessToken,
-                            showsShadow: colorScheme == .light
+                            showsShadow: colorScheme == .light,
+                            zoomNamespace: zoomNamespace
                         )
                     }
                     .buttonStyle(AlbumCardPressStyle(reduceMotion: reduceMotion))
-                    .matchedTransitionSource(id: album.id, in: albumNamespace)
-                    .simultaneousGesture(TapGesture().onEnded { openTick &+= 1 })
                 }
             }
             .padding(.horizontal, PVSpacing.s4)
@@ -129,6 +122,7 @@ struct AlbumsView: View {
         let baseURL: URL
         let token: String?
         let showsShadow: Bool
+        let zoomNamespace: Namespace.ID
 
         var body: some View {
             VStack(alignment: .leading, spacing: PVSpacing.s4) {
@@ -179,6 +173,13 @@ struct AlbumsView: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+                // Zoom-morph source (iOS 27+): the push zooms this cover into
+                // the detail hero. Gated to iOS 27 because the zoom transition
+                // interacts with the destination toolbar on iOS 26 (deferred
+                // trailing-item glyph render, fixed in iOS 27 DB5); on iOS 26
+                // the push falls back to the system slide (Apple Files parity,
+                // no toolbar glyph lag).
+                .matchedTransitionSourceiOS27(id: album.id, in: zoomNamespace)
         }
     }
 }
@@ -192,5 +193,32 @@ struct AlbumCardPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .animation(reduceMotion ? nil : PVMotion.snappy, value: configuration.isPressed)
+    }
+}
+
+// MARK: - iOS-27 zoom gating
+//
+// `.navigationTransition(.zoom)` + `.matchedTransitionSource` are available on
+// iOS 18+, but on iOS 26 the zoom push defers the destination's trailing
+// toolbar-item glyph render (~2s lag, fixed only in iOS 27 DB5). Apple Files
+// avoids this by using a standard push. We gate the zoom to iOS 27+ so iOS 26
+// gets the Files-style push (no lag), and iOS 27+ keeps the zoom-morph open.
+private extension View {
+    @ViewBuilder
+    func zoomNavigationTransitioniOS27(sourceID: String, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 27, *) {
+            self.navigationTransition(.zoom(sourceID: sourceID, in: namespace))
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func matchedTransitionSourceiOS27(id: String, in namespace: Namespace.ID) -> some View {
+        if #available(iOS 27, *) {
+            self.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            self
+        }
     }
 }
