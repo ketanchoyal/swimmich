@@ -32,7 +32,7 @@ struct AssetThumbnailCell: View {
 
         // Square frame: Color.clear w/ aspectRatio(1,.fit) becomes a perfect
         // square sized to the column width. Image overlays fill + clip.
-        Color.clear
+        let cell = Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 AuthenticatedAsyncImage(url: url, token: token)
@@ -48,7 +48,7 @@ struct AssetThumbnailCell: View {
             .overlay { favoriteBadge }
             .overlay(alignment: .topLeading) { projectionBadge }
             .overlay(alignment: .bottomTrailing) { videoBadge }
-            .overlay(alignment: .topTrailing) { checkmark }
+            .overlay(alignment: .bottomTrailing) { checkmark }
             .clipShape(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
             // Pro selection: selected cells recede slightly (scale 0.96) w/ spring.
             .scaleEffect(selectionMode && isSelected ? 0.96 : 1.0)
@@ -56,7 +56,14 @@ struct AssetThumbnailCell: View {
             .animation(PVMotion.snappy, value: selectionMode)
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
-            .contextMenu {
+
+        // Context menu suppressed in selection mode: it would compete with the
+        // long-press toggle gesture and its actions (delete/restore) make no
+        // sense mid-selection (audit fix).
+        if selectionMode {
+            cell
+        } else {
+            cell.contextMenu {
                 if let onRestore {
                     // Trash tab menu (AC-301 / AC-303).
                     Button {
@@ -86,15 +93,17 @@ struct AssetThumbnailCell: View {
                     }
                 }
             }
+        }
     }
 
     // MARK: - Badges (uniform material-pill treatment, V4)
 
-    /// Favorite heart — small material pill, top-trailing.
-    /// Hidden in selection mode to avoid colliding w/ the checkmark (D1).
+    /// Favorite heart — small material pill, top-trailing. Always visible in
+    /// selection mode (users must see which photos are already liked) while
+    /// the checkmark sits bottom-trailing on the selected cell (D1).
     @ViewBuilder
     private var favoriteBadge: some View {
-        if asset.isFavorite && !selectionMode {
+        if asset.isFavorite {
             badge {
                 Image(systemName: "heart.fill")
             }
@@ -115,10 +124,12 @@ struct AssetThumbnailCell: View {
         }
     }
 
-    /// Video play + duration — bottom-trailing.
+    /// Video play + duration — bottom-trailing. Hidden in selection mode:
+    /// the checkmark owns the corner and the duration text would compete
+    /// with it (Photos parity).
     @ViewBuilder
     private var videoBadge: some View {
-        if asset.isVideo {
+        if asset.isVideo && !selectionMode {
             badge {
                 HStack(spacing: 3) {
                     Image(systemName: "play.fill").font(.system(size: 8)) // DS-exempt: badge micro-glyph §8.6
