@@ -25,6 +25,10 @@
       "type": "local",
       "command": ["xcrun",  "mcpbridge"],
       "enabled": true
+    },
+    "sosumi-apple-documentation": {
+      "type": "remote",
+      "url": "https://sosumi.ai/mcp"
     }
   }
 }
