@@ -4,9 +4,6 @@ import SwiftUI
 /// (album cover + overlaid title/count) sits above a 3-column photo grid with a
 /// "Photos" section header. Toolbar menu offers share-link management + delete;
 /// per-asset context menu offers "Remove from album" (AC-510).
-///
-/// Opens with an iOS 26 zoom-morph transition paired with `AlbumsView`'s
-/// `.matchedTransitionSource` via the shared `namespace` + `sourceID`.
 struct AlbumDetailView: View {
     @Environment(AuthViewModel.self) private var auth
     @State private var vm: AlbumDetailViewModel
@@ -14,30 +11,29 @@ struct AlbumDetailView: View {
     @State private var presentingShare = false
     @State private var presentingDeleteConfirm = false
     @State private var pendingRemoveAssetId: String?
+    @State private var pendingRemoveSelected = false
+    @State private var pendingDeleteSelected = false
+    @State private var presentAlbumPicker = false // Add selected assets to another album
     @State private var lastRemoveTick = 0
     @State private var lastDeleteTick = 0
+    @State private var lastFavoriteTick = 0
+    @State private var lastSelectionTick = 0
     @State private var viewerItem: PhotoViewerItem?
 
-    private let namespace: Namespace.ID
-    private let sourceID: String
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
-    init(
-        albumId: String,
-        albumName: String,
-        client: any ImmichClient = DependencyContainer.shared.client,
-        namespace: Namespace.ID,
-        sourceID: String
-    ) {
-        _vm = State(initialValue: AlbumDetailViewModel(client: client, albumId: albumId))
-        self.namespace = namespace
-        self.sourceID = sourceID
-        // Use the known name immediately so the title is correct on first frame,
-        // before the network resolves — no "Album" flash.
-        _initialTitle = State(initialValue: albumName)
-    }
+    /// The album as known by the grid. Rendered immediately on the first frame
+    /// (hero cover + title) so the zoom-open transition lands on real content,
+    /// not a spinner; the freshly-fetched `vm.album` replaces it once loaded.
+    private let initialAlbum: AlbumResponseDto
 
-    @State private var initialTitle: String
+    init(
+        album: AlbumResponseDto,
+        client: any ImmichClient = DependencyContainer.shared.client
+    ) {
+        self.initialAlbum = album
+        _vm = State(initialValue: AlbumDetailViewModel(client: client, albumId: album.id))
+    }
 
     var body: some View {
         Group {
@@ -46,35 +42,109 @@ struct AlbumDetailView: View {
             } else if let album = vm.album {
                 content(for: album)
             } else if vm.isLoading {
-                ProgressView()
+                // First frame: hero renders from the grid-known DTO so the zoom
+                // transition lands on real content; skeleton below while loading.
+                loadingContent
             } else if vm.errorMessage != nil {
                 errorState
             } else {
                 ContentUnavailableView("Album Unavailable", systemImage: "rectangle.stack")
             }
         }
-        .navigationTitle(vm.album?.albumName ?? initialTitle)
+        .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : (vm.album?.albumName ?? initialAlbum.albumName))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if vm.album != nil && !vm.isDeleted {
+            if vm.selectionMode {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        vm.exitSelectionMode()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark")
+                            .labelStyle(.iconOnly)
+                    }
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            let target = !vm.selectedIds.allSatisfy { id in
+                                vm.assets.first { $0.id == id }?.isFavorite ?? false
+                            }
+                            // Exit only on success (retry keeps selection) —
+                            // parity with Timeline's favorite button (audit fix).
+                            if await vm.batchSetFavorite(vm.selectedIds, favorite: target) {
+                                vm.exitSelectionMode()
+                            }
+                            lastFavoriteTick &+= 1
+                        }
+                    } label: {
+                        Label("Favorite", systemImage: "heart")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(vm.selectedIds.isEmpty)
+
+                    Button {
+                        presentAlbumPicker = true
+                    } label: {
+                        Label("Add to Album", systemImage: "rectangle.stack.badge.plus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(vm.selectedIds.isEmpty)
+
+                    Button(role: .destructive) {
+                        pendingRemoveSelected = true
+                    } label: {
+                        Label("Remove from Album", systemImage: "rectangle.stack.badge.minus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(vm.selectedIds.isEmpty)
+
+                    Button(role: .destructive) {
+                        pendingDeleteSelected = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(vm.selectedIds.isEmpty)
+                }
+            } else if !vm.isDeleted {
+                // Native trailing ellipsis menu — Apple Files parity. Bare
+                // `ellipsis` glyph (3 horizontal dots, no circle), the system
+                // dropdown chrome. The zoom-transition toolbar lag is avoided
+                // upstream by gating `.navigationTransition(.zoom)` to iOS 27+
+                // (see AlbumsView); on iOS 26 this screen uses a standard push,
+                // so the bar (back chevron + title + this menu) renders as one.
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button {
+                            vm.enterSelectionMode()
+                        } label: {
+                            Label("Select", systemImage: "checkmark.circle")
+                                .foregroundStyle(Color.primary)
+                        }
+                        .tint(Color.primary)
+                        Divider()
                         Button {
                             presentingShare = true
                         } label: {
                             Label("Shared Links", systemImage: "square.and.arrow.up")
+                                .foregroundStyle(Color.primary)
                         }
-                        .tint(.primary)
+                        .tint(Color.primary)
+                        // Forced red: the menu-level `.tint(.primary)` below can
+                        // override the destructive role on iOS 26, so the label
+                        // carries its own explicit red style.
                         Button(role: .destructive) {
                             presentingDeleteConfirm = true
                         } label: {
                             Label("Delete Album", systemImage: "trash")
+                                .foregroundStyle(Color.red)
                         }
-                        .tint(.red)
+                        .tint(Color.red)
                     } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundStyle(Color.primary)
+                        Label("Album actions", systemImage: "ellipsis")
+                            .labelStyle(.iconOnly)
                     }
+                    .tint(.primary)
                 }
             }
         }
@@ -103,8 +173,40 @@ struct AlbumDetailView: View {
         } message: {
             Text(vm.errorMessage ?? "")
         }
+        .alert("Delete \(vm.selectedIds.count) asset(s)?", isPresented: $pendingDeleteSelected) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    await vm.deleteSelected()
+                    lastDeleteTick &+= 1
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes them from your library. Action cannot be undone.")
+        }
+        .alert(
+            "Remove \(vm.selectedIds.count) photo\(vm.selectedIds.count == 1 ? "" : "s") from this album?",
+            isPresented: $pendingRemoveSelected
+        ) {
+            Button("Remove", role: .destructive) {
+                Task {
+                    await vm.removeSelected()
+                    lastRemoveTick &+= 1
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes them from the album. The photos stay in your library.")
+        }
+        .sheet(isPresented: $presentAlbumPicker) {
+            AddToAlbumPickerSheet(selectedAssetIds: vm.selectedIds) {
+                vm.exitSelectionMode()
+            }
+        }
         .sensoryFeedback(.warning, trigger: lastDeleteTick)
         .sensoryFeedback(.success, trigger: lastRemoveTick)
+        .sensoryFeedback(.selection, trigger: vm.selectionMode)
+        .sensoryFeedback(.selection, trigger: lastSelectionTick)
         .photoViewer(
             item: $viewerItem,
             baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
@@ -132,8 +234,80 @@ struct AlbumDetailView: View {
         viewerItem = PhotoViewerItem(assets: vm.assets, index: idx)
     }
 
+    // MARK: - Cell container — navigation vs selection-aware tap
+
+    @ViewBuilder
+    private func cellView(for item: AssetReactItem) -> some View {
+        let cell = AssetThumbnailCell(
+            asset: item,
+            baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            token: auth.accessToken,
+            selectionMode: vm.selectionMode,
+            isSelected: vm.selectedIds.contains(item.id),
+            onTap: {
+                if vm.selectionMode {
+                    vm.toggleSelection(id: item.id)
+                    lastSelectionTick &+= 1
+                } else {
+                    openViewer(for: item)
+                }
+            }
+        )
+        .buttonStyle(.plain)
+
+        if vm.selectionMode {
+            // Context menu suppressed in selection mode: long-press must toggle,
+            // and "Remove" mid-selection would corrupt the selection set
+            // (audit fix — stale selectedIds after removeAssets).
+            cell
+                .onLongPressGesture(minimumDuration: 0.4) {
+                    vm.toggleSelection(id: item.id)
+                    lastSelectionTick &+= 1
+                }
+        } else {
+            cell
+                .contextMenu {
+                    Button(role: .destructive) {
+                        pendingRemoveAssetId = item.id
+                    } label: {
+                        Label("Remove from Album", systemImage: "rectangle.stack.badge.minus")
+                    }
+                }
+                .onLongPressGesture(minimumDuration: 0.4) {
+                    vm.enterSelectionMode()
+                    vm.toggleSelection(id: item.id)
+                    lastSelectionTick &+= 1
+                }
+        }
+    }
+
     private var coverAssetId: String? {
-        vm.album?.albumThumbnailAssetId ?? vm.assets.first?.id
+        (vm.album ?? initialAlbum).albumThumbnailAssetId ?? vm.assets.first?.id
+    }
+
+    /// First-frame layout: hero from the grid-known album + skeleton grid, so
+    /// the zoom-open lands on the real hero and the layout does not jump when
+    /// the network resolves.
+    @ViewBuilder
+    private var loadingContent: some View {
+        ScrollView {
+            heroHeader(for: initialAlbum)
+
+            HStack {
+                Text("Photos")
+                    .font(.pvCaption)
+                    .fontWeight(.semibold)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Color.textSecondaryPV)
+                Spacer()
+            }
+            .padding(.horizontal, PVSpacing.s4)
+            .padding(.top, PVSpacing.s8)
+            .padding(.bottom, PVSpacing.s2)
+
+            PVSkeletonGrid(rows: 4, columnCount: 3)
+                .padding(.horizontal, PVSpacing.s4)
+        }
     }
 
     @ViewBuilder
@@ -168,33 +342,24 @@ struct AlbumDetailView: View {
                 LazyVStack(alignment: .leading, spacing: PVSpacing.s2) {
                     LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
                         ForEach(vm.assets, id: \.id) { item in
-                            AssetThumbnailCell(
-                                asset: item,
-                                baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                                token: auth.accessToken,
-                                onTap: { openViewer(for: item) }
-                            )
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    pendingRemoveAssetId = item.id
-                                } label: {
-                                    Label("Remove from Album", systemImage: "rectangle.stack.badge.minus")
-                                }
-                            }
+                            cellView(for: item)
                         }
                     }
                     .padding(.horizontal, PVSpacing.s4)
                 }
-                .navigationTransition(.zoom(sourceID: sourceID, in: namespace))
             }
-            .confirmationDialog(
+            // D6: tap on empty grid area exits selection mode. Cell taps win
+            // via their own onTapGesture (hit-tested first).
+            .onTapGesture {
+                if vm.selectionMode { vm.exitSelectionMode() }
+            }
+            .animation(PVMotion.standard, value: vm.selectionMode)
+            .alert(
                 "Remove this photo from the album?",
                 isPresented: Binding(
                     get: { pendingRemoveAssetId != nil },
                     set: { if !$0 { pendingRemoveAssetId = nil } }
-                ),
-                titleVisibility: .visible
+                )
             ) {
                 Button("Remove", role: .destructive) {
                     if let id = pendingRemoveAssetId {
@@ -206,6 +371,8 @@ struct AlbumDetailView: View {
                     }
                 }
                 Button("Cancel", role: .cancel) { pendingRemoveAssetId = nil }
+            } message: {
+                Text("The photo stays in your library.")
             }
         }
     }
@@ -253,7 +420,9 @@ struct AlbumDetailView: View {
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .shadow(color: .black.opacity(0.4), radius: 4)
-                Text("\(vm.assets.count) Photos")
+                // While loading, the grid-known count is authoritative; once
+                // loaded the fetched asset list wins (matches grid contents).
+                Text("\(vm.album == nil ? album.assetCount : vm.assets.count) Photos")
                     .font(.pvSubhead)
                     .foregroundStyle(.white.opacity(0.9))
                     .shadow(color: .black.opacity(0.4), radius: 3)

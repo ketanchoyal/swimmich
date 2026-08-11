@@ -792,7 +792,6 @@
       }
     },
     "New Link" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -1276,6 +1275,16 @@
         }
       }
     },
+    "Select" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionner"
+          }
+        }
+      }
+    },
     "Selected" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1388,6 +1397,9 @@
         }
       }
     },
+    "The photo stays in your library." : {
+
+    },
     "This asset will be permanently deleted. Action cannot be undone." : {
       "localizations" : {
         "fr" : {
@@ -1399,6 +1411,9 @@
       }
     },
     "This removes it from your library. Action cannot be undone." : {
+
+    },
+    "This removes them from the album. The photos stay in your library." : {
 
     },
     "This removes them from your library. Action cannot be undone." : {

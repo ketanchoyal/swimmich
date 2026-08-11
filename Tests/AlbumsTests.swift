@@ -295,4 +295,187 @@ final class AlbumsTests: XCTestCase {
         XCTAssertNil(mock.lastAddAssetsAlbumId)
         XCTAssertNil(mock.lastAddAssetsIds)
     }
+
+    // MARK: - AC-520 AlbumDetailViewModel selection mode
+
+    func test_AC_520_selectionState() async {
+        let mock = MockImmichClient()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+
+        vm.enterSelectionMode()
+        XCTAssertTrue(vm.selectionMode)
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+        vm.toggleSelection(id: "a1") // toggle off
+        XCTAssertEqual(vm.selectedIds, ["a2"])
+
+        vm.exitSelectionMode()
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty, "exit clears selection")
+    }
+
+    func test_AC_520b_removeSelected_success() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a3")
+        await vm.removeSelected()
+
+        XCTAssertEqual(mock.lastRemoveAssetsAlbumId, "alb")
+        XCTAssertEqual(Set(mock.lastRemoveAssetsIds ?? []), ["a1", "a3"])
+        XCTAssertEqual(vm.assets.map(\.id), ["a2"])
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_AC_520c_removeSelected_error() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb")]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2"])
+        mock.removeAssetsError = Boom()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        await vm.removeSelected()
+
+        // State preserved so the user can retry.
+        XCTAssertEqual(vm.assets.count, 2)
+        XCTAssertTrue(vm.selectionMode)
+        XCTAssertEqual(vm.selectedIds, ["a1"])
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func test_AC_520d_deleteSelected_success() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+        await vm.deleteSelected()
+
+        XCTAssertEqual(Set(mock.lastDeleteBody?.ids ?? []), ["a1", "a2"])
+        XCTAssertEqual(mock.lastDeleteBody?.force, false)
+        XCTAssertEqual(vm.assets.map(\.id), ["a3"])
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_AC_520e_deleteSelected_error() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb")]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2"])
+        mock.deleteError = Boom()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        await vm.deleteSelected()
+
+        // State preserved so the user can retry.
+        XCTAssertEqual(vm.assets.count, 2)
+        XCTAssertTrue(vm.selectionMode)
+        XCTAssertEqual(vm.selectedIds, ["a1"])
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func test_AC_520f_batchSetFavorite() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+        await vm.batchSetFavorite(vm.selectedIds, favorite: true)
+
+        XCTAssertTrue(vm.assets.allSatisfy { $0.id == "a3" ? !$0.isFavorite : $0.isFavorite })
+        // Set iteration order is nondeterministic — the mock only records the
+        // last id, so just assert it was one of the selected ids.
+        XCTAssertTrue(mock.lastUpdateAssetId == "a1" || mock.lastUpdateAssetId == "a2")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_AC_520g_load_clearsSelection() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb")]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        XCTAssertTrue(vm.selectionMode)
+
+        await vm.load()
+        XCTAssertFalse(vm.selectionMode, "reload starts selection-clean")
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+    }
+
+    func test_AC_520h_bulkActions_emptySelectionNoOp() async {
+        let mock = MockImmichClient()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.removeSelected()
+        await vm.deleteSelected()
+        XCTAssertNil(mock.lastRemoveAssetsAlbumId)
+        XCTAssertNil(mock.lastDeleteBody)
+    }
+
+    // MARK: - AC-520i: removeAssets keeps the selection set consistent
+    // (audit fix — stale "N selected" after context-menu remove)
+
+    func test_AC_520i_removeAssets_clearsSelection() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+
+        await vm.removeAssets(ids: ["a2"])
+
+        XCTAssertEqual(vm.assets.map(\.id), ["a1", "a3"])
+        XCTAssertEqual(vm.selectedIds, ["a1"], "removed asset leaves the selection set")
+        XCTAssertTrue(vm.selectionMode, "context-menu remove does not exit selection mode")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_AC_520j_removeAssets_errorKeepsSelection() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        mock.removeAssetsError = Boom()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a2")
+
+        await vm.removeAssets(ids: ["a2"])
+
+        XCTAssertEqual(vm.assets.count, 3, "no local mutation on throw")
+        XCTAssertEqual(vm.selectedIds, ["a1", "a2"], "selection untouched on failure")
+        XCTAssertNotNil(vm.errorMessage)
+    }
 }
