@@ -894,7 +894,7 @@ private struct PhotoShareSheet: View {
                             vm.toggleUser(user.id)
                         } label: {
                             HStack(spacing: PVSpacing.s12) {
-                                AvatarCircle(user: user)
+                                UserAvatarCircle(user: user)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(user.name)
                                         .foregroundStyle(Color.textPrimaryPV)
@@ -1061,46 +1061,6 @@ private struct PhotoShareSheet: View {
         let fileURL = dir.appendingPathComponent(name)
         try data.write(to: fileURL, options: .atomic)
         return fileURL
-    }
-}
-
-/// Initials avatar using the user's `avatarColor` (hex) — no image round-trip.
-private struct AvatarCircle: View {
-    let user: UserResponseDto
-
-    var body: some View {
-        ZStack {
-            Circle().fill(Color(hex: user.avatarColor) ?? Color.immichPrimary)
-            Text(Self.initials(from: user.name))
-                .font(.pvCaption.weight(.semibold))
-                .foregroundStyle(Color.white)
-        }
-        .frame(width: 32, height: 32)
-    }
-
-    private static func initials(from name: String) -> String {
-        let parts = name.split(separator: " ")
-        let letters = parts.prefix(2).compactMap { $0.first }.map(String.init)
-        return letters.isEmpty ? "?" : letters.joined().uppercased()
-    }
-}
-
-private extension Color {
-    /// Parses "#RRGGBB" (or "#RGB") hex strings used by Immich `avatarColor`.
-    init?(hex: String) {
-        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        guard Scanner(string: cleaned).scanHexInt64(&int) else { return nil }
-        let r, g, b: UInt64
-        switch cleaned.count {
-        case 3:
-            (r, g, b) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:
-            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            return nil
-        }
-        self.init(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
     }
 }
 

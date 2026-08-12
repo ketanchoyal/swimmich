@@ -41,4 +41,21 @@ extension Color {
     static let textPrimaryPV    = Color("TextPrimary")
     static let textSecondaryPV  = Color("TextSecondary")
     static let textTertiaryPV   = Color("TextTertiary")
+
+    /// Parses "#RRGGBB" (or "#RGB") hex strings used by Immich `avatarColor`.
+    init?(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        guard Scanner(string: cleaned).scanHexInt64(&int) else { return nil }
+        let r, g, b: UInt64
+        switch cleaned.count {
+        case 3:
+            (r, g, b) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            return nil
+        }
+        self.init(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
+    }
 }
