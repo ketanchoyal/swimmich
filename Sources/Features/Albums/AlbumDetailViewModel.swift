@@ -210,6 +210,53 @@ final class AlbumDetailViewModel {
         }
     }
 
+    // MARK: - Set cover (album cover change)
+
+    /// Sets the album cover to `assetId` (must be a member of this album).
+    /// try-then-mutate: `album` is updated only after the PATCH succeeds.
+    /// - Returns: `true` on success — callers exit selection mode on success.
+    @MainActor
+    @discardableResult
+    func setCover(assetId: String) async -> Bool {
+        guard assets.contains(where: { $0.id == assetId }) else { return false }
+        do {
+            let updated = try await client.updateAlbum(
+                id: albumId,
+                dto: UpdateAlbumDto(albumName: nil, description: nil, albumThumbnailAssetId: assetId, isActivityEnabled: nil, order: nil)
+            )
+            album = updated
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Refetches album metadata only (no spinner): used after the share sheet
+    /// mutates `albumUsers` / roles so the detail screen stays in sync.
+    func refreshAlbum() async {
+        do {
+            album = try await client.getAlbum(id: albumId)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Builds a share sheet VM from the current album state (DI keeps the same
+    /// client; `albumUsers` seeds the membership, `isAdmin` picks the right
+    /// empty-state message when the directory is hidden).
+    func makeShareViewModel(currentUserId: String, isAdmin: Bool) -> AlbumShareViewModel {
+        AlbumShareViewModel(
+            client: client,
+            albumId: albumId,
+            currentUserId: currentUserId,
+            isAdmin: isAdmin,
+            albumUsers: album?.albumUsers ?? []
+        )
+    }
+
     // MARK: - Shared links (AC-512, AC-513)
 
     func loadSharedLinks() async {

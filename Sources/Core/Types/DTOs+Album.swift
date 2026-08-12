@@ -7,26 +7,26 @@ import Foundation
 // Album assets are fetched separately via searchMetadata(albumIds:) — see FM-2.
 
 /// `AlbumResponseDto` from `GET /api/albums` and `GET /api/albums/:id`.
-/// Collaborator details (`albumUsers`, `contributorCounts`) and date bounds
-/// are ignored for MVP (collaborative = V2). Explicit CodingKeys keeps decoding
-/// resilient to server-side field additions.
+/// `albumUsers` is always present server-side (owner first). Explicit CodingKeys
+/// keeps decoding resilient to server-side field additions.
 struct AlbumResponseDto: Codable, Equatable {
     let id: String
     let albumName: String
     let description: String
     let createdAt: String
     let updatedAt: String
-    let albumThumbnailAssetId: String?
+    var albumThumbnailAssetId: String?
     let shared: Bool
     let hasSharedLink: Bool
     let assetCount: Int
     let isActivityEnabled: Bool
     let order: AssetOrder?
+    var albumUsers: [AlbumUserResponseDto] = []
 
     enum CodingKeys: String, CodingKey {
         case id, albumName, description, createdAt, updatedAt
         case albumThumbnailAssetId, shared, hasSharedLink, assetCount
-        case isActivityEnabled, order
+        case isActivityEnabled, order, albumUsers
     }
 }
 
@@ -41,14 +41,44 @@ struct CreateAlbumDto: Codable, Equatable {
 }
 
 /// `AlbumUserRole` — collaborator role in a shared album.
+/// Raw values are LOWERCASE per the Immich wire contract
+/// (`server/src/enum.ts` — `AlbumUserRole = { Editor: 'editor', Owner: 'owner', Viewer: 'viewer' }`).
 enum AlbumUserRole: String, Codable, Equatable, Sendable {
-    case editor = "EDITOR"
-    case viewer = "VIEWER"
+    case owner = "owner"
+    case editor = "editor"
+    case viewer = "viewer"
 }
 
 /// `AlbumUserDto` — a user + role attached to an album (shared albums).
 struct AlbumUserDto: Codable, Equatable, Sendable {
     let userId: String
+    let role: AlbumUserRole
+}
+
+/// `AlbumUserResponseDto` — collaborator entry inside `AlbumResponseDto.albumUsers`.
+struct AlbumUserResponseDto: Codable, Equatable, Sendable {
+    let user: UserResponseDto
+    let role: AlbumUserRole
+}
+
+/// `UpdateAlbumDto` body for `PATCH /api/albums/:id`. Optional fields are
+/// omitted from JSON when nil (synthesized Codable). Covers cover changes via
+/// `albumThumbnailAssetId`; user management uses the dedicated user endpoints.
+struct UpdateAlbumDto: Codable, Equatable {
+    let albumName: String?
+    let description: String?
+    let albumThumbnailAssetId: String?
+    let isActivityEnabled: Bool?
+    let order: AssetOrder?
+}
+
+/// `AddUsersDto` body for `PUT /api/albums/:id/users`.
+struct AddUsersDto: Codable, Equatable {
+    let albumUsers: [AlbumUserDto]
+}
+
+/// `UpdateAlbumUserDto` body for `PUT /api/albums/:id/user/:userId`.
+struct UpdateAlbumUserDto: Codable, Equatable {
     let role: AlbumUserRole
 }
 

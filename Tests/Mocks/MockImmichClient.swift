@@ -85,6 +85,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var createAlbumError: Error?
     var getAlbumResponse: [String: AlbumResponseDto] = [:]
     var getAlbumError: Error?
+    var lastUpdateAlbumId: String?
+    var lastUpdateAlbumDto: UpdateAlbumDto?
+    var updateAlbumResponse: AlbumResponseDto?
+    var updateAlbumError: Error?
     var deleteAlbumCallCount = 0
     var lastDeletedAlbumId: String?
     var deleteAlbumError: Error?
@@ -111,6 +115,19 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     // Users capture (photo share user picker)
     var getUsersResponse: [UserResponseDto]?
     var getUsersError: Error?
+
+    // Album users capture (album share)
+    var lastAddUsersAlbumId: String?
+    var lastAddUsersDto: AddUsersDto?
+    var addUsersResponse: AlbumResponseDto?
+    var addUsersError: Error?
+    var lastRoleUpdateAlbumId: String?
+    var lastRoleUpdateUserId: String?
+    var lastRoleUpdateDto: UpdateAlbumUserDto?
+    var updateRoleError: Error?
+    var lastRemovedUserAlbumId: String?
+    var lastRemovedUserId: String?
+    var removeUserError: Error?
 
     // Upload capture (AC-008)
     var lastUploadData: Data?
@@ -312,6 +329,13 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         )
     }
 
+    private func cannedUser(id: String, name: String = "User") -> UserResponseDto {
+        UserResponseDto(
+            id: id, name: name, email: "\(id)@example.com",
+            profileImagePath: "", avatarColor: "#FF0000", profileChangedAt: "2024-01-01T00:00:00.000Z"
+        )
+    }
+
     func getAlbums() async throws -> [AlbumResponseDto] {
         bump()
         if let e = globalError ?? albumsError { throw e }
@@ -329,6 +353,43 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? getAlbumError { throw e }
         return getAlbumResponse[id] ?? cannedAlbum(id: id)
+    }
+
+    func updateAlbum(id: String, dto: UpdateAlbumDto) async throws -> AlbumResponseDto {
+        bump()
+        lastUpdateAlbumId = id
+        lastUpdateAlbumDto = dto
+        if let e = globalError ?? updateAlbumError { throw e }
+        if let r = updateAlbumResponse { return r }
+        var base = getAlbumResponse[id] ?? cannedAlbum(id: id)
+        if let cover = dto.albumThumbnailAssetId { base.albumThumbnailAssetId = cover }
+        return base
+    }
+
+    func addUsersToAlbum(albumId: String, dto: AddUsersDto) async throws -> AlbumResponseDto {
+        bump()
+        lastAddUsersAlbumId = albumId
+        lastAddUsersDto = dto
+        if let e = globalError ?? addUsersError { throw e }
+        if let r = addUsersResponse { return r }
+        var base = getAlbumResponse[albumId] ?? cannedAlbum(id: albumId)
+        base.albumUsers = dto.albumUsers.map { AlbumUserResponseDto(user: cannedUser(id: $0.userId), role: $0.role) }
+        return base
+    }
+
+    func updateAlbumUserRole(albumId: String, userId: String, dto: UpdateAlbumUserDto) async throws {
+        bump()
+        lastRoleUpdateAlbumId = albumId
+        lastRoleUpdateUserId = userId
+        lastRoleUpdateDto = dto
+        if let e = globalError ?? updateRoleError { throw e }
+    }
+
+    func removeUserFromAlbum(albumId: String, userId: String) async throws {
+        bump()
+        lastRemovedUserAlbumId = albumId
+        lastRemovedUserId = userId
+        if let e = globalError ?? removeUserError { throw e }
     }
 
     func deleteAlbum(id: String) async throws {

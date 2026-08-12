@@ -51,9 +51,15 @@ protocol ImmichClient: AnyObject, Sendable {
     func getAlbums() async throws -> [AlbumResponseDto]
     func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto
     func getAlbum(id: String) async throws -> AlbumResponseDto
+    func updateAlbum(id: String, dto: UpdateAlbumDto) async throws -> AlbumResponseDto
     func deleteAlbum(id: String) async throws
     func addAssetsToAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto]
     func removeAssetsFromAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto]
+
+    // MARK: - Album users (share to instance users)
+    func addUsersToAlbum(albumId: String, dto: AddUsersDto) async throws -> AlbumResponseDto
+    func updateAlbumUserRole(albumId: String, userId: String, dto: UpdateAlbumUserDto) async throws
+    func removeUserFromAlbum(albumId: String, userId: String) async throws
 
     // MARK: - Shared Links (AC-500..AC-518)
     func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto]

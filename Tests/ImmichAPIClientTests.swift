@@ -255,4 +255,104 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.url?.path, "/api/users")
         XCTAssertEqual(captured.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
     }
+
+    // MARK: - Album update (cover) + album users
+
+    private static let albumJSON = """
+    {
+      "id": "alb-1",
+      "albumName": "Trip",
+      "description": "",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "albumThumbnailAssetId": "a1",
+      "shared": true,
+      "hasSharedLink": false,
+      "assetCount": 2,
+      "isActivityEnabled": false,
+      "albumUsers": [
+        {"user": {"id": "me", "name": "Me", "email": "me@example.com", "profileImagePath": "", "avatarColor": "#FF0000", "profileChangedAt": "2024-01-01T00:00:00.000Z"}, "role": "owner"}
+      ]
+    }
+    """
+
+    func test_album_setCover_patchesThumbnailAssetId() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = Self.albumJSON.data(using: .utf8)!
+
+        let album = try await client.updateAlbum(
+            id: "alb-1",
+            dto: UpdateAlbumDto(albumName: nil, description: nil, albumThumbnailAssetId: "a9", isActivityEnabled: nil, order: nil)
+        )
+
+        XCTAssertEqual(album.id, "alb-1")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PATCH")
+        XCTAssertEqual(captured.url?.path, "/api/albums/alb-1")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""albumThumbnailAssetId":"a9""#), "cover id must be sent")
+        XCTAssertFalse(body.contains("albumName"), "nil fields must be omitted")
+    }
+
+    func test_album_addUsers_hitsPutUsersEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = Self.albumJSON.data(using: .utf8)!
+
+        _ = try await client.addUsersToAlbum(
+            albumId: "alb-1",
+            dto: AddUsersDto(albumUsers: [AlbumUserDto(userId: "u1", role: .viewer)])
+        )
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/albums/alb-1/users")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""userId":"u1""#), "user id must be sent")
+        XCTAssertTrue(body.contains(#""role":"viewer""#), "role must be sent")
+    }
+
+    func test_album_updateUserRole_hitsPutUserEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.updateAlbumUserRole(
+            albumId: "alb-1",
+            userId: "u1",
+            dto: UpdateAlbumUserDto(role: .editor)
+        )
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/albums/alb-1/user/u1")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""role":"editor""#))
+    }
+
+    func test_album_removeUser_hitsDeleteUserEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.removeUserFromAlbum(albumId: "alb-1", userId: "u1")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/albums/alb-1/user/u1")
+    }
 }

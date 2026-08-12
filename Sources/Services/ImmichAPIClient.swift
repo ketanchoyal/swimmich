@@ -159,6 +159,10 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.GET, path: ImmichAPI.albums.path("/\(id)"))
     }
 
+    func updateAlbum(id: String, dto: UpdateAlbumDto) async throws -> AlbumResponseDto {
+        try await sendAuthed(.PATCH, path: ImmichAPI.albums.path("/\(id)"), body: AnyEncodable(dto))
+    }
+
     func deleteAlbum(id: String) async throws {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.albums.path("/\(id)"), body: nil)
     }
@@ -169,6 +173,20 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     func removeAssetsFromAlbum(albumId: String, dto: BulkIdsDto) async throws -> [BulkIdResponseDto] {
         try await sendAuthed(.DELETE, path: ImmichAPI.albums.path("/\(albumId)/assets"), body: AnyEncodable(dto))
+    }
+
+    // MARK: - Album users (share to instance users)
+
+    func addUsersToAlbum(albumId: String, dto: AddUsersDto) async throws -> AlbumResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.albums.path("/\(albumId)/users"), body: AnyEncodable(dto))
+    }
+
+    func updateAlbumUserRole(albumId: String, userId: String, dto: UpdateAlbumUserDto) async throws {
+        _ = try await sendAuthedRaw(.PUT, path: ImmichAPI.albums.path("/\(albumId)/user/\(userId)"), body: AnyEncodable(dto))
+    }
+
+    func removeUserFromAlbum(albumId: String, userId: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.albums.path("/\(albumId)/user/\(userId)"), body: nil)
     }
 
     // MARK: - Shared Links (AC-500..AC-518)

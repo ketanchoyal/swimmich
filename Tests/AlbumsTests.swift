@@ -478,4 +478,88 @@ final class AlbumsTests: XCTestCase {
         XCTAssertEqual(vm.selectedIds, ["a1", "a2"], "selection untouched on failure")
         XCTAssertNotNil(vm.errorMessage)
     }
+
+    // MARK: - Cover change (setCover)
+
+    func test_setCover_success_patchesThumbnail() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        let ok = await vm.setCover(assetId: "a2")
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(mock.lastUpdateAlbumId, "alb")
+        XCTAssertEqual(mock.lastUpdateAlbumDto?.albumThumbnailAssetId, "a2")
+        XCTAssertEqual(vm.album?.albumThumbnailAssetId, "a2", "album must reflect the new cover on success")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_setCover_error_keepsOldCover() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", count: 3)]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1", "a2", "a3"])
+        mock.updateAlbumError = Boom()
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        let ok = await vm.setCover(assetId: "a2")
+
+        XCTAssertFalse(ok)
+        XCTAssertEqual(mock.lastUpdateAlbumId, "alb")
+        XCTAssertNil(vm.album?.albumThumbnailAssetId, "cover must not change on error")
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
+    func test_setCover_nonMemberNoOp() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb")]
+        mock.searchMetadataResponse = makeSearchResponse(ids: ["a1"])
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        let ok = await vm.setCover(assetId: "ghost")
+
+        XCTAssertFalse(ok)
+        XCTAssertNil(mock.lastUpdateAlbumId, "non-member asset must not dispatch a PATCH")
+    }
+
+    func test_refreshAlbum_updatesMetadataWithoutSpinner() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", name: "Old")]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+        XCTAssertFalse(vm.isLoading, "load() must leave the spinner off")
+
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", name: "Renamed")]
+        await vm.refreshAlbum()
+
+        XCTAssertEqual(vm.album?.albumName, "Renamed")
+        XCTAssertFalse(vm.isLoading, "refresh must not flip the skeleton spinner")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_makeShareViewModel_seedsCurrentMembership() async {
+        let mock = MockImmichClient()
+        let member = AlbumUserResponseDto(user: makeShareUser(), role: .editor)
+        var shared = makeAlbum(id: "alb")
+        shared.albumUsers = [member]
+        mock.getAlbumResponse = ["alb": shared]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+
+        let seeded = vm.makeShareViewModel(currentUserId: "owner", isAdmin: true)
+        XCTAssertEqual(seeded.role(for: "u1"), .editor)
+        XCTAssertNil(seeded.role(for: "owner"), "current user must never be listed")
+        XCTAssertTrue(seeded.isAdmin, "isAdmin must propagate from the caller")
+    }
+
+    private func makeShareUser() -> UserResponseDto {
+        UserResponseDto(
+            id: "u1", name: "Alice", email: "alice@example.com",
+            profileImagePath: "", avatarColor: "#FF0000", profileChangedAt: "2024-01-01T00:00:00.000Z"
+        )
+    }
 }
