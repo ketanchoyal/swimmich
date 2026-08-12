@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "(You)" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(Vous)"
+          }
+        }
+      }
+    },
     "%@ item%@" : {
       "localizations" : {
         "en" : {
@@ -62,6 +72,9 @@
           }
         }
       }
+    },
+    "+%@" : {
+
     },
     "360°" : {
 
@@ -225,6 +238,28 @@
         }
       }
     },
+    "Can Edit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peut modifier"
+          }
+        }
+      }
+    },
+    "Can View" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peut voir"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -302,6 +337,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible de charger la corbeille"
+          }
+        }
+      }
+    },
+    "Couldn't Load Users" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de charger les utilisateurs"
           }
         }
       }
@@ -393,7 +439,6 @@
       }
     },
     "Delete" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -404,7 +449,6 @@
       }
     },
     "Delete Album" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -486,6 +530,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modifier"
+          }
+        }
+      }
+    },
+    "Editor" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Éditeur"
           }
         }
       }
@@ -659,6 +714,60 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Initialisé"
+          }
+        }
+      }
+    },
+    "Invite" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviter"
+          }
+        }
+      }
+    },
+    "Invite as Editor" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviter comme éditeur"
+          }
+        }
+      }
+    },
+    "Invite as Viewer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviter comme lecteur"
+          }
+        }
+      }
+    },
+    "Invite People" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inviter des personnes"
+          }
+        }
+      }
+    },
+    "Invited people can view the album. Editors can also add and remove photos." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les personnes invitées peuvent voir l'album. Les éditeurs peuvent aussi ajouter et retirer des photos."
           }
         }
       }
@@ -855,6 +964,28 @@
         }
       }
     },
+    "No More Users to Invite" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun autre utilisateur à inviter"
+          }
+        }
+      }
+    },
+    "No Other Users" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun autre utilisateur"
+          }
+        }
+      }
+    },
     "No Photos" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -934,6 +1065,17 @@
         }
       }
     },
+    "Only the server admin can list users. Existing collaborators can still be managed." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seul l'admin du serveur peut lister les utilisateurs. Les collaborateurs existants restent gérables."
+          }
+        }
+      }
+    },
     "Options" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -952,6 +1094,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Orientation"
+          }
+        }
+      }
+    },
+    "Owner" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Propriétaire"
           }
         }
       }
@@ -980,6 +1132,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Protection par mot de passe"
+          }
+        }
+      }
+    },
+    "People" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Personnes"
+          }
+        }
+      }
+    },
+    "People you share with can view this album. Editors can also add and remove photos." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les personnes avec qui vous partagez peuvent voir cet album. Les éditeurs peuvent aussi ajouter et retirer des photos."
           }
         }
       }
@@ -1092,8 +1264,18 @@
         }
       }
     },
-    "Remove from Album" : {
+    "Remove %@ from this album?" : {
       "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer %@ de cet album ?"
+          }
+        }
+      }
+    },
+    "Remove from Album" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -1318,6 +1500,17 @@
         }
       }
     },
+    "Set as Cover" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définir comme couverture"
+          }
+        }
+      }
+    },
     "Share with other users" : {
 
     },
@@ -1350,6 +1543,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Liens partagés"
+          }
+        }
+      }
+    },
+    "Shared With" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagé avec"
           }
         }
       }
@@ -1400,6 +1604,16 @@
     "The photo stays in your library." : {
 
     },
+    "They will no longer be able to view or edit this album." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette personne ne pourra plus voir ni modifier cet album."
+          }
+        }
+      }
+    },
     "This asset will be permanently deleted. Action cannot be undone." : {
       "localizations" : {
         "fr" : {
@@ -1418,6 +1632,28 @@
     },
     "This removes them from your library. Action cannot be undone." : {
 
+    },
+    "This server has no other users to invite." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce serveur n'a aucun autre utilisateur à inviter."
+          }
+        }
+      }
+    },
+    "This server has no other users to share with." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce serveur n'a aucun autre utilisateur avec qui partager."
+          }
+        }
+      }
     },
     "Time Zone" : {
       "extractionState" : "stale",
@@ -1528,6 +1764,17 @@
         }
       }
     },
+    "User Directory Hidden" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répertoire d'utilisateurs masqué"
+          }
+        }
+      }
+    },
     "Utilisez votre compte Immich pour accéder à la photothèque." : {
 
     },
@@ -1555,6 +1802,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Affichage"
+          }
+        }
+      }
+    },
+    "Viewer" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecteur"
           }
         }
       }

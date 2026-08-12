@@ -152,7 +152,7 @@ final class DTOEncodingTests: XCTestCase {
           "updatedAt": "2024-06-02T00:00:00.000Z",
           "albumThumbnailAssetId": "asset-thumb",
           "shared": true,
-          "albumUsers": [{"user": {"id": "u1"}, "role": "EDITOR"}],
+          "albumUsers": [{"user": {"id": "u1", "name": "Alice", "email": "alice@example.com", "profileImagePath": "", "avatarColor": "#FF0000", "profileChangedAt": "2024-06-01T00:00:00.000Z"}, "role": "editor"}],
           "hasSharedLink": true,
           "assetCount": 42,
           "isActivityEnabled": false,
@@ -172,6 +172,8 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertTrue(decoded.hasSharedLink)
         XCTAssertEqual(decoded.assetCount, 42)
         XCTAssertEqual(decoded.order, .asc)
+        XCTAssertEqual(decoded.albumUsers.first?.user.id, "u1", "collaborators must decode")
+        XCTAssertEqual(decoded.albumUsers.first?.role, .editor)
 
         let reencoded = try JSONEncoder.immich.encode(decoded)
         let redecoded = try JSONDecoder.immich.decode(AlbumResponseDto.self, from: reencoded)
@@ -255,10 +257,11 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertEqual(obj2?["query"] as? String, "x")
     }
 
-    // Photo share: AlbumUserRole raw values match the server contract.
+    // Photo share: AlbumUserRole raw values match the server contract (lowercase).
     func test_photoShare_albumUserRoleRawValues() {
-        XCTAssertEqual(AlbumUserRole.editor.rawValue, "EDITOR")
-        XCTAssertEqual(AlbumUserRole.viewer.rawValue, "VIEWER")
+        XCTAssertEqual(AlbumUserRole.editor.rawValue, "editor")
+        XCTAssertEqual(AlbumUserRole.viewer.rawValue, "viewer")
+        XCTAssertEqual(AlbumUserRole.owner.rawValue, "owner")
     }
 
     // Photo share: CreateAlbumDto round-trips albumUsers (shared album).
@@ -277,7 +280,7 @@ final class DTOEncodingTests: XCTestCase {
         let users = obj?["albumUsers"] as? [[String: Any]]
         XCTAssertEqual(users?.count, 2)
         XCTAssertEqual(users?.first?["userId"] as? String, "u1")
-        XCTAssertEqual(users?.first?["role"] as? String, "EDITOR")
+        XCTAssertEqual(users?.first?["role"] as? String, "editor")
 
         let decoded = try JSONDecoder.immich.decode(CreateAlbumDto.self, from: enc)
         XCTAssertEqual(decoded.albumUsers, dto.albumUsers)

@@ -210,4 +210,28 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: AuthViewModel.userNameDefaultsKey), "Alice")
         XCTAssertEqual(defaults.string(forKey: AuthViewModel.userIdDefaultsKey), "u1")
     }
+
+    // Album share: isAdmin is persisted at login and restored on relaunch —
+    // the "Shared With" sheet needs it to pick the right empty-state message.
+    @MainActor
+    func test_login_persistsAndRestoresIsAdmin() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = LoginResponseDto(
+            accessToken: "jwt", userId: "u1", userEmail: "admin@example.com", name: "Admin",
+            profileImagePath: "", isAdmin: true, shouldChangePassword: false, isOnboarded: true
+        )
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "photos.example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "admin@example.com", password: "secret")
+        XCTAssertTrue(auth.isAdmin)
+        XCTAssertTrue(defaults.bool(forKey: AuthViewModel.isAdminDefaultsKey))
+
+        // Simulated relaunch: a fresh VM reads the stored flag.
+        let restored = AuthViewModel(client: MockImmichClient(), keychain: MockKeychainStore(), defaults: defaults)
+        XCTAssertTrue(restored.isAdmin, "isAdmin must survive relaunch")
+    }
 }

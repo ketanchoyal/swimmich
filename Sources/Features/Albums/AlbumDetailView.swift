@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Identifiable wrapper for the "Shared With" sheet — `.sheet(item:)` requires
+/// a non-optional item at render time, guaranteeing the sheet never presents
+/// an empty body (the VM is built when the menu item is tapped).
+private struct AlbumShareSheetItem: Identifiable {
+    let id = UUID()
+    let vm: AlbumShareViewModel
+}
+
 /// Album detail screen (AC-508..AC-513). A Photos-style stretchy parallax hero
 /// (album cover + overlaid title/count) sits above a 3-column photo grid with a
 /// "Photos" section header. Toolbar menu offers share-link management + delete;
@@ -9,6 +17,7 @@ struct AlbumDetailView: View {
     @State private var vm: AlbumDetailViewModel
 
     @State private var presentingShare = false
+    @State private var shareSheetItem: AlbumShareSheetItem?
     @State private var presentingDeleteConfirm = false
     @State private var pendingRemoveAssetId: String?
     @State private var pendingRemoveSelected = false
@@ -26,6 +35,12 @@ struct AlbumDetailView: View {
     /// (hero cover + title) so the zoom-open transition lands on real content,
     /// not a spinner; the freshly-fetched `vm.album` replaces it once loaded.
     private let initialAlbum: AlbumResponseDto
+
+    /// True when the signed-in user owns the album. The server always lists the
+    /// owner first in `albumUsers`; only owners may manage collaborators.
+    private var isAlbumOwner: Bool {
+        (vm.album ?? initialAlbum).albumUsers.first?.user.id == auth.userId
+    }
 
     init(
         album: AlbumResponseDto,
@@ -90,21 +105,55 @@ struct AlbumDetailView: View {
                     }
                     .disabled(vm.selectedIds.isEmpty)
 
-                    Button(role: .destructive) {
-                        pendingRemoveSelected = true
+                    Button {
+                        guard vm.selectedIds.count == 1, let first = vm.selectedIds.first else { return }
+                        Task {
+                            // Exit only on success (retry keeps selection).
+                            if await vm.setCover(assetId: first) {
+                                vm.exitSelectionMode()
+                            }
+                        }
                     } label: {
-                        Label("Remove from Album", systemImage: "rectangle.stack.badge.minus")
+                        Label("Set as Cover", systemImage: "photo.badge.checkmark")
                             .labelStyle(.iconOnly)
                     }
-                    .disabled(vm.selectedIds.isEmpty)
+                    .disabled(vm.selectedIds.count != 1)
+                }
+                // Native trailing ellipsis menu — Photos-parity bulk actions.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            pendingRemoveSelected = true
+                        } label: {
+                            Label {
+                                Text("Remove from Album")
+                                    .foregroundStyle(Color.red)
+                            } icon: {
+                                Image(systemName: "rectangle.stack.badge.minus")
+                                    .foregroundStyle(Color.red)
+                            }
+                        }
+                        .tint(.red)
+                        .disabled(vm.selectedIds.isEmpty)
 
-                    Button(role: .destructive) {
-                        pendingDeleteSelected = true
+                        Button(role: .destructive) {
+                            pendingDeleteSelected = true
+                        } label: {
+                            Label {
+                                Text("Delete")
+                                    .foregroundStyle(Color.red)
+                            } icon: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(Color.red)
+                            }
+                        }
+                        .tint(.red)
+                        .disabled(vm.selectedIds.isEmpty)
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label("Album actions", systemImage: "ellipsis")
                             .labelStyle(.iconOnly)
                     }
-                    .disabled(vm.selectedIds.isEmpty)
+                    .tint(.primary)
                 }
             } else if !vm.isDeleted {
                 // Native trailing ellipsis menu — Apple Files parity. Bare
@@ -130,14 +179,37 @@ struct AlbumDetailView: View {
                                 .foregroundStyle(Color.primary)
                         }
                         .tint(Color.primary)
+                        // "Shared With" is owner-only: the server puts the
+                        // album owner first in `albumUsers`, and only owners
+                        // may manage collaborators (403 otherwise).
+                        if isAlbumOwner {
+                            Button {
+                                shareSheetItem = AlbumShareSheetItem(
+                                    vm: vm.makeShareViewModel(
+                                        currentUserId: auth.userId ?? "",
+                                        isAdmin: auth.isAdmin
+                                    )
+                                )
+                            } label: {
+                                Label("Shared With", systemImage: "person.2")
+                                    .foregroundStyle(Color.primary)
+                            }
+                            .tint(Color.primary)
+                        }
+                        Divider()
                         // Forced red: the menu-level `.tint(.primary)` below can
-                        // override the destructive role on iOS 26, so the label
-                        // carries its own explicit red style.
+                        // override the destructive role on iOS 26, so the icon
+                        // AND the title carry their own explicit red style.
                         Button(role: .destructive) {
                             presentingDeleteConfirm = true
                         } label: {
-                            Label("Delete Album", systemImage: "trash")
-                                .foregroundStyle(Color.red)
+                            Label {
+                                Text("Delete Album")
+                                    .foregroundStyle(Color.red)
+                            } icon: {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(Color.red)
+                            }
                         }
                         .tint(Color.red)
                     } label: {
@@ -151,6 +223,11 @@ struct AlbumDetailView: View {
         .task { await vm.load() }
         .sheet(isPresented: $presentingShare) {
             SharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+        }
+        .sheet(item: $shareSheetItem, onDismiss: {
+            Task { await vm.refreshAlbum() }
+        }) { item in
+            AlbumShareSheet(vm: item.vm)
         }
         .confirmationDialog(
             "Delete this album? The photos themselves are not deleted.",
@@ -205,6 +282,7 @@ struct AlbumDetailView: View {
         }
         .sensoryFeedback(.warning, trigger: lastDeleteTick)
         .sensoryFeedback(.success, trigger: lastRemoveTick)
+        .sensoryFeedback(.success, trigger: vm.album?.albumThumbnailAssetId)
         .sensoryFeedback(.selection, trigger: vm.selectionMode)
         .sensoryFeedback(.selection, trigger: lastSelectionTick)
         .photoViewer(
@@ -267,6 +345,11 @@ struct AlbumDetailView: View {
         } else {
             cell
                 .contextMenu {
+                    Button {
+                        Task { await vm.setCover(assetId: item.id) }
+                    } label: {
+                        Label("Set as Cover", systemImage: "photo.badge.checkmark")
+                    }
                     Button(role: .destructive) {
                         pendingRemoveAssetId = item.id
                     } label: {
@@ -426,8 +509,33 @@ struct AlbumDetailView: View {
                     .font(.pvSubhead)
                     .foregroundStyle(.white.opacity(0.9))
                     .shadow(color: .black.opacity(0.4), radius: 3)
+                collaboratorAvatars(for: album)
             }
             .padding(PVSpacing.s16)
+        }
+    }
+
+    /// Photos-style overlapping avatar stack of the album's collaborators
+    /// (self excluded), with a "+N" overflow badge. Nothing when not shared.
+    @ViewBuilder
+    private func collaboratorAvatars(for album: AlbumResponseDto) -> some View {
+        let others = album.albumUsers.filter { $0.user.id != auth.userId }
+        if !others.isEmpty {
+            HStack(spacing: -PVSpacing.s8) {
+                ForEach(others.prefix(4), id: \.user.id) { entry in
+                    UserAvatarCircle(user: entry.user, size: 24)
+                        .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                }
+                if others.count > 4 {
+                    Text("+\(others.count - 4)")
+                        .font(.pvCaption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(.black.opacity(0.45), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
+                }
+            }
+            .shadow(color: .black.opacity(0.3), radius: 3)
         }
     }
 }

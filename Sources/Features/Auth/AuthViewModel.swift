@@ -24,6 +24,7 @@ final class AuthViewModel: AuthSessionDelegate {
     static let userEmailDefaultsKey = "authUserEmail"
     static let userNameDefaultsKey = "authUserName"
     static let userIdDefaultsKey = "authUserId"
+    static let isAdminDefaultsKey = "authIsAdmin"
 
     // Server connection
     var serverURLString: String = "" {
@@ -37,6 +38,7 @@ final class AuthViewModel: AuthSessionDelegate {
     var userEmail: String?
     var userName: String?
     var userId: String?
+    var isAdmin: Bool = false
     var isAuthenticated: Bool { accessToken != nil }
 
     /// True while `restoreSession()` reconfigures the client + validates the
@@ -61,6 +63,7 @@ final class AuthViewModel: AuthSessionDelegate {
         self.userEmail = defaults.string(forKey: Self.userEmailDefaultsKey)
         self.userName = defaults.string(forKey: Self.userNameDefaultsKey)
         self.userId = defaults.string(forKey: Self.userIdDefaultsKey)
+        self.isAdmin = defaults.bool(forKey: Self.isAdminDefaultsKey)
         self.accessToken = keychain.getToken()
         self.client.authDelegate = self
     }
@@ -157,11 +160,13 @@ final class AuthViewModel: AuthSessionDelegate {
             userEmail = response.userEmail
             userName = response.name
             userId = response.userId
+            isAdmin = response.isAdmin
             keychain.saveToken(response.accessToken)
             defaults.set(baseURL?.absoluteString ?? serverURLString, forKey: Self.serverURLDefaultsKey)
             defaults.set(response.userEmail, forKey: Self.userEmailDefaultsKey)
             defaults.set(response.name, forKey: Self.userNameDefaultsKey)
             defaults.set(response.userId, forKey: Self.userIdDefaultsKey)
+            defaults.set(response.isAdmin, forKey: Self.isAdminDefaultsKey)
             client.configure(baseURL: baseURL, token: response.accessToken)
         } catch let e {
             errorMessage = e.localizedDescription
@@ -184,10 +189,12 @@ final class AuthViewModel: AuthSessionDelegate {
         userEmail = nil
         userName = nil
         userId = nil
+        isAdmin = false
         keychain.deleteToken()
         defaults.removeObject(forKey: Self.userEmailDefaultsKey)
         defaults.removeObject(forKey: Self.userNameDefaultsKey)
         defaults.removeObject(forKey: Self.userIdDefaultsKey)
+        defaults.removeObject(forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: nil)
     }
 
