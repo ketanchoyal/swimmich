@@ -291,21 +291,25 @@ struct PhotoViewer: View {
     private var pager: some View {
         TabView(selection: $selectedIndex) {
             ForEach(Array(localAssets.enumerated()), id: \.element.id) { i, asset in
-                ZoomableImageView(
-                    asset: asset,
-                    baseURL: baseURL,
-                    token: token,
-                    onSingleTap: {
-                        // Tap outside the open info panel closes it; otherwise
-                        // it toggles the chrome.
-                        if showInfo {
-                            closeInfo()
-                        } else {
-                            toggleChrome()
-                        }
-                    },
-                    onZoomChange: { isZoomed = $0 > 1.01 }
-                )
+                Group {
+                    if asset.isVideo {
+                        VideoPlayerView(
+                            asset: asset,
+                            baseURL: baseURL,
+                            token: token,
+                            controlsVisible: showChrome,
+                            onSingleTap: dismissOrToggleChrome
+                        )
+                    } else {
+                        ZoomableImageView(
+                            asset: asset,
+                            baseURL: baseURL,
+                            token: token,
+                            onSingleTap: dismissOrToggleChrome,
+                            onZoomChange: { isZoomed = $0 > 1.01 }
+                        )
+                    }
+                }
                 .id(asset.id)
                 .tag(i)
             }
@@ -414,6 +418,25 @@ struct PhotoViewer: View {
                                 .strokeBorder(i == selectedIndex ? Color.white : Color.clear, lineWidth: 2)
                         )
                         .opacity(i == selectedIndex ? 1.0 : 0.65)
+                        .overlay(alignment: .bottomTrailing) {
+                            // Video play + duration badge on strip cells so
+                            // videos stay recognizable while browsing.
+                            if asset.isVideo {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "play.fill") // DS-exempt: badge micro-glyph §8.6
+                                    if let d = asset.duration, d > 0 {
+                                        Text(AssetThumbnailCell.formattedDuration(d)).monospacedDigit()
+                                    }
+                                }
+                                .font(.pvCaption)
+                                .foregroundStyle(.white) // DS-exempt: badge contrast on material
+                                .padding(.horizontal, PVSpacing.s4)
+                                .padding(.vertical, 2) // DS-exempt: badge micro-padding
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
+                                .padding(3)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Photo \(i + 1) of \(localAssets.count)")
@@ -481,16 +504,18 @@ struct PhotoViewer: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(favoriteIDs.contains(asset.id) ? "Unfavorite" : "Favorite")
 
-                        Button {
-                            presentEdit = true
-                        } label: {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.pvHeadline)
-                                .foregroundStyle(Color.white)
-                                .frame(width: 44, height: 44)
+                        if !asset.isVideo {
+                            Button {
+                                presentEdit = true
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.pvHeadline)
+                                    .foregroundStyle(Color.white)
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Edit")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Edit")
                     }
                 }
                 .padding(.horizontal, PVSpacing.s8)
@@ -576,6 +601,16 @@ struct PhotoViewer: View {
     private func toggleChrome() {
         withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
             showChrome.toggle()
+        }
+    }
+
+    /// Shared page tap action: an open info panel closes first, otherwise the
+    /// tap toggles the chrome (image zoom pages and video pages both use it).
+    private func dismissOrToggleChrome() {
+        if showInfo {
+            closeInfo()
+        } else {
+            toggleChrome()
         }
     }
 
