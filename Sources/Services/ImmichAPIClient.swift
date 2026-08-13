@@ -24,8 +24,14 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     weak var authDelegate: AuthSessionDelegate?
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession = .shared, trustStore: TrustedServerStore? = nil) {
+        if let trustStore {
+            let delegate = TrustEvaluatingURLSessionDelegate(trustStore: trustStore)
+            let config = URLSessionConfiguration.ephemeral
+            self.session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        } else {
+            self.session = session
+        }
     }
 
     // MARK: - Configuration

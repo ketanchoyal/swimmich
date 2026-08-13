@@ -64,6 +64,17 @@ struct ServerURLScreen: View {
             auth.serverStatus = .idle
         }
         .animation(PVMotion.gentle, value: auth.serverStatus)
+        .alert("Trust this server?", isPresented: Binding(
+            get: { auth.pendingUntrustedHost != nil },
+            set: { if !$0 { auth.pendingUntrustedHost = nil } }
+        )) {
+            Button("Trust", role: .destructive) {
+                Task { await auth.trustPendingServer() }
+            }
+            Button("Cancel", role: .cancel) { auth.pendingUntrustedHost = nil }
+        } message: {
+            Text("The certificate of \(auth.pendingUntrustedHost ?? "this server") cannot be verified. Trust it anyway?")
+        }
         .onboardingBottomBar {
             Button(action: primaryAction) {
                 switch auth.serverStatus {

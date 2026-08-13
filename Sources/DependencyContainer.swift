@@ -9,10 +9,13 @@ final class DependencyContainer {
     let keychain: KeychainStore
     let photos: PhotoLibraryService
     let appLock: AppLockViewModel
+    let trustedServers: TrustedServerStore
 
     init() {
         self.keychain = KeychainStoreImpl()
-        self.client = ImmichAPIClient()
+        let trustStore = TrustedServerStoreImpl()
+        self.trustedServers = trustStore
+        self.client = ImmichAPIClient(trustStore: trustStore)
         self.photos = PhotoLibraryServiceImpl()
         self.appLock = AppLockViewModel()
     }

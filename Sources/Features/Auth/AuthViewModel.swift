@@ -53,12 +53,19 @@ final class AuthViewModel: AuthSessionDelegate {
     private let client: any ImmichClient
     private let keychain: KeychainStore
     private let defaults: UserDefaults
+    private let trustStore: TrustedServerStore
     private var _cachedBaseURL: URL?
 
-    init(client: any ImmichClient, keychain: KeychainStore, defaults: UserDefaults = .standard) {
+    init(
+        client: any ImmichClient,
+        keychain: KeychainStore,
+        defaults: UserDefaults = .standard,
+        trustStore: TrustedServerStore = TrustedServerStoreImpl()
+    ) {
         self.client = client
         self.keychain = keychain
         self.defaults = defaults
+        self.trustStore = trustStore
         self.serverURLString = defaults.string(forKey: Self.serverURLDefaultsKey) ?? ""
         self.userEmail = defaults.string(forKey: Self.userEmailDefaultsKey)
         self.userName = defaults.string(forKey: Self.userNameDefaultsKey)
@@ -128,6 +135,7 @@ final class AuthViewModel: AuthSessionDelegate {
         }
         serverStatus = .checking
         errorMessage = nil
+        pendingUntrustedHost = nil
         client.configure(baseURL: url, token: keychain.getToken())
         do {
             let ping = try await client.ping()
@@ -139,8 +147,39 @@ final class AuthViewModel: AuthSessionDelegate {
             } else {
                 serverStatus = .unreachable
             }
+        } catch let e as URLError where Self.isTLSError(e) {
+            // P5 selfsigned-cert: surface the host so the UI can offer to
+            // trust it explicitly.
+            serverStatus = .unreachable
+            errorMessage = "Le certificat de ce serveur ne peut pas être vérifié."
+            pendingUntrustedHost = url.host
         } catch {
             serverStatus = .unreachable
+        }
+    }
+
+    /// Host whose TLS certificate failed validation (P5 selfsigned-cert).
+    var pendingUntrustedHost: String?
+
+    /// Persists the pending host as trusted and re-runs connectivity.
+    @MainActor
+    func trustPendingServer() async {
+        guard let host = pendingUntrustedHost else { return }
+        trustStore.add(host)
+        pendingUntrustedHost = nil
+        await connectServer()
+    }
+
+    /// TLS certificate failures that warrant the explicit trust flow.
+    static func isTLSError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .serverCertificateUntrusted,
+             .serverCertificateHasUnknownRoot,
+             .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid:
+            return true
+        default:
+            return false
         }
     }
 

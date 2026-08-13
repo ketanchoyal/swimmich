@@ -234,4 +234,71 @@ final class AuthViewModelTests: XCTestCase {
         let restored = AuthViewModel(client: MockImmichClient(), keychain: MockKeychainStore(), defaults: defaults)
         XCTAssertTrue(restored.isAdmin, "isAdmin must survive relaunch")
     }
+
+    // MARK: - Self-signed cert trust (P5)
+
+    @MainActor
+    func test_connectServer_tlsErrorSetsPendingUntrustedHost() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.pingError = URLError(.serverCertificateUntrusted)
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.connectServer()
+
+        XCTAssertEqual(auth.serverStatus, .unreachable)
+        XCTAssertEqual(auth.pendingUntrustedHost, "photos.example.com")
+    }
+
+    @MainActor
+    func test_connectServer_networkErrorDoesNotSetTrustHost() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.pingError = URLError(.timedOut)
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.connectServer()
+
+        XCTAssertEqual(auth.serverStatus, .unreachable)
+        XCTAssertNil(auth.pendingUntrustedHost)
+    }
+
+    @MainActor
+    func test_trustPendingServer_addsHostAndReconnects() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let trustSuite = "trustVM-\(UUID().uuidString)"
+        let trustDefaults = UserDefaults(suiteName: trustSuite)!
+        defer { trustDefaults.removePersistentDomain(forName: trustSuite) }
+        let trustStore = TrustedServerStoreImpl(defaults: trustDefaults)
+
+        let mock = MockImmichClient()
+        // First ping fails TLS, second succeeds (after trust).
+        mock.pingResSequences = [.init(res: "pong")]
+        mock.pingError = URLError(.serverCertificateUntrusted)
+        let auth = AuthViewModel(
+            client: mock, keychain: MockKeychainStore(), defaults: defaults, trustStore: trustStore
+        )
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.connectServer()
+        XCTAssertEqual(auth.pendingUntrustedHost, "photos.example.com")
+
+        // After trust: no TLS error anymore.
+        mock.pingError = nil
+        await auth.trustPendingServer()
+
+        XCTAssertTrue(trustStore.contains("photos.example.com"))
+        XCTAssertNil(auth.pendingUntrustedHost)
+        guard case .reachable = auth.serverStatus else {
+            return XCTFail("Expected reachable, got \(auth.serverStatus)")
+        }
+    }
 }
