@@ -16,6 +16,13 @@ final class AssetDetailViewModel {
     /// or loadDetail not yet run. (AC-204/205/206)
     var placeName: String?
 
+    /// Faces detected on this asset (gap #5) — `GET /api/faces?id=`.
+    var faces: [AssetFaceResponseDto] = []
+    /// All people on the instance, for the face-assignment picker (gap #5).
+    var allPeople: [PersonResponseDto] = []
+    /// True while faces/people are loading (drives the faces card spinner).
+    var facesLoading = false
+
     /// Injectable geocoder. `@ObservationIgnored` because identity swaps shouldn't trigger view updates.
     /// Default = `AppleGeocoder()` (production); tests inject a `MockLocationGeocoder`.
     @ObservationIgnored var geocoder: any LocationGeocoding = AppleGeocoder()
@@ -40,6 +47,50 @@ final class AssetDetailViewModel {
         do { detail = try await client.getAsset(id: asset.id) } catch let e { errorMessage = e.localizedDescription }
         isLoading = false
         await reverseGeocodeIfNeeded()
+        await loadFaces()
+    }
+
+    /// Loads the faces on this asset + the people list for the assignment
+    /// picker (gap #5). Failures are non-fatal — the rest of the panel still
+    /// renders; the faces card just shows nothing.
+    @MainActor
+    func loadFaces() async {
+        facesLoading = true
+        defer { facesLoading = false }
+        do {
+            async let fetchedFaces = client.getFaces(assetId: asset.id)
+            async let page = client.getPeople(page: nil, withHidden: true)
+            let (f, p) = try await (fetchedFaces, page)
+            faces = f
+            allPeople = p.people
+        } catch {
+            // Non-fatal: keep any previously loaded faces.
+        }
+    }
+
+    /// Reassigns one face to an existing person (gap #5), then reloads faces.
+    @MainActor
+    func reassignFace(faceId: String, toPersonId: String) async {
+        do {
+            _ = try await client.reassignFace(faceId: faceId, toPersonId: toPersonId)
+            errorMessage = nil
+            await loadFaces()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    /// Creates a new person by name and assigns the face to it (gap #5).
+    @MainActor
+    func createPersonAndAssign(faceId: String, name: String) async {
+        do {
+            let person = try await client.createPerson(name: name)
+            _ = try await client.reassignFace(faceId: faceId, toPersonId: person.id)
+            errorMessage = nil
+            await loadFaces()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
     }
 
     /// AC-204/205/206: drive reverse-geocoding once per VM lifetime.
@@ -69,6 +120,21 @@ final class AssetDetailViewModel {
         do {
             let updated = try await client.updateAsset(id: asset.id, dto: body)
             isFavorite = updated.isFavorite
+            detail = updated
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    /// Adjust date/time (gap #3): PATCH /api/assets/:id {dateTimeOriginal}.
+    /// The date is encoded as Immich's UTC ISO-8601 (`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`).
+    @MainActor
+    func setDateTime(_ date: Date) async {
+        let body = UpdateAssetDto(dateTimeOriginal: ISO8601.immichFormatter.string(from: date))
+        lastUpdateBody = body
+        lastUpdateAssetId = asset.id
+        do {
+            let updated = try await client.updateAsset(id: asset.id, dto: body)
             detail = updated
         } catch let e {
             errorMessage = e.localizedDescription

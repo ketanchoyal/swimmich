@@ -17,6 +17,17 @@ struct PeopleView: View {
             if vm.isLoading && vm.people.isEmpty {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if vm.people.isEmpty, let error = vm.errorMessage {
+                ContentUnavailableView {
+                    Label("Couldn't load people", systemImage: "person.2.slash")
+                } description: {
+                    Text(error)
+                } actions: {
+                    Button("Retry") {
+                        Task { await vm.load(force: true); await vm.loadStatistics() }
+                    }
+                    .buttonStyle(PVPrimaryButtonStyle())
+                }
             } else if vm.people.isEmpty {
                 ContentUnavailableView(
                     "No people yet",
@@ -206,6 +217,13 @@ private struct PersonDetailView: View {
                             onTap: { viewerItem = PhotoViewerItem(assets: vm.personAssets, index: i) }
                         )
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                Task { await vm.setFeatureFace(person, assetId: item.id) }
+                            } label: {
+                                Label("Set as cover", systemImage: "person.crop.circle.badge.checkmark")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, PVSpacing.s4)

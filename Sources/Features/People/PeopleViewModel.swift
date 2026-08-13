@@ -105,6 +105,12 @@ final class PeopleViewModel {
         await update(person.id, PersonUpdateDto(isHidden: !person.isHidden))
     }
 
+    /// Sets a person's cover / feature photo (gap #4): PUT /people/{id}
+    /// {featureFaceAssetId}. The cover is one of the person's face assets.
+    func setFeatureFace(_ person: PersonResponseDto, assetId: String) async {
+        await update(person.id, PersonUpdateDto(featureFaceAssetId: assetId))
+    }
+
     private func update(_ id: String, _ dto: PersonUpdateDto) async {
         do {
             let updated = try await client.updatePerson(id: id, dto: dto)
