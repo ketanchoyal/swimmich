@@ -86,12 +86,27 @@ protocol ImmichClient: AnyObject, Sendable {
     func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto
     func deleteSharedLink(id: String) async throws
 
+    // MARK: - Tags (gap #2)
+    func getAllTags() async throws -> [TagResponseDto]
+    func createTag(name: String, color: String?) async throws -> TagResponseDto
+    func updateTag(id: String, color: String?) async throws -> TagResponseDto
+    func deleteTag(id: String) async throws
+    /// `PUT /api/tags/{id}/assets` — add assets to a tag.
+    func tagAssets(tagId: String, assetIds: [String]) async throws
+    /// `DELETE /api/tags/{id}/assets` — remove assets from a tag.
+    func untagAssets(tagId: String, assetIds: [String]) async throws
+
     // MARK: - People (P0 api-surface-expansion)
     func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto
+    func createPerson(name: String) async throws -> PersonResponseDto
     func updatePerson(id: String, dto: PersonUpdateDto) async throws -> PersonResponseDto
     /// `POST /api/people/{id}/merge` — merge persons; returns bulk results.
     func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto]
     func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto
+    /// `PUT /api/faces/{personId}` body `{ id: faceId }` — re-assign one face (gap #5).
+    func reassignFace(faceId: String, toPersonId: String) async throws -> PersonResponseDto
+    /// `GET /api/faces?id={assetId}` — all faces detected on an asset (gap #5).
+    func getFaces(assetId: String) async throws -> [AssetFaceResponseDto]
 
     // MARK: - Partners (P0 api-surface-expansion)
     func getPartners() async throws -> [PartnerResponseDto]
@@ -108,6 +123,29 @@ protocol ImmichClient: AnyObject, Sendable {
 
     // MARK: - Duplicates (P0 api-surface-expansion)
     func getDuplicates() async throws -> [DuplicateResponseDto]
+
+    // MARK: - Stacks (gap #1)
+    func searchStacks(primaryAssetId: String?) async throws -> [StackResponseDto]
+    func createStack(assetIds: [String]) async throws -> StackResponseDto
+    func getStack(id: String) async throws -> StackResponseDto
+    func updateStack(id: String, primaryAssetId: String?) async throws -> StackResponseDto
+    func deleteStack(id: String) async throws
+    func removeAssetFromStack(stackId: String, assetId: String) async throws
+
+    // MARK: - Admin (gap #12)
+    func getAdminUsers() async throws -> [UserAdminResponseDto]
+    func createAdminUser(dto: UserAdminCreateDto) async throws -> UserAdminResponseDto
+    func updateAdminUser(id: String, dto: UserAdminUpdateDto) async throws -> UserAdminResponseDto
+    func deleteAdminUser(id: String, force: Bool) async throws -> UserAdminResponseDto
+    func restoreAdminUser(id: String) async throws -> UserAdminResponseDto
+    func getJobsStatus() async throws -> [String: QueueResponseLegacyDto]
+    func sendJobCommand(name: String, command: String, force: Bool?) async throws -> QueueResponseLegacyDto
+    func getLibraries() async throws -> [LibraryResponseDto]
+    func scanLibrary(id: String) async throws
+    func deleteLibrary(id: String) async throws
+    func getAPIKeys() async throws -> [ApiKeyResponseDto]
+    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto
+    func deleteAPIKey(id: String) async throws
 
     // MARK: - Server statistics (P0 api-surface-expansion)
     func getServerStatistics() async throws -> ServerStatsResponseDto

@@ -167,12 +167,44 @@ struct TagResponseDto: Codable, Equatable {
     let name: String
     var value: String?
     var color: String?
+    var parentId: String?
+    var createdAt: String?
+    var updatedAt: String?
+}
+
+struct TagCreateDto: Codable, Equatable {
+    let name: String
+    var color: String?
+    var parentId: String?
+}
+
+struct TagUpdateDto: Codable, Equatable {
+    var color: String?
 }
 
 struct AssetStackResponseDto: Codable, Equatable {
     let id: String
     let primaryAssetId: String
     let assetCount: Int
+}
+
+// MARK: - Stacks (gap #1)
+
+/// `StackResponseDto` — full stack: primary id + member assets.
+struct StackResponseDto: Codable, Equatable {
+    let id: String
+    let primaryAssetId: String
+    let assets: [AssetResponseDto]
+}
+
+/// `POST /api/stacks` — first asset id becomes primary (min 2).
+struct StackCreateDto: Codable, Equatable {
+    let assetIds: [String]
+}
+
+/// `PUT /api/stacks/{id}` — change the stack's primary asset.
+struct StackUpdateDto: Codable, Equatable {
+    var primaryAssetId: String?
 }
 
 // MARK: - Upload DTOs

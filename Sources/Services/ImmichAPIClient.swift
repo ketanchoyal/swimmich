@@ -256,6 +256,32 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.PUT, path: ImmichAPI.sharedLinks.path("/\(id)"), body: AnyEncodable(dto))
     }
 
+    // MARK: - Tags (gap #2)
+
+    func getAllTags() async throws -> [TagResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.tags.path(""))
+    }
+
+    func createTag(name: String, color: String?) async throws -> TagResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.tags.path(""), body: AnyEncodable(TagCreateDto(name: name, color: color)))
+    }
+
+    func updateTag(id: String, color: String?) async throws -> TagResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.tags.path("/\(id)"), body: AnyEncodable(TagUpdateDto(color: color)))
+    }
+
+    func deleteTag(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.tags.path("/\(id)"), body: nil)
+    }
+
+    func tagAssets(tagId: String, assetIds: [String]) async throws {
+        _ = try await sendAuthedRaw(.PUT, path: ImmichAPI.tags.path("/\(tagId)/assets"), body: AnyEncodable(BulkIdsDto(ids: assetIds)))
+    }
+
+    func untagAssets(tagId: String, assetIds: [String]) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.tags.path("/\(tagId)/assets"), body: AnyEncodable(BulkIdsDto(ids: assetIds)))
+    }
+
     // MARK: - People (P0 api-surface-expansion)
 
     func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto {
@@ -269,6 +295,10 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.PUT, path: ImmichAPI.people.path("/\(id)"), body: AnyEncodable(dto))
     }
 
+    func createPerson(name: String) async throws -> PersonResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.people.path(""), body: AnyEncodable(PersonCreateDto(name: name)))
+    }
+
     /// `POST /api/people/{id}/merge` — note: merge is POST, not PUT.
     func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto] {
         try await sendAuthed(.POST, path: ImmichAPI.people.path("/\(id)/merge"), body: AnyEncodable(MergePersonDto(ids: ids)))
@@ -276,6 +306,15 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto {
         try await sendAuthed(.GET, path: ImmichAPI.people.path("/\(id)/statistics"))
+    }
+
+    func reassignFace(faceId: String, toPersonId: String) async throws -> PersonResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.faces.path("/\(toPersonId)"), body: AnyEncodable(FaceDto(id: faceId)))
+    }
+
+    func getFaces(assetId: String) async throws -> [AssetFaceResponseDto] {
+        let query = [URLQueryItem(name: "id", value: assetId)]
+        return try await sendAuthed(.GET, path: ImmichAPI.faces.path(""), query: query)
     }
 
     // MARK: - Partners (P0 api-surface-expansion)
@@ -318,6 +357,89 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     func getDuplicates() async throws -> [DuplicateResponseDto] {
         try await sendAuthed(.GET, path: ImmichAPI.duplicates.path(""))
+    }
+
+    // MARK: - Stacks (gap #1)
+
+    func searchStacks(primaryAssetId: String?) async throws -> [StackResponseDto] {
+        var query: [URLQueryItem] = []
+        if let primaryAssetId { query.append(URLQueryItem(name: "primaryAssetId", value: primaryAssetId)) }
+        return try await sendAuthed(.GET, path: ImmichAPI.stacks.path(""), query: query)
+    }
+
+    func createStack(assetIds: [String]) async throws -> StackResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.stacks.path(""), body: AnyEncodable(StackCreateDto(assetIds: assetIds)))
+    }
+
+    func getStack(id: String) async throws -> StackResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.stacks.path("/\(id)"))
+    }
+
+    func updateStack(id: String, primaryAssetId: String?) async throws -> StackResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.stacks.path("/\(id)"), body: AnyEncodable(StackUpdateDto(primaryAssetId: primaryAssetId)))
+    }
+
+    func deleteStack(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.stacks.path("/\(id)"), body: nil)
+    }
+
+    func removeAssetFromStack(stackId: String, assetId: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.stacks.path("/\(stackId)/assets/\(assetId)"), body: nil)
+    }
+
+    // MARK: - Admin (gap #12)
+
+    func getAdminUsers() async throws -> [UserAdminResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.admin.path("/users"))
+    }
+
+    func createAdminUser(dto: UserAdminCreateDto) async throws -> UserAdminResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.admin.path("/users"), body: AnyEncodable(dto))
+    }
+
+    func updateAdminUser(id: String, dto: UserAdminUpdateDto) async throws -> UserAdminResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.admin.path("/users/\(id)"), body: AnyEncodable(dto))
+    }
+
+    func deleteAdminUser(id: String, force: Bool) async throws -> UserAdminResponseDto {
+        let query = [URLQueryItem(name: "force", value: String(force))]
+        return try await sendAuthed(.DELETE, path: ImmichAPI.admin.path("/users/\(id)"), query: query)
+    }
+
+    func restoreAdminUser(id: String) async throws -> UserAdminResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.admin.path("/users/\(id)/restore"), body: nil)
+    }
+
+    func getJobsStatus() async throws -> [String: QueueResponseLegacyDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.jobs.path(""))
+    }
+
+    func sendJobCommand(name: String, command: String, force: Bool?) async throws -> QueueResponseLegacyDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.jobs.path("/\(name)"), body: AnyEncodable(QueueCommandDto(command: command, force: force)))
+    }
+
+    func getLibraries() async throws -> [LibraryResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.libraries.path(""))
+    }
+
+    func scanLibrary(id: String) async throws {
+        _ = try await sendAuthedRaw(.POST, path: ImmichAPI.libraries.path("/\(id)/scan"), body: nil)
+    }
+
+    func deleteLibrary(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.libraries.path("/\(id)"), body: nil)
+    }
+
+    func getAPIKeys() async throws -> [ApiKeyResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.apiKeys.path(""))
+    }
+
+    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.apiKeys.path(""), body: AnyEncodable(["name": name]))
+    }
+
+    func deleteAPIKey(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.apiKeys.path("/\(id)"), body: nil)
     }
 
     // MARK: - Server statistics (P0 api-surface-expansion)

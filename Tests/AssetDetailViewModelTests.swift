@@ -13,7 +13,7 @@ final class AssetDetailViewModelTests: XCTestCase {
             isImage: true, thumbhash: nil, createdAt: "2024-07-01T00:00:00.000Z",
             fileCreatedAt: "2024-07-01T00:00:00.000Z", localOffsetHours: 0,
             duration: nil, livePhotoVideoId: nil, projectionType: nil,
-            city: nil, country: nil, latitude: nil, longitude: nil
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
         )
         let vm = AssetDetailViewModel(asset: asset, client: mock)
         await vm.toggleFavorite()
@@ -34,7 +34,7 @@ final class AssetDetailViewModelTests: XCTestCase {
             isImage: true, thumbhash: nil, createdAt: "2024-07-01T00:00:00.000Z",
             fileCreatedAt: "2024-07-01T00:00:00.000Z", localOffsetHours: 0,
             duration: nil, livePhotoVideoId: nil, projectionType: nil,
-            city: nil, country: nil, latitude: 45.0, longitude: 6.0
+            city: nil, country: nil, latitude: 45.0, longitude: 6.0, stack: []
         )
     }
 

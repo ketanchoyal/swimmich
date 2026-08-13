@@ -14,13 +14,20 @@ enum ImmichAPI {
     static let search = SubPath(root: "/search") // AC-400
     static let map = SubPath(root: "/map") // AC-710 (MapKit markers)
     static let people = SubPath(root: "/people") // AC-400 (deferred People feature)
+    static let faces = SubPath(root: "/faces") // gap #5 (face reassignment)
     static let albums = SubPath(root: "/albums") // AC-500
+    static let tags = SubPath(root: "/tags") // gap #2 (asset tags)
     static let sharedLinks = SubPath(root: "/shared-links") // AC-500
     static let users = SubPath(root: "/users") // photo share — user picker
     static let partners = SubPath(root: "/partners") // P0 api-surface-expansion
     static let activity = SubPath(root: "/activities") // P0 api-surface-expansion
     static let memories = SubPath(root: "/memories") // P0 api-surface-expansion
     static let duplicates = SubPath(root: "/duplicates") // P0 api-surface-expansion
+    static let stacks = SubPath(root: "/stacks") // gap #1 (asset stacking)
+    static let admin = SubPath(root: "/admin") // gap #12 (admin panel)
+    static let jobs = SubPath(root: "/jobs") // gap #12 (admin jobs)
+    static let libraries = SubPath(root: "/libraries") // gap #12 (admin libraries)
+    static let apiKeys = SubPath(root: "/api-keys") // gap #12 (admin api keys)
 
     struct SubPath {
         let root: String

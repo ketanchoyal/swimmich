@@ -20,7 +20,7 @@ final class SaveToLibraryViewModelTests: XCTestCase {
             isTrashed: false, isImage: isImage, thumbhash: nil,
             createdAt: fileName, fileCreatedAt: fileName, localOffsetHours: 0,
             duration: isImage ? nil : 12, livePhotoVideoId: nil, projectionType: nil,
-            city: nil, country: nil, latitude: nil, longitude: nil
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
         )
     }
 

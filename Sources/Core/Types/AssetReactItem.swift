@@ -29,9 +29,15 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     let country: String?
     let latitude: Double?
     let longitude: Double?
+    /// Ids of the other assets stacked together with this one (gap #1). Empty
+    /// when the asset is not part of a stack.
+    let stack: [String]
 
     /// True for video assets.
     var isVideo: Bool { !isImage }
+
+    /// True when this asset belongs to a stack of 2+ assets.
+    var isStacked: Bool { !stack.isEmpty }
 
     /// Display aspect ratio clamped to sane bounds (avoid div-by-zero/overflow).
     var aspectRatio: Double {
@@ -80,7 +86,8 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
                 city: safeIndex(dto.city, i).flatMap { $0 },
                 country: safeIndex(dto.country, i).flatMap { $0 },
                 latitude: safeIndex(dto.latitude, i).flatMap { $0 },
-                longitude: safeIndex(dto.longitude, i).flatMap { $0 }
+                longitude: safeIndex(dto.longitude, i).flatMap { $0 },
+                stack: (safeIndex(dto.stack, i).flatMap { $0 } ?? []).compactMap { $0 }
             ))
         }
         return items
@@ -113,7 +120,8 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
             city: city,
             country: country,
             latitude: latitude,
-            longitude: longitude
+            longitude: longitude,
+            stack: stack
         )
     }
 }
@@ -149,5 +157,6 @@ extension AssetReactItem {
         self.country = dto.exifInfo?.country
         self.latitude = dto.exifInfo?.latitude
         self.longitude = dto.exifInfo?.longitude
+        self.stack = []
     }
 }

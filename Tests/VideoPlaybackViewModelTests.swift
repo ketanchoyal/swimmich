@@ -12,7 +12,7 @@ final class VideoPlaybackViewModelTests: XCTestCase {
             isTrashed: false, isImage: false, thumbhash: nil,
             createdAt: "2024-07-01T00:00:00.000Z", fileCreatedAt: "2024-07-01T00:00:00.000Z",
             localOffsetHours: 0, duration: 12, livePhotoVideoId: livePair, projectionType: nil,
-            city: nil, country: nil, latitude: nil, longitude: nil
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
         )
     }
 
@@ -22,7 +22,7 @@ final class VideoPlaybackViewModelTests: XCTestCase {
             isTrashed: false, isImage: true, thumbhash: nil,
             createdAt: "2024-07-01T00:00:00.000Z", fileCreatedAt: "2024-07-01T00:00:00.000Z",
             localOffsetHours: 0, duration: nil, livePhotoVideoId: livePair, projectionType: nil,
-            city: nil, country: nil, latitude: nil, longitude: nil
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
         )
     }
 

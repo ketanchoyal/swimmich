@@ -37,7 +37,7 @@ struct MapPhoto: Identifiable, Equatable, Hashable, Sendable {
             isTrashed: false, isImage: true, thumbhash: nil,
             createdAt: "", fileCreatedAt: "", localOffsetHours: 0.0,
             duration: nil, livePhotoVideoId: nil, projectionType: nil,
-            city: city, country: country, latitude: latitude, longitude: longitude
+            city: city, country: country, latitude: latitude, longitude: longitude, stack: []
         )
     }
 }

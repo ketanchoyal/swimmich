@@ -575,6 +575,15 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return person
     }
 
+    var lastCreatePersonName: String?
+
+    func createPerson(name: String) async throws -> PersonResponseDto {
+        bump()
+        lastCreatePersonName = name
+        if let e = globalError ?? peopleError { throw e }
+        return cannedPerson(id: "person-new", name: name)
+    }
+
     func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto] {
         bump()
         lastMergePersonIds = ids
@@ -709,5 +718,245 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bulkUploadCheckChunks.append(request.assets)
         if let e = globalError { throw e }
         return bulkUploadCheckResponse ?? AssetBulkUploadCheckResponse(results: [])
+    }
+
+    // MARK: - Faces (gap #5)
+
+    var lastReassignFaceId: String?
+    var lastReassignTargetPersonId: String?
+    var reassignFaceError: Error?
+
+    func reassignFace(faceId: String, toPersonId: String) async throws -> PersonResponseDto {
+        bump()
+        lastReassignFaceId = faceId
+        lastReassignTargetPersonId = toPersonId
+        if let e = globalError ?? reassignFaceError { throw e }
+        return cannedPerson(id: toPersonId)
+    }
+
+    var facesResponse: [AssetFaceResponseDto]?
+    var lastGetFacesAssetId: String?
+
+    func getFaces(assetId: String) async throws -> [AssetFaceResponseDto] {
+        bump()
+        lastGetFacesAssetId = assetId
+        if let e = globalError ?? reassignFaceError { throw e }
+        return facesResponse ?? []
+    }
+
+    // MARK: - Tags (gap #2)
+
+    var tagsResponse: [TagResponseDto]?
+    var tagsError: Error?
+    var lastCreateTagName: String?
+    var lastUpdateTagId: String?
+    var lastDeleteTagId: String?
+    var lastTagAssetsTagId: String?
+    var lastTagAssetsIds: [String]?
+    var lastUntagAssetsTagId: String?
+    var lastUntagAssetsIds: [String]?
+
+    func getAllTags() async throws -> [TagResponseDto] {
+        bump()
+        if let e = globalError ?? tagsError { throw e }
+        return tagsResponse ?? []
+    }
+
+    func createTag(name: String, color: String?) async throws -> TagResponseDto {
+        bump()
+        lastCreateTagName = name
+        if let e = globalError ?? tagsError { throw e }
+        return TagResponseDto(id: "tag-new", name: name, value: name, color: color)
+    }
+
+    func updateTag(id: String, color: String?) async throws -> TagResponseDto {
+        bump()
+        lastUpdateTagId = id
+        if let e = globalError ?? tagsError { throw e }
+        return TagResponseDto(id: id, name: "Tag", value: "Tag", color: color)
+    }
+
+    func deleteTag(id: String) async throws {
+        bump()
+        lastDeleteTagId = id
+        if let e = globalError ?? tagsError { throw e }
+    }
+
+    func tagAssets(tagId: String, assetIds: [String]) async throws {
+        bump()
+        lastTagAssetsTagId = tagId
+        lastTagAssetsIds = assetIds
+        if let e = globalError ?? tagsError { throw e }
+    }
+
+    func untagAssets(tagId: String, assetIds: [String]) async throws {
+        bump()
+        lastUntagAssetsTagId = tagId
+        lastUntagAssetsIds = assetIds
+        if let e = globalError ?? tagsError { throw e }
+    }
+
+    // MARK: - Stacks (gap #1)
+
+    var stacksResponse: [StackResponseDto]?
+    var lastCreateStackIds: [String]?
+    var lastUpdateStackId: String?
+    var lastUpdateStackPrimaryId: String?
+    var lastDeleteStackId: String?
+    var lastRemoveFromStackId: String?
+    var lastRemoveFromStackAssetId: String?
+    var stacksError: Error?
+
+    func searchStacks(primaryAssetId: String?) async throws -> [StackResponseDto] {
+        bump()
+        if let e = globalError ?? stacksError { throw e }
+        return stacksResponse ?? []
+    }
+
+    func createStack(assetIds: [String]) async throws -> StackResponseDto {
+        bump()
+        lastCreateStackIds = assetIds
+        if let e = globalError ?? stacksError { throw e }
+        return StackResponseDto(id: "stack-new", primaryAssetId: assetIds.first ?? "", assets: [])
+    }
+
+    func getStack(id: String) async throws -> StackResponseDto {
+        bump()
+        if let e = globalError ?? stacksError { throw e }
+        return StackResponseDto(id: id, primaryAssetId: "", assets: [])
+    }
+
+    func updateStack(id: String, primaryAssetId: String?) async throws -> StackResponseDto {
+        bump()
+        lastUpdateStackId = id
+        lastUpdateStackPrimaryId = primaryAssetId
+        if let e = globalError ?? stacksError { throw e }
+        return StackResponseDto(id: id, primaryAssetId: primaryAssetId ?? "", assets: [])
+    }
+
+    func deleteStack(id: String) async throws {
+        bump()
+        lastDeleteStackId = id
+        if let e = globalError ?? stacksError { throw e }
+    }
+
+    func removeAssetFromStack(stackId: String, assetId: String) async throws {
+        bump()
+        lastRemoveFromStackId = stackId
+        lastRemoveFromStackAssetId = assetId
+        if let e = globalError ?? stacksError { throw e }
+    }
+
+    // MARK: - Admin (gap #12)
+
+    var adminUsersResponse: [UserAdminResponseDto]?
+    var lastCreateAdminUserDto: UserAdminCreateDto?
+    var lastUpdateAdminUserId: String?
+    var lastUpdateAdminUserDto: UserAdminUpdateDto?
+    var lastDeleteAdminUserId: String?
+    var lastDeleteAdminUserForce: Bool?
+    var lastRestoreAdminUserId: String?
+    var jobsStatusResponse: [String: QueueResponseLegacyDto]?
+    var lastJobCommandName: String?
+    var lastJobCommand: String?
+    var librariesResponse: [LibraryResponseDto]?
+    var lastScanLibraryId: String?
+    var lastDeleteLibraryId: String?
+    var apiKeysResponse: [ApiKeyResponseDto]?
+    var lastCreateApiKeyName: String?
+    var lastDeleteApiKeyId: String?
+    var adminError: Error?
+
+    func getAdminUsers() async throws -> [UserAdminResponseDto] {
+        bump()
+        if let e = globalError ?? adminError { throw e }
+        return adminUsersResponse ?? []
+    }
+
+    func createAdminUser(dto: UserAdminCreateDto) async throws -> UserAdminResponseDto {
+        bump()
+        lastCreateAdminUserDto = dto
+        if let e = globalError ?? adminError { throw e }
+        return UserAdminResponseDto(id: "u-new", name: dto.name, email: dto.email)
+    }
+
+    func updateAdminUser(id: String, dto: UserAdminUpdateDto) async throws -> UserAdminResponseDto {
+        bump()
+        lastUpdateAdminUserId = id
+        lastUpdateAdminUserDto = dto
+        if let e = globalError ?? adminError { throw e }
+        return UserAdminResponseDto(id: id, name: dto.name ?? "", email: dto.email ?? "")
+    }
+
+    func deleteAdminUser(id: String, force: Bool) async throws -> UserAdminResponseDto {
+        bump()
+        lastDeleteAdminUserId = id
+        lastDeleteAdminUserForce = force
+        if let e = globalError ?? adminError { throw e }
+        return UserAdminResponseDto(id: id, name: "", email: "")
+    }
+
+    func restoreAdminUser(id: String) async throws -> UserAdminResponseDto {
+        bump()
+        lastRestoreAdminUserId = id
+        if let e = globalError ?? adminError { throw e }
+        return UserAdminResponseDto(id: id, name: "", email: "")
+    }
+
+    func getJobsStatus() async throws -> [String: QueueResponseLegacyDto] {
+        bump()
+        if let e = globalError ?? adminError { throw e }
+        return jobsStatusResponse ?? [:]
+    }
+
+    func sendJobCommand(name: String, command: String, force: Bool?) async throws -> QueueResponseLegacyDto {
+        bump()
+        lastJobCommandName = name
+        lastJobCommand = command
+        if let e = globalError ?? adminError { throw e }
+        return QueueResponseLegacyDto(
+            queueStatus: QueueStatusLegacyDto(isActive: false, isPaused: false),
+            jobCounts: QueueStatisticsDto(active: 0, completed: 0, failed: 0, delayed: 0, waiting: 0, paused: 0)
+        )
+    }
+
+    func getLibraries() async throws -> [LibraryResponseDto] {
+        bump()
+        if let e = globalError ?? adminError { throw e }
+        return librariesResponse ?? []
+    }
+
+    func scanLibrary(id: String) async throws {
+        bump()
+        lastScanLibraryId = id
+        if let e = globalError ?? adminError { throw e }
+    }
+
+    func deleteLibrary(id: String) async throws {
+        bump()
+        lastDeleteLibraryId = id
+        if let e = globalError ?? adminError { throw e }
+    }
+
+    func getAPIKeys() async throws -> [ApiKeyResponseDto] {
+        bump()
+        if let e = globalError ?? adminError { throw e }
+        return apiKeysResponse ?? []
+    }
+
+    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto {
+        bump()
+        lastCreateApiKeyName = name
+        if let e = globalError ?? adminError { throw e }
+        return ApiKeyCreateResponseDto(
+            secret: "secret",
+            apiKey: ApiKeyResponseDto(id: "key-new", name: name)
+        )
+    }
+
+    func deleteAPIKey(id: String) async throws {
+        bump()
+        lastDeleteApiKeyId = id
+        if let e = globalError ?? adminError { throw e }
     }
 }

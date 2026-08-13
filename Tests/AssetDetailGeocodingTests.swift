@@ -11,7 +11,7 @@ final class AssetDetailGeocodingTests: XCTestCase {
             isTrashed: false, isImage: true, thumbhash: nil,
             createdAt: "2024-07-01T00:00:00.000Z", fileCreatedAt: "2024-07-01T00:00:00.000Z",
             localOffsetHours: 0, duration: nil, livePhotoVideoId: nil, projectionType: nil,
-            city: nil, country: nil, latitude: nil, longitude: nil
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
         )
     }
 
