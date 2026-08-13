@@ -11,6 +11,9 @@ struct RootView: View {
     @State private var albums: AlbumsViewModel
     @State private var sharedLinks: SharedLinksViewModel
     @State private var storage: StorageStatsViewModel
+    @State private var upload: UploadViewModel
+    @State private var people: PeopleViewModel
+    @State private var memories: MemoriesViewModel
     @State private var appLock: AppLockViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
@@ -29,6 +32,9 @@ struct RootView: View {
         _albums = State(initialValue: container.makeAlbumsViewModel())
         _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
         _storage = State(initialValue: container.makeStorageStatsViewModel())
+        _upload = State(initialValue: container.makeUploadViewModel())
+        _people = State(initialValue: container.makePeopleViewModel())
+        _memories = State(initialValue: container.makeMemoriesViewModel())
         _appLock = State(initialValue: container.appLock)
     }
 
@@ -81,6 +87,9 @@ struct RootView: View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
                 TimelineView(vm: timeline)
+            }
+            Tab("Memories", systemImage: "sparkles.rectangle.stack", value: RootTab.memories) {
+                MemoriesView(vm: memories)
             }
             Tab("Albums", systemImage: "square.stack", value: RootTab.albums) {
                 AlbumsView(vm: albums)
@@ -138,14 +147,14 @@ struct RootView: View {
 
     private var bubbleIcon: String {
         switch selection {
-        case .photos, .search: "magnifyingglass"
+        case .photos, .memories, .search: "magnifyingglass"
         case .albums, .shared: "plus"
         }
     }
 
     private func handleBubbleTap() {
         switch lastContentTab {
-        case .photos: break // Landing on the Search tab is handled by the TabView itself.
+        case .photos, .memories: break // Landing on the Search tab is handled by the TabView itself.
         case .albums: showCreateAlbum = true
         case .shared: showCreateSharedLink = true
         case .search: break
@@ -156,6 +165,7 @@ struct RootView: View {
 /// Root-level tabs. Order defines tab order; raw value used only for matching.
 private enum RootTab: Int, Hashable {
     case photos
+    case memories
     case albums
     case shared
     case search
