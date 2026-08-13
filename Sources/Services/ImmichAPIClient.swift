@@ -73,15 +73,36 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     // MARK: - Timeline
 
-    func getTimeBuckets(isFavorite: Bool?, isTrashed: Bool?) async throws -> [TimeBucketsResponseDto] {
+    func getTimeBuckets(
+        isFavorite: Bool?,
+        isTrashed: Bool?,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> [TimeBucketsResponseDto] {
         var query: [URLQueryItem] = []
         if let isFavorite { query.append(URLQueryItem(name: "isFavorite", value: String(isFavorite))) }
         if let isTrashed { query.append(URLQueryItem(name: "isTrashed", value: String(isTrashed))) }
+        if let personId { query.append(URLQueryItem(name: "personId", value: personId)) }
+        if let withPartners { query.append(URLQueryItem(name: "withPartners", value: String(withPartners))) }
+        if let visibility { query.append(URLQueryItem(name: "visibility", value: visibility)) }
+        if let withStacked { query.append(URLQueryItem(name: "withStacked", value: String(withStacked))) }
         return try await sendAuthed(.GET, path: ImmichAPI.timeline.path("/buckets"), query: query)
     }
 
-    func getTimeBucket(timeBucket: String) async throws -> TimeBucketAssetResponseDto {
-        let query = [URLQueryItem(name: "timeBucket", value: timeBucket)]
+    func getTimeBucket(
+        timeBucket: String,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> TimeBucketAssetResponseDto {
+        var query: [URLQueryItem] = [URLQueryItem(name: "timeBucket", value: timeBucket)]
+        if let personId { query.append(URLQueryItem(name: "personId", value: personId)) }
+        if let withPartners { query.append(URLQueryItem(name: "withPartners", value: String(withPartners))) }
+        if let visibility { query.append(URLQueryItem(name: "visibility", value: visibility)) }
+        if let withStacked { query.append(URLQueryItem(name: "withStacked", value: String(withStacked))) }
         return try await sendAuthed(.GET, path: ImmichAPI.timeline.path("/bucket"), query: query)
     }
 
@@ -207,6 +228,86 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sharedLinks.path("/\(id)"), body: nil)
     }
 
+    func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.sharedLinks.path("/\(id)"), body: AnyEncodable(dto))
+    }
+
+    // MARK: - People (P0 api-surface-expansion)
+
+    func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto {
+        var query: [URLQueryItem] = []
+        if let page { query.append(URLQueryItem(name: "page", value: String(page))) }
+        if let withHidden { query.append(URLQueryItem(name: "withHidden", value: String(withHidden))) }
+        return try await sendAuthed(.GET, path: ImmichAPI.people.path(""), query: query)
+    }
+
+    func updatePerson(id: String, dto: PersonUpdateDto) async throws -> PersonResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.people.path("/\(id)"), body: AnyEncodable(dto))
+    }
+
+    /// `POST /api/people/{id}/merge` — note: merge is POST, not PUT.
+    func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto] {
+        try await sendAuthed(.POST, path: ImmichAPI.people.path("/\(id)/merge"), body: AnyEncodable(MergePersonDto(ids: ids)))
+    }
+
+    func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.people.path("/\(id)/statistics"))
+    }
+
+    // MARK: - Partners (P0 api-surface-expansion)
+
+    func getPartners() async throws -> [PartnerResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.partners.path(""))
+    }
+
+    func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.partners.path("/\(id)"), body: AnyEncodable(PartnerUpdateDto(inTimeline: isInTimeline)))
+    }
+
+    func removePartner(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.partners.path("/\(id)"), body: nil)
+    }
+
+    // MARK: - Activity (P0 api-surface-expansion)
+
+    func getActivities(albumId: String, assetId: String?) async throws -> [ActivityResponseDto] {
+        var query: [URLQueryItem] = [URLQueryItem(name: "albumId", value: albumId)]
+        if let assetId { query.append(URLQueryItem(name: "assetId", value: assetId)) }
+        return try await sendAuthed(.GET, path: ImmichAPI.activity.path(""), query: query)
+    }
+
+    func createActivity(dto: ActivityCreateDto) async throws -> ActivityResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.activity.path(""), body: AnyEncodable(dto))
+    }
+
+    func deleteActivity(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.activity.path("/\(id)"), body: nil)
+    }
+
+    // MARK: - Memories (P0 api-surface-expansion)
+
+    func getMemories() async throws -> [MemoryResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.memories.path(""))
+    }
+
+    // MARK: - Duplicates (P0 api-surface-expansion)
+
+    func getDuplicates() async throws -> [DuplicateResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.duplicates.path(""))
+    }
+
+    // MARK: - Server statistics (P0 api-surface-expansion)
+
+    func getServerStatistics() async throws -> ServerStatsResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.server.path("/statistics"))
+    }
+
+    // MARK: - Bulk asset update (P0: archive via visibility)
+
+    func bulkUpdateAssets(dto: AssetBulkUpdateDto) async throws {
+        _ = try await sendAuthedRaw(.PUT, path: ImmichAPI.assets.path(""), body: AnyEncodable(dto))
+    }
+
     // MARK: - Users (photo share — shared-album user picker)
 
     /// `GET /api/users` — instance users. On Immich builds where this is
@@ -265,8 +366,8 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     // MARK: - Core dispatch
 
-    private func sendNoAuth<T: Decodable>(_ method: HTTPMethod, path: String, body: AnyEncodable? = nil) async throws -> T {
-        let data = try await sendRaw(method, path: path, auth: false, body: body)
+    private func sendNoAuth<T: Decodable>(_ method: HTTPMethod, path: String, query: [URLQueryItem] = [], body: AnyEncodable? = nil) async throws -> T {
+        let data = try await sendRaw(method, path: path, query: query, auth: false, body: body)
         return try Self.decode(T.self, from: data)
     }
 

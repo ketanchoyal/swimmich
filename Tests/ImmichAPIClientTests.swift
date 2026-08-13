@@ -355,4 +355,216 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.httpMethod, "DELETE")
         XCTAssertEqual(captured.url?.path, "/api/albums/alb-1/user/u1")
     }
+
+    // MARK: - P0 api-surface-expansion endpoints
+
+    private static let personJSON = """
+    {"id": "p1", "name": "Alice", "birthDate": "1990-01-01", "thumbnailPath": "/thumbs/p1.jpg", "isHidden": false, "color": "#FF0000", "isFavorite": true, "updatedAt": "2024-01-01T00:00:00.000Z"}
+    """
+
+    func test_P0_getPeople_hitsPeopleEndpointWithQuery() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = ("{\"people\": [\(Self.personJSON)], \"hidden\": 0, \"total\": 1, \"hasNextPage\": false}").data(using: .utf8)!
+
+        let page = try await client.getPeople(page: 2, withHidden: true)
+
+        XCTAssertEqual(page.total, 1)
+        XCTAssertEqual(page.people.first?.name, "Alice")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/people")
+        let query = captured.url?.query ?? ""
+        XCTAssertTrue(query.contains("page=2"))
+        XCTAssertTrue(query.contains("withHidden=true"))
+    }
+
+    func test_P0_mergePeople_usesPostMergeEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = "[{\"id\":\"p2\",\"success\":true}]".data(using: .utf8)!
+
+        let results = try await client.mergePeople(ids: ["p2", "p3"], into: "p1")
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertTrue(results.first?.success == true)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST", "merge is POST, not PUT")
+        XCTAssertEqual(captured.url?.path, "/api/people/p1/merge")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""ids":["p2","p3"]"#), "source ids must be sent")
+    }
+
+    func test_P0_getMemories_hitsMemoriesEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id": "m1", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "memoryAt": "2023-06-15T00:00:00.000Z", "ownerId": "me", "type": "on_this_day", "data": {"year": 2023}, "assets": [], "isSaved": false}]
+        """.data(using: .utf8)!
+
+        let memories = try await client.getMemories()
+
+        XCTAssertEqual(memories.count, 1)
+        XCTAssertEqual(memories.first?.data.year, 2023)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/memories")
+    }
+
+    func test_P0_getDuplicates_hitsDuplicatesEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"duplicateId": "d1", "assets": [], "suggestedKeepAssetIds": ["keep-1"]}]
+        """.data(using: .utf8)!
+
+        let duplicates = try await client.getDuplicates()
+
+        XCTAssertEqual(duplicates.count, 1)
+        XCTAssertEqual(duplicates.first?.suggestedKeepAssetIds, ["keep-1"])
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.url?.path, "/api/duplicates")
+    }
+
+    func test_P0_getPartners_hitsPartnersEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id": "u9", "name": "Pat", "email": "pat@test", "profileImagePath": "", "avatarColor": "#00FF00", "profileChangedAt": "2024-01-01T00:00:00.000Z", "inTimeline": true}]
+        """.data(using: .utf8)!
+
+        let partners = try await client.getPartners()
+
+        XCTAssertEqual(partners.count, 1)
+        XCTAssertTrue(partners.first?.inTimeline == true)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/partners")
+    }
+
+    func test_P0_getActivities_hitsActivitiesEndpointWithQuery() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id": "a1", "createdAt": "2024-01-01T00:00:00.000Z", "type": "comment", "user": {"id": "u1", "name": "U", "email": "u@t", "profileImagePath": "", "avatarColor": "#000000", "profileChangedAt": "2024-01-01T00:00:00.000Z"}, "assetId": "as1", "comment": "Nice!"}]
+        """.data(using: .utf8)!
+
+        let activities = try await client.getActivities(albumId: "alb-1", assetId: "as1")
+
+        XCTAssertEqual(activities.count, 1)
+        XCTAssertEqual(activities.first?.type, .comment)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/activities")
+        let query = captured.url?.query ?? ""
+        XCTAssertTrue(query.contains("albumId=alb-1"), "albumId is required")
+        XCTAssertTrue(query.contains("assetId=as1"))
+    }
+
+    func test_P0_getServerStatistics_hitsStatisticsEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"photos": 100, "videos": 10, "usage": 1073741824, "usagePhotos": 1000000000, "usageVideos": 73741824, "usageByUser": []}
+        """.data(using: .utf8)!
+
+        let stats = try await client.getServerStatistics()
+
+        XCTAssertEqual(stats.photos, 100)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/server/statistics")
+    }
+
+    func test_P0_updateSharedLink_hitsPutEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "l1", "description": "Updated", "password": null, "userId": "me", "key": "a2V5", "type": "ALBUM", "createdAt": "2024-01-01T00:00:00.000Z", "expiresAt": "2025-01-01T00:00:00.000Z", "assets": [], "album": null, "allowUpload": true, "allowDownload": true, "showMetadata": true, "slug": null}
+        """.data(using: .utf8)!
+
+        let link = try await client.updateSharedLink(
+            id: "l1",
+            dto: SharedLinkEditDto(password: nil, expiresAt: "2025-01-01T00:00:00.000Z", allowUpload: true, allowDownload: nil, showMetadata: nil, description: "Updated")
+        )
+
+        XCTAssertEqual(link.description, "Updated")
+        XCTAssertTrue(link.allowUpload)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/shared-links/l1")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""expiresAt":"2025-01-01T00:00:00.000Z""#))
+        XCTAssertFalse(body.contains("allowDownload"), "nil fields must be omitted")
+    }
+
+    func test_P0_bulkUpdateAssets_hitsPutAssets204() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(
+            ids: ["a1", "a2"], dateTimeOriginal: nil, dateTimeRelative: nil, description: nil,
+            isFavorite: nil, latitude: nil, longitude: nil, rating: nil, timeZone: nil,
+            visibility: .archive, duplicateId: nil
+        ))
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/assets")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains(#""ids":["a1","a2"]"#))
+        XCTAssertTrue(body.contains(#""visibility":"archive""#))
+    }
+
+    func test_P0_timelineFilterExpansion_encodesNewParams() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 200
+
+        _ = try await client.getTimeBuckets(
+            isFavorite: nil, isTrashed: nil,
+            personId: "p1", withPartners: true, visibility: "archive", withStacked: false
+        )
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.url?.path, "/api/timeline/buckets")
+        let query = captured.url?.query ?? ""
+        XCTAssertTrue(query.contains("personId=p1"))
+        XCTAssertTrue(query.contains("withPartners=true"))
+        XCTAssertTrue(query.contains("visibility=archive"))
+        XCTAssertTrue(query.contains("withStacked=false"))
+        XCTAssertFalse(query.contains("isFavorite"), "nil filters must be omitted")
+    }
 }

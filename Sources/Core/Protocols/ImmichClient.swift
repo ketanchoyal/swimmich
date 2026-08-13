@@ -22,8 +22,24 @@ protocol ImmichClient: AnyObject, Sendable {
     func logout() async throws -> LogoutResponseDto
     func validateToken() async throws -> ValidateAccessTokenResponseDto
 
-    func getTimeBuckets(isFavorite: Bool?, isTrashed: Bool?) async throws -> [TimeBucketsResponseDto]
-    func getTimeBucket(timeBucket: String) async throws -> TimeBucketAssetResponseDto
+    // MARK: - Timeline (P0: person/partner/visibility filters)
+    /// `GET /api/timeline/buckets` — optional filters; all extra params default nil.
+    func getTimeBuckets(
+        isFavorite: Bool?,
+        isTrashed: Bool?,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> [TimeBucketsResponseDto]
+    /// `GET /api/timeline/bucket` — optional filters matching buckets.
+    func getTimeBucket(
+        timeBucket: String,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> TimeBucketAssetResponseDto
 
     func getAsset(id: String) async throws -> AssetResponseDto
     func updateAsset(id: String, dto: UpdateAssetDto) async throws -> AssetResponseDto
@@ -64,7 +80,38 @@ protocol ImmichClient: AnyObject, Sendable {
     // MARK: - Shared Links (AC-500..AC-518)
     func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto]
     func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto
+    /// `PUT /api/shared-links/{id}` — edit expiry, upload/download toggles, metadata visibility.
+    func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto
     func deleteSharedLink(id: String) async throws
+
+    // MARK: - People (P0 api-surface-expansion)
+    func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto
+    func updatePerson(id: String, dto: PersonUpdateDto) async throws -> PersonResponseDto
+    /// `POST /api/people/{id}/merge` — merge persons; returns bulk results.
+    func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto]
+    func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto
+
+    // MARK: - Partners (P0 api-surface-expansion)
+    func getPartners() async throws -> [PartnerResponseDto]
+    func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto
+    func removePartner(id: String) async throws
+
+    // MARK: - Activity (P0 api-surface-expansion)
+    func getActivities(albumId: String, assetId: String?) async throws -> [ActivityResponseDto]
+    func createActivity(dto: ActivityCreateDto) async throws -> ActivityResponseDto
+    func deleteActivity(id: String) async throws
+
+    // MARK: - Memories (P0 api-surface-expansion)
+    func getMemories() async throws -> [MemoryResponseDto]
+
+    // MARK: - Duplicates (P0 api-surface-expansion)
+    func getDuplicates() async throws -> [DuplicateResponseDto]
+
+    // MARK: - Server statistics (P0 api-surface-expansion)
+    func getServerStatistics() async throws -> ServerStatsResponseDto
+
+    // MARK: - Bulk asset update (P0: archive via visibility)
+    func bulkUpdateAssets(dto: AssetBulkUpdateDto) async throws
 
     // MARK: - Users (photo share — shared-album user picker)
     func getUsers() async throws -> [UserResponseDto]

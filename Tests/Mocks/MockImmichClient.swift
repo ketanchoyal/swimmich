@@ -21,6 +21,14 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var loginResponse: LoginResponseDto?
     var loginError: Error?
 
+    // OAuth (P5)
+    var oauthMobileResponse: OAuthMobileResponseDto?
+    var oauthCallbackResponse: OAuthCallbackResponseDto?
+    var oauthError: Error?
+    var lastOAuthRedirectURI: String?
+    var lastOAuthCallbackURL: String?
+    var lastOAuthCallbackRedirectURI: String?
+
     var pingResponse: ServerPingResponse?
     var pingError: Error?
     var pingResSequences: [ServerPingResponse] = []
@@ -29,6 +37,24 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var logoutResponse: LogoutResponseDto?
     var validateResponse: ValidateAccessTokenResponseDto?
     var validateError: Error?
+
+    func getOAuthMobileURL(redirectURI: String) async throws -> OAuthMobileResponseDto {
+        bump()
+        lastOAuthRedirectURI = redirectURI
+        if let e = globalError ?? oauthError { throw e }
+        return oauthMobileResponse ?? OAuthMobileResponseDto(url: "https://sso.example.com/authorize")
+    }
+
+    func exchangeOAuthCode(url: String, redirectURI: String) async throws -> OAuthCallbackResponseDto {
+        bump()
+        lastOAuthCallbackURL = url
+        lastOAuthCallbackRedirectURI = redirectURI
+        if let e = globalError ?? oauthError { throw e }
+        return oauthCallbackResponse ?? OAuthCallbackResponseDto(
+            accessToken: "oauth-token", isAdmin: false, name: "OAuth User",
+            email: "oauth@example.com", profileImagePath: "", shouldChangePassword: nil
+        )
+    }
 
     var bucketsResponse: [TimeBucketsResponseDto] = []
     var bucketResponses: [String: TimeBucketAssetResponseDto] = [:]
@@ -43,6 +69,11 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     // Trash capture (AC-300, AC-307..AC-309)
     var lastTimeBucketsIsTrashed: Bool?
+    var lastTimeBucketsIsFavorite: Bool?
+    var lastTimeBucketsVisibility: String?
+    var lastTimeBucketsWithPartners: Bool?
+    var lastTimeBucketWithPartners: Bool?
+    var lastTimeBucketVisibility: String?
     var lastRestoreTrashAssetsIds: [String]?
     var restoreTrashAssetsResponse: TrashResponseDto?
     var restoreTrashAssetsError: Error?
@@ -116,6 +147,39 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var getUsersResponse: [UserResponseDto]?
     var getUsersError: Error?
 
+    // P0 api-surface-expansion capture
+    var peopleResponse: PeopleResponseDto?
+    var peopleError: Error?
+    var lastPeoplePage: Int?
+    var lastPeopleWithHidden: Bool?
+    var lastUpdatePersonId: String?
+    var lastUpdatePersonDto: PersonUpdateDto?
+    var lastMergePersonIds: [String]?
+    var lastMergeTargetId: String?
+    var mergePeopleResponse: [BulkIdResponseDto]?
+    var personStatisticsResponse: [String: PersonStatisticsResponseDto] = [:]
+    var partnersResponse: [PartnerResponseDto]?
+    var partnersError: Error?
+    var lastUpdatePartnerId: String?
+    var lastUpdatePartnerInTimeline: Bool?
+    var lastRemovePartnerId: String?
+    var lastActivitiesAlbumId: String?
+    var lastActivitiesAssetId: String?
+    var activitiesResponse: [ActivityResponseDto]?
+    var activitiesError: Error?
+    var lastCreateActivityDto: ActivityCreateDto?
+    var createActivityResponse: ActivityResponseDto?
+    var lastDeleteActivityId: String?
+    var memoriesResponse: [MemoryResponseDto]?
+    var memoriesError: Error?
+    var duplicatesResponse: [DuplicateResponseDto]?
+    var duplicatesError: Error?
+    var serverStatisticsResponse: ServerStatsResponseDto?
+    var lastUpdateSharedLinkId: String?
+    var lastUpdateSharedLinkDto: SharedLinkEditDto?
+    var updateSharedLinkResponse: SharedLinkResponseDto?
+    var lastBulkUpdateDto: AssetBulkUpdateDto?
+
     // Album users capture (album share)
     var lastAddUsersAlbumId: String?
     var lastAddUsersDto: AddUsersDto?
@@ -139,6 +203,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastUploadVisibility: AssetVisibility?
     var lastUploadChecksum: String?
     var uploadResponse: AssetMediaResponseDto?
+    var uploadError: Error?
+    /// Captured bulk-check payloads, per call (chunking assertions).
+    var bulkUploadCheckChunks: [[AssetBulkUploadCheckRequest.Item]] = []
 
     var bulkUploadCheckResponse: AssetBulkUploadCheckResponse?
 
@@ -196,15 +263,33 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return validateResponse ?? ValidateAccessTokenResponseDto(authStatus: true)
     }
 
-    func getTimeBuckets(isFavorite: Bool?, isTrashed: Bool?) async throws -> [TimeBucketsResponseDto] {
+    func getTimeBuckets(
+        isFavorite: Bool?,
+        isTrashed: Bool?,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> [TimeBucketsResponseDto] {
         bump()
         lastTimeBucketsIsTrashed = isTrashed
+        lastTimeBucketsIsFavorite = isFavorite
+        lastTimeBucketsVisibility = visibility
+        lastTimeBucketsWithPartners = withPartners
         if let e = globalError { throw e }
         return bucketsResponse
     }
 
-    func getTimeBucket(timeBucket: String) async throws -> TimeBucketAssetResponseDto {
+    func getTimeBucket(
+        timeBucket: String,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> TimeBucketAssetResponseDto {
         bump()
+        lastTimeBucketVisibility = visibility
+        lastTimeBucketWithPartners = withPartners
         if let e = globalError { throw e }
         return bucketResponses[timeBucket] ?? TimeBucketAssetResponseDto(
             id: [], ownerId: [], ratio: [], isFavorite: [], visibility: [], isTrashed: [],
@@ -336,6 +421,13 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         )
     }
 
+    private func cannedPerson(id: String, name: String = "Person") -> PersonResponseDto {
+        PersonResponseDto(
+            id: id, name: name, birthDate: "2024-01-01", thumbnailPath: "",
+            isHidden: false, color: nil, isFavorite: nil, updatedAt: nil
+        )
+    }
+
     func getAlbums() async throws -> [AlbumResponseDto] {
         bump()
         if let e = globalError ?? albumsError { throw e }
@@ -362,6 +454,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         if let e = globalError ?? updateAlbumError { throw e }
         if let r = updateAlbumResponse { return r }
         var base = getAlbumResponse[id] ?? cannedAlbum(id: id)
+        if let name = dto.albumName { base.albumName = name }
+        if let desc = dto.description { base.description = desc }
+        if let activity = dto.isActivityEnabled { base.isActivityEnabled = activity }
         if let cover = dto.albumThumbnailAssetId { base.albumThumbnailAssetId = cover }
         return base
     }
@@ -444,6 +539,147 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         if let e = globalError ?? deleteSharedLinkError { throw e }
     }
 
+    func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto {
+        bump()
+        lastUpdateSharedLinkId = id
+        lastUpdateSharedLinkDto = dto
+        if let e = globalError ?? sharedLinksError { throw e }
+        if let r = updateSharedLinkResponse { return r }
+        return SharedLinkResponseDto(
+            id: id, description: dto.description, password: dto.password, userId: "owner",
+            key: "a2V5", type: .album, createdAt: "2024-01-01T00:00:00.000Z", expiresAt: dto.expiresAt,
+            assets: [], album: nil, allowUpload: dto.allowUpload ?? false,
+            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true, slug: nil
+        )
+    }
+
+    // MARK: - People (P0 api-surface-expansion)
+
+    func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto {
+        bump()
+        lastPeoplePage = page
+        lastPeopleWithHidden = withHidden
+        if let e = globalError ?? peopleError { throw e }
+        return peopleResponse ?? PeopleResponseDto(people: [], hidden: 0, total: 0, hasNextPage: nil)
+    }
+
+    func updatePerson(id: String, dto: PersonUpdateDto) async throws -> PersonResponseDto {
+        bump()
+        lastUpdatePersonId = id
+        lastUpdatePersonDto = dto
+        if let e = globalError ?? peopleError { throw e }
+        var person = cannedPerson(id: id)
+        if let name = dto.name { person.name = name }
+        if let isHidden = dto.isHidden { person.isHidden = isHidden }
+        if let isFavorite = dto.isFavorite { person.isFavorite = isFavorite }
+        return person
+    }
+
+    func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto] {
+        bump()
+        lastMergePersonIds = ids
+        lastMergeTargetId = id
+        if let e = globalError ?? peopleError { throw e }
+        return mergePeopleResponse ?? ids.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
+    }
+
+    func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto {
+        bump()
+        if let e = globalError ?? peopleError { throw e }
+        return personStatisticsResponse[id] ?? PersonStatisticsResponseDto(assets: 0)
+    }
+
+    // MARK: - Partners (P0 api-surface-expansion)
+
+    func getPartners() async throws -> [PartnerResponseDto] {
+        bump()
+        if let e = globalError ?? partnersError { throw e }
+        return partnersResponse ?? []
+    }
+
+    func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto {
+        bump()
+        lastUpdatePartnerId = id
+        lastUpdatePartnerInTimeline = isInTimeline
+        if let e = globalError ?? partnersError { throw e }
+        return PartnerResponseDto(
+            id: id, name: "Partner", email: "partner@test", profileImagePath: "",
+            avatarColor: "", profileChangedAt: "2024-01-01T00:00:00.000Z", inTimeline: isInTimeline
+        )
+    }
+
+    func removePartner(id: String) async throws {
+        bump()
+        lastRemovePartnerId = id
+        if let e = globalError ?? partnersError { throw e }
+    }
+
+    // MARK: - Activity (P0 api-surface-expansion)
+
+    func getActivities(albumId: String, assetId: String?) async throws -> [ActivityResponseDto] {
+        bump()
+        lastActivitiesAlbumId = albumId
+        lastActivitiesAssetId = assetId
+        if let e = globalError ?? activitiesError { throw e }
+        return activitiesResponse ?? []
+    }
+
+    func createActivity(dto: ActivityCreateDto) async throws -> ActivityResponseDto {
+        bump()
+        lastCreateActivityDto = dto
+        if let e = globalError ?? activitiesError { throw e }
+        if let r = createActivityResponse { return r }
+        return ActivityResponseDto(
+            id: "act-new", createdAt: "2024-01-01T00:00:00.000Z", type: dto.type,
+            user: cannedUser(id: "me"), assetId: dto.assetId ?? "", comment: dto.comment
+        )
+    }
+
+    func deleteActivity(id: String) async throws {
+        bump()
+        lastDeleteActivityId = id
+        if let e = globalError ?? activitiesError { throw e }
+    }
+
+    // MARK: - Memories (P0 api-surface-expansion)
+
+    func getMemories() async throws -> [MemoryResponseDto] {
+        bump()
+        if let e = globalError ?? memoriesError { throw e }
+        return memoriesResponse ?? []
+    }
+
+    // MARK: - Duplicates (P0 api-surface-expansion)
+
+    func getDuplicates() async throws -> [DuplicateResponseDto] {
+        bump()
+        if let e = globalError ?? duplicatesError { throw e }
+        return duplicatesResponse ?? []
+    }
+
+    // MARK: - Server statistics (P0 api-surface-expansion)
+
+    /// Optional suspension point BEFORE the canned response — lets reentrancy
+    /// tests hold a load in flight deterministically (statisticsGate).
+    var statisticsGate: (() async -> Void)?
+
+    func getServerStatistics() async throws -> ServerStatsResponseDto {
+        bump()
+        if let gate = statisticsGate { await gate() }
+        if let e = globalError ?? sharedLinksError { throw e }
+        return serverStatisticsResponse ?? ServerStatsResponseDto(
+            photos: 0, videos: 0, usage: 0, usagePhotos: 0, usageVideos: 0, usageByUser: []
+        )
+    }
+
+    // MARK: - Bulk asset update (P0: archive via visibility)
+
+    func bulkUpdateAssets(dto: AssetBulkUpdateDto) async throws {
+        bump()
+        lastBulkUpdateDto = dto
+        if let e = globalError ?? sharedLinksError { throw e }
+    }
+
     func getUsers() async throws -> [UserResponseDto] {
         bump()
         if let e = globalError ?? getUsersError { throw e }
@@ -464,12 +700,13 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastUploadIsFavorite = isFavorite
         lastUploadVisibility = visibility
         lastUploadChecksum = checksum
-        if let e = globalError { throw e }
+        if let e = globalError ?? uploadError { throw e }
         return uploadResponse ?? AssetMediaResponseDto(id: "new-asset", status: "created")
     }
 
     func bulkUploadCheck(_ request: AssetBulkUploadCheckRequest) async throws -> AssetBulkUploadCheckResponse {
         bump()
+        bulkUploadCheckChunks.append(request.assets)
         if let e = globalError { throw e }
         return bulkUploadCheckResponse ?? AssetBulkUploadCheckResponse(results: [])
     }

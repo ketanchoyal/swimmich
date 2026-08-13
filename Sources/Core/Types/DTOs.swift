@@ -169,13 +169,6 @@ struct TagResponseDto: Codable, Equatable {
     var color: String?
 }
 
-struct PersonResponseDto: Codable, Equatable {
-    let id: String
-    let name: String
-    var thumbnailPath: String?
-    var isHidden: Bool?
-}
-
 struct AssetStackResponseDto: Codable, Equatable {
     let id: String
     let primaryAssetId: String
@@ -224,6 +217,21 @@ struct UpdateAssetDto: Codable, Equatable {
 struct AssetBulkDeleteDto: Codable, Equatable {
     let ids: [String]
     var force: Bool?
+}
+
+/// `PUT /api/assets` — bulk update; archive is expressed as `visibility: "archive"`.
+struct AssetBulkUpdateDto: Codable, Equatable {
+    let ids: [String]
+    var dateTimeOriginal: String?
+    var dateTimeRelative: String?
+    var description: String?
+    var isFavorite: Bool?
+    var latitude: Double?
+    var longitude: Double?
+    var rating: Int?
+    var timeZone: String?
+    var visibility: AssetVisibility?
+    var duplicateId: String?
 }
 
 // MARK: - Trash DTOs (AC-310)

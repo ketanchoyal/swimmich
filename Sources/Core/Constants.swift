@@ -15,6 +15,10 @@ enum ImmichAPI {
     static let albums = SubPath(root: "/albums") // AC-500
     static let sharedLinks = SubPath(root: "/shared-links") // AC-500
     static let users = SubPath(root: "/users") // photo share — user picker
+    static let partners = SubPath(root: "/partners") // P0 api-surface-expansion
+    static let activity = SubPath(root: "/activities") // P0 api-surface-expansion
+    static let memories = SubPath(root: "/memories") // P0 api-surface-expansion
+    static let duplicates = SubPath(root: "/duplicates") // P0 api-surface-expansion
 
     struct SubPath {
         let root: String

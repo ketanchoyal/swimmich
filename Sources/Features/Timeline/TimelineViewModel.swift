@@ -106,7 +106,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -122,7 +122,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -144,7 +144,7 @@ final class TimelineViewModel {
         guard bucketIndex < buckets.count else { return }
         let bucket = buckets[bucketIndex]
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket)
+            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             // AC-013: zip columnar into objects.
             let zipped = AssetReactItem.zip(columnar)
             for item in zipped where !loadedIds.contains(item.id) {

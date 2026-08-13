@@ -35,7 +35,7 @@ final class TrashViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true)
+            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -51,7 +51,7 @@ final class TrashViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true)
+            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -73,7 +73,7 @@ final class TrashViewModel {
         guard bucketIndex < buckets.count else { return }
         let bucket = buckets[bucketIndex]
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket)
+            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
             let zipped = AssetReactItem.zip(columnar)
             for item in zipped where !loadedIds.contains(item.id) {
                 items.append(item)
