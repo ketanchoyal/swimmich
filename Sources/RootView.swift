@@ -2,41 +2,20 @@ import SwiftUI
 
 /// Auth-gated root router. Shows login flow until authenticated, then timeline.
 /// When app lock is enabled + locked, overlays a LockView (AC-104/AC-105).
+///
+/// The authenticated tab tree is owned by `AuthenticatedRoot`, keyed on
+/// `auth.activeAccountID` — switching accounts tears the whole subtree down and
+/// recreates every view model, so no stale data/cache survives a switch.
 struct RootView: View {
     @State private var auth: AuthViewModel
-    @State private var timeline: TimelineViewModel
-    @State private var trash: TrashViewModel
-    @State private var search: SearchViewModel
-    @State private var map: MapViewModel
-    @State private var albums: AlbumsViewModel
-    @State private var sharedLinks: SharedLinksViewModel
-    @State private var storage: StorageStatsViewModel
-    @State private var upload: UploadViewModel
-    @State private var people: PeopleViewModel
-    @State private var memories: MemoriesViewModel
-    @State private var duplicates: DuplicatesViewModel
     @State private var appLock: AppLockViewModel
-    @State private var selection: RootTab = .photos
-    @State private var lastContentTab: RootTab = .photos
-    @State private var showCreateAlbum = false
-    @State private var showCreateSharedLink = false
-    @State private var showProfile = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let container: DependencyContainer
 
     init(container: DependencyContainer = .shared) {
+        self.container = container
         let authVM = container.makeAuthViewModel()
         _auth = State(initialValue: authVM)
-        _timeline = State(initialValue: container.makeTimelineViewModel())
-        _trash = State(initialValue: container.makeTrashViewModel())
-        _search = State(initialValue: container.makeSearchViewModel())
-        _map = State(initialValue: container.makeMapViewModel())
-        _albums = State(initialValue: container.makeAlbumsViewModel())
-        _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
-        _storage = State(initialValue: container.makeStorageStatsViewModel())
-        _upload = State(initialValue: container.makeUploadViewModel())
-        _people = State(initialValue: container.makePeopleViewModel())
-        _memories = State(initialValue: container.makeMemoriesViewModel())
-        _duplicates = State(initialValue: container.makeDuplicatesViewModel())
         _appLock = State(initialValue: container.appLock)
     }
 
@@ -49,14 +28,14 @@ struct RootView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if auth.isAuthenticated {
-                    authenticatedTabView
+                    AuthenticatedRoot(container: container)
+                        .id(auth.activeAccountID)
                 } else {
                     OnboardingFlowView()
                 }
             }
             .environment(auth)
             .environment(appLock)
-            .environment(albums)
             .blur(radius: isGated ? 30 : 0)
             .task {
                 // Reconfigure the shared client from the stored session and
@@ -71,21 +50,57 @@ struct RootView: View {
         }
         .animation(PVMotion.adaptive(PVMotion.gentle, reduceMotion: reduceMotion), value: isGated)
     }
+}
 
-    // MARK: - Authenticated root
+/// 5-tab authenticated root (Photos/Memories/Albums/Shared) + a native iOS 26
+/// search tab (`role: .search`) rendered as a floating Liquid Glass bubble
+/// pinned to the tab bar's trailing edge, perfectly aligned by the system.
+///
+/// Owns every tab view model so the parent can recreate the whole subtree on
+/// account switch (`.id(activeAccountID)`) — fresh VMs = fresh loads.
+///
+/// From Photos the bubble lands on the real Search tab (a plain tab, so a
+/// `.sheet` can be presented safely on top of it — the search full-screen
+/// cover was removed because SwiftUI serializes presentations from the same
+/// presenter, which made a sheet above it impossible, and a sheet inside the
+/// cover crashed on teardown). From Albums/Shared/Me the bubble keeps its
+/// contextual action (create / placeholder / logout) and the selection snaps
+/// back. The bubble icon mirrors the active tab.
+private struct AuthenticatedRoot: View {
+    @Environment(AuthViewModel.self) private var auth
 
-    /// 5-tab root (Photos/Albums/Shared/Me) + a native iOS 26 search tab
-    /// (`role: .search`) rendered as a floating Liquid Glass bubble pinned to
-    /// the tab bar's trailing edge, perfectly aligned by the system.
-    ///
-    /// From Photos the bubble lands on the real Search tab (a plain tab, so a
-    /// `.sheet` can be presented safely on top of it — the search full-screen
-    /// cover was removed because SwiftUI serializes presentations from the
-    /// same presenter, which made a sheet above it impossible, and a sheet
-    /// inside the cover crashed on teardown). From Albums/Shared/Me the bubble
-    /// keeps its contextual action (create / placeholder / logout) and the
-    /// selection snaps back. The bubble icon mirrors the active tab.
-    private var authenticatedTabView: some View {
+    @State private var timeline: TimelineViewModel
+    @State private var trash: TrashViewModel
+    @State private var search: SearchViewModel
+    @State private var map: MapViewModel
+    @State private var albums: AlbumsViewModel
+    @State private var sharedLinks: SharedLinksViewModel
+    @State private var storage: StorageStatsViewModel
+    @State private var upload: UploadViewModel
+    @State private var people: PeopleViewModel
+    @State private var memories: MemoriesViewModel
+    @State private var duplicates: DuplicatesViewModel
+    @State private var selection: RootTab = .photos
+    @State private var lastContentTab: RootTab = .photos
+    @State private var showCreateAlbum = false
+    @State private var showCreateSharedLink = false
+    @State private var showProfile = false
+
+    init(container: DependencyContainer) {
+        _timeline = State(initialValue: container.makeTimelineViewModel())
+        _trash = State(initialValue: container.makeTrashViewModel())
+        _search = State(initialValue: container.makeSearchViewModel())
+        _map = State(initialValue: container.makeMapViewModel())
+        _albums = State(initialValue: container.makeAlbumsViewModel())
+        _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
+        _storage = State(initialValue: container.makeStorageStatsViewModel())
+        _upload = State(initialValue: container.makeUploadViewModel())
+        _people = State(initialValue: container.makePeopleViewModel())
+        _memories = State(initialValue: container.makeMemoriesViewModel())
+        _duplicates = State(initialValue: container.makeDuplicatesViewModel())
+    }
+
+    var body: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
                 TimelineView(vm: timeline)
@@ -105,6 +120,7 @@ struct RootView: View {
         }
         .immichBottomBar()
         .environment(\.openProfile) { showProfile = true }
+        .environment(albums)
         .onChange(of: selection) { _, newValue in
             if newValue == .search {
                 if lastContentTab == .photos {
@@ -117,7 +133,7 @@ struct RootView: View {
             } else {
                 lastContentTab = newValue
                 // Leaving the search tab takes the map photo sheet down with
-                // it (stable presenter — RootView — so no teardown trap).
+                // it (stable presenter — AuthenticatedRoot — so no teardown trap).
                 map.isPhotoSheetPresented = false
             }
         }
@@ -127,10 +143,10 @@ struct RootView: View {
         .sheet(isPresented: $showCreateSharedLink) {
             CreateSharedLinkSheet(vm: sharedLinks, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
         }
-        // Native map photo sheet, owned by RootView (never deallocated): the
-        // only presentation active while browsing the map tab, so SwiftUI
-        // presents it directly above the tab — detents, swipe-down and the
-        // system corner radius for free.
+        // Native map photo sheet, owned by AuthenticatedRoot (never deallocated
+        // while the tab tree lives): the only presentation active while browsing
+        // the map tab, so SwiftUI presents it directly above the tab — detents,
+        // swipe-down and the system corner radius for free.
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
@@ -202,9 +218,10 @@ private struct LockView: View {
 
 // MARK: - Me (profile) entry from every tab
 
-/// Presentation action injected by RootView so every tab's avatar button can
-/// raise the Me sheet from the stable TabView presenter (iOS 26 serializes
-/// presentations; RootView is the only safe presenter above the tabs).
+/// Presentation action injected by AuthenticatedRoot so every tab's avatar
+/// button can raise the Me sheet from the stable TabView presenter (iOS 26
+/// serializes presentations; the root presenter is the only safe one above
+/// the tabs).
 private struct OpenProfileKey: EnvironmentKey {
     static let defaultValue: () -> Void = {}
 }
@@ -218,7 +235,7 @@ extension EnvironmentValues {
 
 /// Circular initials avatar pinned to the trailing corner of every tab's
 /// navigation bar. Tapping presents the Me section (`ProfileView`) as a sheet
-/// from RootView.
+/// from AuthenticatedRoot.
 struct ProfileAvatarButton: View {
     let action: () -> Void
     @Environment(AuthViewModel.self) private var auth

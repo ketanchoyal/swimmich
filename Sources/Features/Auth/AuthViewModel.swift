@@ -21,6 +21,7 @@ final class AuthViewModel: AuthSessionDelegate {
 
     // UserDefaults keys (internal so tests can seed/assert).
     static let serverURLDefaultsKey = "authServerURL"
+    static let serverListDefaultsKey = "authServerList"
     static let userEmailDefaultsKey = "authUserEmail"
     static let userNameDefaultsKey = "authUserName"
     static let userIdDefaultsKey = "authUserId"
@@ -49,6 +50,17 @@ final class AuthViewModel: AuthSessionDelegate {
     var userId: String?
     var isAdmin: Bool = false
     var isAuthenticated: Bool { accessToken != nil }
+
+    /// Saved accounts (server URL + identity) for the multi-server /
+    /// multi-account switcher (P5 multi-server). Persisted as JSON under
+    /// `serverListDefaultsKey`.
+    private(set) var savedAccounts: [SavedAccount] = []
+
+    /// Stable identity of the active account. Drives the switcher checkmark
+    /// and the RootView `.id(...)` that rebuilds the tab subtree on switch.
+    var activeAccountID: String? {
+        SavedAccount.makeID(url: baseURL?.absoluteString ?? serverURLString, email: userEmail, userId: userId)
+    }
 
     /// True while `restoreSession()` reconfigures the client + validates the
     /// stored token. RootView gates on this to avoid a TabView→onboarding
@@ -81,6 +93,7 @@ final class AuthViewModel: AuthSessionDelegate {
         self.userId = defaults.string(forKey: Self.userIdDefaultsKey)
         self.isAdmin = defaults.bool(forKey: Self.isAdminDefaultsKey)
         self.accessToken = keychain.getToken()
+        self.savedAccounts = Self.loadSavedAccounts(from: defaults)
         self.client.authDelegate = self
     }
 
@@ -277,6 +290,7 @@ final class AuthViewModel: AuthSessionDelegate {
         if let userId { defaults.set(userId, forKey: Self.userIdDefaultsKey) }
         defaults.set(isAdmin, forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: token)
+        addCurrentAccountToSaved()
     }
 
     @MainActor
@@ -301,6 +315,103 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.removeObject(forKey: Self.userIdDefaultsKey)
         defaults.removeObject(forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: nil)
+    }
+
+    // MARK: - Multi-server / multi-account (P5)
+
+    /// Returns the active session as a `SavedAccount` (nil if no URL yet).
+    private func currentAccount() -> SavedAccount? {
+        guard let url = baseURL?.absoluteString else { return nil }
+        return SavedAccount(url: url, email: userEmail, name: userName, userId: userId, isAdmin: isAdmin)
+    }
+
+    /// Upserts the active session into the account registry (dedup by id) and
+    /// stores its token under the per-account Keychain key.
+    func addCurrentAccountToSaved() {
+        guard let account = currentAccount() else { return }
+        if let token = accessToken {
+            keychain.saveToken(token, for: account.id)
+        }
+        savedAccounts.removeAll { $0.id == account.id }
+        savedAccounts.insert(account, at: 0)
+        persistSavedAccounts()
+    }
+
+    /// Removes a saved account: drops its per-account token and registry entry.
+    /// If it is the active account, the session is reset (onboarding, URL kept).
+    func removeSavedAccount(_ account: SavedAccount) {
+        keychain.deleteToken(for: account.id)
+        savedAccounts.removeAll { $0.id == account.id }
+        persistSavedAccounts()
+        if account.id == activeAccountID {
+            resetSession()
+        }
+    }
+
+    /// Starts fresh: clears the current session + server URL so onboarding
+    /// shows an empty address for a brand-new account/server.
+    func addNewServer() {
+        serverURLString = ""
+        resetSession()
+    }
+
+    /// Switches the active session to a saved account. The token is restored
+    /// from the per-account Keychain slot and re-validated; a missing or
+    /// rejected token falls back to onboarding with the URL pre-filled.
+    @MainActor
+    func switchToAccount(_ account: SavedAccount) async {
+        guard account.id != activeAccountID else { return }
+        guard let url = normalizedBaseURL(from: account.url) else {
+            errorMessage = "Invalid server URL."
+            return
+        }
+
+        // Re-assert the current account's token before leaving it.
+        if let current = currentAccount(), let token = accessToken {
+            keychain.saveToken(token, for: current.id)
+        }
+
+        guard let token = keychain.getToken(for: account.id) else {
+            serverURLString = account.url
+            resetSession()
+            errorMessage = nil
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        accessToken = token
+        userEmail = account.email
+        userName = account.name
+        userId = account.userId
+        isAdmin = account.isAdmin
+        serverURLString = account.url
+        keychain.saveToken(token)
+        defaults.set(url.absoluteString, forKey: Self.serverURLDefaultsKey)
+        defaults.set(account.email, forKey: Self.userEmailDefaultsKey)
+        defaults.set(account.name, forKey: Self.userNameDefaultsKey)
+        defaults.set(account.userId, forKey: Self.userIdDefaultsKey)
+        defaults.set(account.isAdmin, forKey: Self.isAdminDefaultsKey)
+        client.configure(baseURL: url, token: token)
+        do {
+            _ = try await client.validateToken()
+        } catch APIError.unauthorized {
+            resetSession()
+        } catch {
+            // Network / decode: keep the session (offline-safe).
+        }
+        isLoading = false
+    }
+
+    private func persistSavedAccounts() {
+        if let data = try? JSONEncoder.immich.encode(savedAccounts) {
+            defaults.set(data, forKey: Self.serverListDefaultsKey)
+        }
+    }
+
+    private static func loadSavedAccounts(from defaults: UserDefaults) -> [SavedAccount] {
+        guard let data = defaults.data(forKey: serverListDefaultsKey) else { return [] }
+        return (try? JSONDecoder.immich.decode([SavedAccount].self, from: data)) ?? []
     }
 
     // MARK: - AuthSessionDelegate (FM-4)

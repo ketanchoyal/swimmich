@@ -420,4 +420,202 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(auth.errorMessage, "OAuth is not enabled on this server.")
         XCTAssertEqual(mock.requestCount, 0)
     }
+
+    // MARK: - Multi-server / multi-account (P5)
+
+    private func makeLoginAccount(url: String = "https://photos.example.com", email: String = "alice@example.com", name: String = "Alice", userId: String = "u1") -> SavedAccount {
+        SavedAccount(url: url, email: email, name: name, userId: userId, isAdmin: false)
+    }
+
+    private func seedSavedAccounts(_ accounts: [SavedAccount], defaults: UserDefaults) {
+        defaults.set(try! JSONEncoder.immich.encode(accounts), forKey: AuthViewModel.serverListDefaultsKey)
+    }
+
+    @MainActor
+    func test_login_addsAccountToSavedWithPerAccountToken() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = LoginResponseDto(
+            accessToken: "jwt", userId: "u1", userEmail: "alice@example.com", name: "Alice",
+            profileImagePath: "", isAdmin: false, shouldChangePassword: false, isOnboarded: true
+        )
+        let keychain = MockKeychainStore()
+        let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "alice@example.com", password: "secret")
+
+        XCTAssertEqual(auth.savedAccounts.count, 1)
+        XCTAssertEqual(auth.savedAccounts.first?.email, "alice@example.com")
+        let accountID = SavedAccount.makeID(url: "https://photos.example.com", email: "alice@example.com", userId: "u1")
+        XCTAssertEqual(keychain.getToken(for: accountID), "jwt", "token must be stored per-account")
+    }
+
+    @MainActor
+    func test_login_sameAccountDedupsRegistry() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = LoginResponseDto(
+            accessToken: "jwt2", userId: "u1", userEmail: "alice@example.com", name: "Alice",
+            profileImagePath: "", isAdmin: false, shouldChangePassword: false, isOnboarded: true
+        )
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "alice@example.com", password: "s1")
+        await auth.login(email: "alice@example.com", password: "s2")
+
+        XCTAssertEqual(auth.savedAccounts.count, 1, "same account must be upserted, not duplicated")
+    }
+
+    @MainActor
+    func test_multipleAccountsSameServer_coexist() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        let alice = makeLoginAccount(email: "alice@example.com", userId: "u1")
+        let bob = makeLoginAccount(email: "bob@example.com", userId: "u2")
+        keychain.saveToken("alice-jwt", for: alice.id)
+        keychain.saveToken("bob-jwt", for: bob.id)
+        seedSavedAccounts([alice, bob], defaults: defaults)
+
+        let restored = AuthViewModel(client: MockImmichClient(), keychain: keychain, defaults: defaults)
+        XCTAssertEqual(restored.savedAccounts.count, 2)
+        XCTAssertNotEqual(alice.id, bob.id, "two accounts on the same URL must have distinct ids")
+    }
+
+    @MainActor
+    func test_switchToAccount_restoresTokenAndIdentity() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let alice = makeLoginAccount(email: "alice@example.com", userId: "u1")
+        let bob = SavedAccount(url: "https://photos.example.com", email: "bob@example.com", name: "Bob", userId: "u2", isAdmin: true)
+        keychain.saveToken("alice-jwt", for: alice.id)
+        keychain.saveToken("bob-jwt", for: bob.id)
+        seedSavedAccounts([alice, bob], defaults: defaults)
+
+        let mock = MockImmichClient()
+        let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
+        // Act as Alice first.
+        auth.serverURLString = "https://photos.example.com"
+        auth.userEmail = "alice@example.com"
+        auth.userName = "Alice"
+        auth.userId = "u1"
+        auth.accessToken = "alice-jwt"
+
+        await auth.switchToAccount(bob)
+
+        XCTAssertEqual(auth.accessToken, "bob-jwt")
+        XCTAssertEqual(auth.userEmail, "bob@example.com")
+        XCTAssertEqual(auth.userName, "Bob")
+        XCTAssertEqual(auth.userId, "u2")
+        XCTAssertTrue(auth.isAdmin)
+        XCTAssertEqual(mock.configuredToken, "bob-jwt")
+        XCTAssertEqual(mock.configuredBaseURL?.absoluteString, "https://photos.example.com")
+        XCTAssertTrue(auth.isAuthenticated)
+    }
+
+    @MainActor
+    func test_switchToAccount_missingToken_resetsSessionWithURLPrefilled() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let ghost = makeLoginAccount(email: "ghost@example.com", userId: "u9")
+        seedSavedAccounts([ghost], defaults: defaults)
+
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        auth.accessToken = "current-jwt"
+
+        await auth.switchToAccount(ghost)
+
+        XCTAssertFalse(auth.isAuthenticated)
+        XCTAssertEqual(auth.serverURLString, "https://photos.example.com", "URL pre-filled for re-login")
+    }
+
+    @MainActor
+    func test_switchToAccount_invalidToken_resetsSession() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let bob = makeLoginAccount(email: "bob@example.com", userId: "u2")
+        keychain.saveToken("stale-jwt", for: bob.id)
+        seedSavedAccounts([bob], defaults: defaults)
+
+        let mock = MockImmichClient()
+        mock.validateError = APIError.unauthorized
+        let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        auth.accessToken = "current-jwt"
+
+        await auth.switchToAccount(bob)
+
+        XCTAssertFalse(auth.isAuthenticated, "rejected token must reset the session")
+        XCTAssertEqual(auth.serverURLString, "https://photos.example.com")
+    }
+
+    @MainActor
+    func test_removeSavedAccount_deletesTokenAndRegistry() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let alice = makeLoginAccount(email: "alice@example.com", userId: "u1")
+        let bob = makeLoginAccount(email: "bob@example.com", userId: "u2")
+        keychain.saveToken("alice-jwt", for: alice.id)
+        keychain.saveToken("bob-jwt", for: bob.id)
+        seedSavedAccounts([alice, bob], defaults: defaults)
+
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: keychain, defaults: defaults)
+
+        auth.removeSavedAccount(bob)
+
+        XCTAssertEqual(auth.savedAccounts.count, 1)
+        XCTAssertEqual(auth.savedAccounts.first?.id, alice.id)
+        XCTAssertNil(keychain.getToken(for: bob.id))
+        XCTAssertEqual(keychain.getToken(for: alice.id), "alice-jwt", "other account's token untouched")
+    }
+
+    @MainActor
+    func test_removeActiveAccount_resetsSession() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let keychain = MockKeychainStore()
+        let alice = makeLoginAccount(email: "alice@example.com", userId: "u1")
+        keychain.saveToken("alice-jwt", for: alice.id)
+        seedSavedAccounts([alice], defaults: defaults)
+
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        auth.userEmail = "alice@example.com"
+        auth.userId = "u1"
+        auth.accessToken = "alice-jwt"
+
+        auth.removeSavedAccount(alice)
+
+        XCTAssertFalse(auth.isAuthenticated)
+        XCTAssertEqual(auth.savedAccounts.count, 0)
+    }
+
+    @MainActor
+    func test_addNewServer_resetsAndClearsURL() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        auth.accessToken = "jwt"
+
+        auth.addNewServer()
+
+        XCTAssertFalse(auth.isAuthenticated)
+        XCTAssertEqual(auth.serverURLString, "")
+    }
 }

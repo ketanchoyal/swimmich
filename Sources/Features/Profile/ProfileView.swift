@@ -23,6 +23,8 @@ struct ProfileView: View {
                     }
                 }
 
+                serversSection
+
                 storageSection
 
                 Section {
@@ -66,6 +68,42 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task { await storage.load() }
             .refreshable { await storage.load() }
+        }
+    }
+
+    /// Saved accounts / servers (P5 multi-server): tap to switch, swipe to
+    /// remove, or add a brand-new account.
+    @ViewBuilder
+    private var serversSection: some View {
+        Section {
+            ForEach(auth.savedAccounts) { account in
+                Button {
+                    Task { await auth.switchToAccount(account) }
+                } label: {
+                    HStack(spacing: PVSpacing.s8) {
+                        Label(account.name ?? account.url, systemImage: "server.rack")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if account.id == auth.activeAccountID {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.immichPrimary)
+                        }
+                    }
+                }
+            }
+            .onDelete { offsets in
+                for index in offsets {
+                    auth.removeSavedAccount(auth.savedAccounts[index])
+                }
+            }
+
+            Button {
+                auth.addNewServer()
+            } label: {
+                Label("Ajouter un compte", systemImage: "plus")
+            }
+        } header: {
+            Text("Serveurs")
         }
     }
 

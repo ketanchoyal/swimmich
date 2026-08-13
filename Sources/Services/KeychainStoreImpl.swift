@@ -5,19 +5,37 @@ import Security
 ///
 /// FM-3 mitigation: uses `kSecAttrAccessible = .whenUnlockedThisDeviceOnly`
 /// (suitable for tokens, non-iCloud syncable).
+///
+/// Tokens are keyed by an `account` string: the legacy "active session" slot
+/// uses `legacyAccount`; the multi-account layer uses `SavedAccount.id`.
 final class KeychainStoreImpl: KeychainStore, @unchecked Sendable {
     private let service: String
-    private let account: String
 
-    init(service: String = "app.immich.swiftui", account: String = "accessToken") {
+    /// Account used by the legacy single-session methods (restore-on-launch).
+    static let legacyAccount = "accessToken"
+
+    init(service: String = "app.immich.swiftui") {
         self.service = service
-        self.account = account
     }
 
     @discardableResult
     func saveToken(_ token: String) -> Bool {
+        saveToken(token, for: Self.legacyAccount)
+    }
+
+    func getToken() -> String? {
+        getToken(for: Self.legacyAccount)
+    }
+
+    @discardableResult
+    func deleteToken() -> Bool {
+        deleteToken(for: Self.legacyAccount)
+    }
+
+    @discardableResult
+    func saveToken(_ token: String, for account: String) -> Bool {
         guard let data = token.data(using: .utf8) else { return false }
-        deleteToken()
+        deleteToken(for: account)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -29,7 +47,7 @@ final class KeychainStoreImpl: KeychainStore, @unchecked Sendable {
         return status == errSecSuccess
     }
 
-    func getToken() -> String? {
+    func getToken(for account: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -44,7 +62,7 @@ final class KeychainStoreImpl: KeychainStore, @unchecked Sendable {
     }
 
     @discardableResult
-    func deleteToken() -> Bool {
+    func deleteToken(for account: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
