@@ -17,7 +17,7 @@ struct UserAvatarCircle: View {
         .frame(width: size, height: size)
     }
 
-    private static func initials(from name: String) -> String {
+    static func initials(from name: String) -> String {
         let parts = name.split(separator: " ")
         let letters = parts.prefix(2).compactMap { $0.first }.map(String.init)
         return letters.isEmpty ? "?" : letters.joined().uppercased()

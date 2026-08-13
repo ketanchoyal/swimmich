@@ -12,6 +12,7 @@ import SwiftUI
 struct AlbumsView: View {
     @Bindable var vm: AlbumsViewModel
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.openProfile) private var openProfile
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var presentingCreate = false
@@ -38,6 +39,11 @@ struct AlbumsView: View {
             }
             .navigationTitle("Albums")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ProfileAvatarButton { openProfile() }
+                }
+            }
             .task { await vm.load() }
             .refreshable { await vm.refresh() }
             .sheet(isPresented: $presentingCreate) {

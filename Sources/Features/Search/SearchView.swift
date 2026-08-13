@@ -17,6 +17,7 @@ struct SearchView: View {
     @Bindable var vm: SearchViewModel
     @Bindable var mapVM: MapViewModel
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.openProfile) private var openProfile
 
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
 
@@ -51,11 +52,16 @@ struct SearchView: View {
                 }
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
+                // Search-mode menu + avatar as a nav-bar row (topBarTrailing):
+                // iOS 26 renders its own Liquid-Glass chrome, so no manual
+                // glassEffect — a manual circle on the label would double-glass
+                // and clip. Menu only in results mode; avatar always visible.
                 .toolbar {
-                    if vm.viewMode == .results {
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        if vm.viewMode == .results {
                             searchModeMenu
                         }
+                        ProfileAvatarButton { openProfile() }
                     }
                 }
                 // Full-screen photo viewer (tap any result photo → browse/zoom).
@@ -118,7 +124,6 @@ struct SearchView: View {
                 .font(.pvBody.weight(.semibold))
                 .foregroundStyle(Color.immichPrimary)
                 .frame(minWidth: 44, minHeight: 44)
-                .glassEffect(.regular, in: Circle())
         }
         .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
     }

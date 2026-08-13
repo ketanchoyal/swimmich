@@ -7,6 +7,7 @@ struct SharedLinksView: View {
     @State var vm: SharedLinksViewModel
     @Environment(AuthViewModel.self) private var auth
     @Environment(AlbumsViewModel.self) private var albumsVM
+    @Environment(\.openProfile) private var openProfile
     @State private var presentingCreate = false
     @State private var pendingRevokeId: String?
     @State private var showRevokeConfirm = false
@@ -49,6 +50,11 @@ struct SharedLinksView: View {
             }
             .navigationTitle("Shared")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ProfileAvatarButton { openProfile() }
+                }
+            }
             .task {
                 await vm.load()
                 await albumsVM.load() // ensure album list is ready for the create picker

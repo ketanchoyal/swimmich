@@ -26,4 +26,13 @@ enum ImmichAssetURL {
     static func videoPlayback(assetId: String, baseURL: URL) -> URL {
         baseURL.appendingPathComponent(ImmichAPI.assets.path("/\(assetId)/video/playback"))
     }
+
+    /// Face thumbnail for a person (`GET /api/people/{id}/thumbnail`).
+    static func personThumbnail(personId: String, baseURL: URL, size: AssetMediaSize = .thumbnail) -> URL {
+        var url = baseURL.appendingPathComponent(ImmichAPI.people.path("/\(personId)/thumbnail"))
+        if size != .thumbnail {
+            url = url.appending(queryItems: [URLQueryItem(name: "size", value: size.rawValue)])
+        }
+        return url
+    }
 }

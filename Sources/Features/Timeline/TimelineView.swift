@@ -14,6 +14,7 @@ import SwiftUI
 struct TimelineView: View {
     @State private var vm: TimelineViewModel
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.openProfile) private var openProfile
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Grid zoom (Photos-style pinch): 2-7 columns, default 3. `gridScale`
@@ -88,28 +89,33 @@ struct TimelineView: View {
                     }
                 }
                 .overlay(alignment: .topTrailing) {
-                    // Explicit "Select" entry point (Photos-style): a liquid
-                    // glass pill that rides alongside the pinned date header.
-                    // Long-press entry still works; this makes selection
-                    // discoverable for mass/bulk actions. Hidden once selection
-                    // mode is active (toolbar takes over).
-                    if pinnedDay != nil && !vm.selectionMode {
-                        GlassEffectContainer {
-                            Button {
-                                vm.enterSelectionMode()
-                            } label: {
-                                Text("Select")
-                                    .font(.pvHeadline)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, PVSpacing.s16)
-                                    .padding(.vertical, PVSpacing.s8)
-                                    // Dark-tinted glass for legibility over
-                                    // photos (shared-album badge recipe).
-                                    .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
+                    // Profile avatar + the explicit "Select" entry point
+                    // (Photos-style): a liquid glass pill that rides alongside
+                    // the pinned date header. Long-press entry still works;
+                    // this makes selection discoverable for mass/bulk actions.
+                    // Hidden once selection mode is active (toolbar takes over).
+                    if !vm.selectionMode {
+                        HStack(spacing: PVSpacing.s8) {
+                            if pinnedDay != nil {
+                                GlassEffectContainer {
+                                    Button {
+                                        vm.enterSelectionMode()
+                                    } label: {
+                                        Text("Select")
+                                            .font(.pvHeadline)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, PVSpacing.s16)
+                                            .padding(.vertical, PVSpacing.s8)
+                                            // Dark-tinted glass for legibility over
+                                            // photos (shared-album badge recipe).
+                                            .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .accessibilityIdentifier("selectButton")
                             }
-                            .buttonStyle(.plain)
+                            ProfileAvatarButton { openProfile() }
                         }
-                        .accessibilityIdentifier("selectButton")
                         .padding(.trailing, PVSpacing.s16)
                         .padding(.top, PVSpacing.s8)
                         .transition(.opacity.combined(with: .move(edge: .top)))

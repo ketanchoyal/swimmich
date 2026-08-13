@@ -16,7 +16,7 @@ struct RootView: View {
     @State private var lastContentTab: RootTab = .photos
     @State private var showCreateAlbum = false
     @State private var showCreateSharedLink = false
-    @State private var confirmLogout = false
+    @State private var showProfile = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(container: DependencyContainer = .shared) {
@@ -88,14 +88,12 @@ struct RootView: View {
             Tab("Shared", systemImage: "person.2.fill", value: RootTab.shared) {
                 SharedLinksView(vm: sharedLinks)
             }
-            Tab("Me", systemImage: "person.crop.circle", value: RootTab.me) {
-                ProfileView(trash: trash, storage: storage)
-            }
             Tab("Search", systemImage: bubbleIcon, value: RootTab.search, role: .search) {
                 SearchView(vm: search, mapVM: map)
             }
         }
         .immichBottomBar()
+        .environment(\.openProfile) { showProfile = true }
         .onChange(of: selection) { _, newValue in
             if newValue == .search {
                 if lastContentTab == .photos {
@@ -122,6 +120,11 @@ struct RootView: View {
         // only presentation active while browsing the map tab, so SwiftUI
         // presents it directly above the tab — detents, swipe-down and the
         // system corner radius for free.
+        // Me section: presented as a sheet from the stable root presenter, from
+        // the avatar button that every tab's navigation bar exposes.
+        .sheet(isPresented: $showProfile) {
+            ProfileView(trash: trash, storage: storage, upload: upload, people: people)
+        }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
             set: { map.isPhotoSheetPresented = $0 }
@@ -131,20 +134,12 @@ struct RootView: View {
                 .presentationBackgroundInteraction(.enabled)
                 .presentationBackground(.regularMaterial)
         }
-        .confirmationDialog("Log out?", isPresented: $confirmLogout, titleVisibility: .visible) {
-            Button("Log Out", role: .destructive) {
-                Task { await auth.logout() }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private var bubbleIcon: String {
         switch selection {
-        case .photos: "magnifyingglass"
+        case .photos, .search: "magnifyingglass"
         case .albums, .shared: "plus"
-        case .me: "rectangle.portrait.and.arrow.right"
-        case .search: "magnifyingglass"
         }
     }
 
@@ -153,7 +148,6 @@ struct RootView: View {
         case .photos: break // Landing on the Search tab is handled by the TabView itself.
         case .albums: showCreateAlbum = true
         case .shared: showCreateSharedLink = true
-        case .me: confirmLogout = true
         case .search: break
         }
     }
@@ -164,7 +158,6 @@ private enum RootTab: Int, Hashable {
     case photos
     case albums
     case shared
-    case me
     case search
 }
 
@@ -192,5 +185,44 @@ private struct LockView: View {
             }
         }
         .accessibilityIdentifier("AppLockOverlay")
+    }
+}
+
+// MARK: - Me (profile) entry from every tab
+
+/// Presentation action injected by RootView so every tab's avatar button can
+/// raise the Me sheet from the stable TabView presenter (iOS 26 serializes
+/// presentations; RootView is the only safe presenter above the tabs).
+private struct OpenProfileKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+extension EnvironmentValues {
+    var openProfile: () -> Void {
+        get { self[OpenProfileKey.self] }
+        set { self[OpenProfileKey.self] = newValue }
+    }
+}
+
+/// Circular initials avatar pinned to the trailing corner of every tab's
+/// navigation bar. Tapping presents the Me section (`ProfileView`) as a sheet
+/// from RootView.
+struct ProfileAvatarButton: View {
+    let action: () -> Void
+    @Environment(AuthViewModel.self) private var auth
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(Color.immichPrimary)
+                Text(UserAvatarCircle.initials(from: auth.userName ?? "?"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white)
+            }
+            .frame(width: 30, height: 30)
+            .padding(7)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Profile")
     }
 }

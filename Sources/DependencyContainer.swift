@@ -53,6 +53,14 @@ final class DependencyContainer {
         StorageStatsViewModel(client: client as any ImmichClient)
     }
 
+    func makeUploadViewModel() -> UploadViewModel {
+        UploadViewModel(client: client as any ImmichClient, photos: photos)
+    }
+
+    func makePeopleViewModel() -> PeopleViewModel {
+        PeopleViewModel(client: client as any ImmichClient)
+    }
+
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,
     /// not `ImmichClient`, so we pass nothing but asset identity.
     /// V1.5 polish (AC-718): wire 0.033s render debounce (≈30fps cap) for production.

@@ -7,6 +7,8 @@ struct ProfileView: View {
     @Environment(AuthViewModel.self) private var auth
     @State var trash: TrashViewModel
     @State var storage: StorageStatsViewModel
+    @State var upload: UploadViewModel
+    @State var people: PeopleViewModel
 
     var body: some View {
         NavigationStack {
@@ -30,9 +32,15 @@ struct ProfileView: View {
                     }
 
                     NavigationLink {
-                        BackupSettingsView()
+                        BackupSettingsView(vm: upload)
                     } label: {
                         Label("Sauvegarde", systemImage: "icloud.and.arrow.up")
+                    }
+
+                    NavigationLink {
+                        PeopleView(vm: people)
+                    } label: {
+                        Label("Personnes", systemImage: "person.2")
                     }
                 } header: {
                     Text("Gestion")
