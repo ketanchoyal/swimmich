@@ -15,6 +15,8 @@ struct ServerURLScreen: View {
     let `continue`: () -> Void
 
     @FocusState private var isFocused: Bool
+    @State private var presentingQRScanner = false
+    @State private var scanError: String?
 
     var body: some View {
         @Bindable var auth = auth
@@ -30,19 +32,38 @@ struct ServerURLScreen: View {
                         .tracking(1)
 
                     PVInputGroup {
-                        TextField("https://photos.example.com", text: $auth.serverURLString)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.URL)
-                            .submitLabel(.continue)
-                            .focused($isFocused)
-                            .onSubmit(primaryAction)
-                            .font(.pvBody)
-                            .pvFieldSurface()
+                        HStack(spacing: PVSpacing.s8) {
+                            TextField("https://photos.example.com", text: $auth.serverURLString)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .keyboardType(.URL)
+                                .submitLabel(.continue)
+                                .focused($isFocused)
+                                .onSubmit(primaryAction)
+                                .font(.pvBody)
+                                .pvFieldSurface()
+
+                            Button {
+                                presentingQRScanner = true
+                            } label: {
+                                Image(systemName: "qrcode.viewfinder")
+                                    .font(.pvBody)
+                                    .foregroundStyle(Color.immichPrimary)
+                                    .frame(width: 40, height: 40)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Scan server QR code")
+                        }
                     }
 
                     statusSection
                         .transition(.opacity)
+
+                    // P5 qr-scan: a scanned config prefills the field and runs
+                    // connectivity automatically.
+                    if let error = scanError {
+                        InlineErrorBadge(message: error)
+                    }
                 }
 
                 // TODO: $PHASE_QR — scan a server QR code (AVFoundation/VisionKit)
@@ -64,6 +85,23 @@ struct ServerURLScreen: View {
             auth.serverStatus = .idle
         }
         .animation(PVMotion.gentle, value: auth.serverStatus)
+        .sheet(isPresented: $presentingQRScanner) {
+            NavigationStack {
+                QRScannerView { payload in
+                    handleScannedPayload(payload)
+                    presentingQRScanner = false
+                }
+                .ignoresSafeArea()
+                .navigationTitle("Scanner le QR code")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Fermer") { presentingQRScanner = false }
+                    }
+                }
+            }
+            .presentationDetents([.fraction(0.7)])
+        }
         .alert("Trust this server?", isPresented: Binding(
             get: { auth.pendingUntrustedHost != nil },
             set: { if !$0 { auth.pendingUntrustedHost = nil } }
@@ -156,6 +194,17 @@ struct ServerURLScreen: View {
         Task {
             await auth.connectServer()
         }
+    }
+
+    /// Applies a scanned QR payload to the server field and validates it.
+    private func handleScannedPayload(_ payload: String) {
+        guard let url = QRServerConfigParser.parse(payload) else {
+            scanError = "QR code invalide : aucune URL de serveur trouvée."
+            return
+        }
+        scanError = nil
+        auth.serverURLString = url.absoluteString
+        connect()
     }
 }
 
