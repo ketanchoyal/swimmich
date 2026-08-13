@@ -15,6 +15,12 @@ final class SharedLinksViewModel {
     var isLoading = false
     var errorMessage: String?
 
+    // MARK: - Partners (AC-1072)
+
+    var partners: [PartnerResponseDto] = []
+    var isPartnersLoading = false
+    var partnersError: String?
+
     init(client: any ImmichClient) {
         self.client = client
     }
@@ -35,6 +41,44 @@ final class SharedLinksViewModel {
 
     func refresh() async {
         await load()
+    }
+
+    // MARK: - Partners (AC-1072)
+
+    func loadPartners() async {
+        isPartnersLoading = true
+        defer { isPartnersLoading = false }
+        do {
+            partners = try await client.getPartners()
+            partnersError = nil
+        } catch {
+            partnersError = error.localizedDescription
+        }
+    }
+
+    /// Updates a partner's "show in timeline" flag. Try-then-mutate: row is
+    /// replaced only after the server call succeeds.
+    func togglePartnerTimeline(id: String, enabled: Bool) async {
+        do {
+            let updated = try await client.updatePartner(id: id, isInTimeline: enabled)
+            if let idx = partners.firstIndex(where: { $0.id == id }) {
+                partners[idx] = updated
+            }
+            partnersError = nil
+        } catch {
+            partnersError = error.localizedDescription
+        }
+    }
+
+    /// Removes a partner (unshares their library access).
+    func removePartner(id: String) async {
+        do {
+            try await client.removePartner(id: id)
+            partners.removeAll { $0.id == id }
+            partnersError = nil
+        } catch {
+            partnersError = error.localizedDescription
+        }
     }
 
     // MARK: - Revoke

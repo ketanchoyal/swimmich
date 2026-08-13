@@ -509,6 +509,15 @@ struct TimelineView: View {
                             Text("Archived")
                         }
                     }
+                    Button {
+                        Task { await vm.setFilter(isFavorite: nil, visibility: nil, withPartners: true) }
+                    } label: {
+                        if vm.filterWithPartners == true {
+                            Label("Shared with you", systemImage: "checkmark")
+                        } else {
+                            Text("Shared with you")
+                        }
+                    }
                 } label: {
                     Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
                         .labelStyle(.iconOnly)

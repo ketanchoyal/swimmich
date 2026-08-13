@@ -21,6 +21,8 @@ final class TimelineViewModel {
     var filterIsTrashed: Bool?
     var filterVisibility: String?
 
+    /// Partner photos interleaved in the timeline (AC-1070). Nil = own assets.
+    var filterWithPartners: Bool?
 
     init(client: any ImmichClient) {
         self.client = client
@@ -60,10 +62,11 @@ final class TimelineViewModel {
     /// Applies a timeline filter and reloads. No-op when the requested filter
     /// already matches, so the grid keeps its position between identical taps.
     @MainActor
-    func setFilter(isFavorite: Bool?, visibility: String?) async {
-        guard filterIsFavorite != isFavorite || filterVisibility != visibility else { return }
+    func setFilter(isFavorite: Bool?, visibility: String?, withPartners: Bool? = nil) async {
+        guard filterIsFavorite != isFavorite || filterVisibility != visibility || filterWithPartners != withPartners else { return }
         filterIsFavorite = isFavorite
         filterVisibility = visibility
+        filterWithPartners = withPartners
         await refresh()
     }
 
@@ -145,7 +148,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: nil, visibility: filterVisibility, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -161,7 +164,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: nil, visibility: filterVisibility, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -183,7 +186,7 @@ final class TimelineViewModel {
         guard bucketIndex < buckets.count else { return }
         let bucket = buckets[bucketIndex]
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: nil, visibility: filterVisibility, withStacked: nil)
+            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
             // AC-013: zip columnar into objects.
             let zipped = AssetReactItem.zip(columnar)
             for item in zipped where !loadedIds.contains(item.id) {

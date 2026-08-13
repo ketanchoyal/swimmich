@@ -573,4 +573,29 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertEqual(mock.lastTimeBucketsIsFavorite, true, "refresh keeps the committed filter")
         XCTAssertEqual(vm.items.map(\.id), ["a1", "a2", "a3"])
     }
+
+    @MainActor
+    func test_filter_sharedWithYou_usesWithPartners() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+
+        await vm.setFilter(isFavorite: nil, visibility: nil, withPartners: true)
+
+        XCTAssertEqual(mock.lastTimeBucketsWithPartners, true)
+        XCTAssertNil(mock.lastTimeBucketsIsFavorite)
+        XCTAssertNil(mock.lastTimeBucketsVisibility)
+        XCTAssertEqual(mock.lastTimeBucketWithPartners, true, "bucket load inherits withPartners")
+    }
+
+    @MainActor
+    func test_filter_withPartners_noOpOnIdenticalValues() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        await vm.setFilter(isFavorite: nil, visibility: nil, withPartners: true)
+        let calls = mock.requestCount
+
+        await vm.setFilter(isFavorite: nil, visibility: nil, withPartners: true)
+
+        XCTAssertEqual(mock.requestCount, calls, "identical partner filter does not reload")
+    }
 }

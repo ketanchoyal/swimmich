@@ -11,6 +11,8 @@ struct SharedLinksView: View {
     @State private var presentingCreate = false
     @State private var pendingRevokeId: String?
     @State private var showRevokeConfirm = false
+    @State private var partnerPendingRemovalId: String?
+    @State private var showPartnerRemoveConfirm = false
 
     init(vm: SharedLinksViewModel) {
         _vm = State(initialValue: vm)
@@ -30,7 +32,7 @@ struct SharedLinksView: View {
                     }
                 } else if vm.isLoading && vm.sharedLinks.isEmpty {
                     ProgressView()
-                } else if vm.sharedLinks.isEmpty {
+                } else if vm.partners.isEmpty && vm.sharedLinks.isEmpty {
                     ContentUnavailableView {
                         Image(systemName: "person.2.fill")
                             .font(.system(size: 56)) // DS-exempt: hero illustration §8.6
@@ -57,9 +59,13 @@ struct SharedLinksView: View {
             }
             .task {
                 await vm.load()
+                await vm.loadPartners()
                 await albumsVM.load() // ensure album list is ready for the create picker
             }
-            .refreshable { await vm.refresh() }
+            .refreshable {
+                await vm.refresh()
+                await vm.loadPartners()
+            }
             .sheet(isPresented: $presentingCreate) {
                 CreateSharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
             }
@@ -96,6 +102,25 @@ struct SharedLinksView: View {
             } message: {
                 Text(vm.errorMessage ?? "")
             }
+            .confirmationDialog("Remove this partner?", isPresented: $showPartnerRemoveConfirm, titleVisibility: .visible) {
+                Button("Remove", role: .destructive) {
+                    if let id = partnerPendingRemovalId {
+                        Task {
+                            await vm.removePartner(id: id)
+                            withAnimation(PVMotion.snappy) {
+                                partnerPendingRemovalId = nil
+                            }
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    withAnimation(PVMotion.snappy) {
+                        partnerPendingRemovalId = nil
+                    }
+                }
+            } message: {
+                Text("Their photos will disappear from your timeline and their access to your library is revoked.")
+            }
         }
     }
 
@@ -104,6 +129,25 @@ struct SharedLinksView: View {
     private var linkList: some View {
         let baseURL = auth.baseURL ?? URL(string: "https://example.com")!
         return List {
+            if !vm.partners.isEmpty {
+                Section("Shared with you") {
+                    ForEach(vm.partners, id: \.id) { partner in
+                        PartnerRow(
+                            partner: partner,
+                            isPendingRemoval: partnerPendingRemovalId == partner.id,
+                            onToggle: { enabled in
+                                Task { await vm.togglePartnerTimeline(id: partner.id, enabled: enabled) }
+                            },
+                            onRemove: {
+                                withAnimation(PVMotion.snappy) {
+                                    partnerPendingRemovalId = partner.id
+                                }
+                                showPartnerRemoveConfirm = true
+                            }
+                        )
+                    }
+                }
+            }
             ForEach(vm.sharedLinks, id: \.id) { link in
                 SharedLinkRow(
                     link: link,
@@ -263,6 +307,74 @@ struct SharedLinkRow: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+    }
+}
+
+// MARK: - Partner row
+
+/// Partner row: initials avatar (avatarColor hex), name, "show in timeline"
+/// toggle + remove. Try-then-mutate lives in the view model; the toggle reads
+/// the server state and flips it through `onToggle`.
+struct PartnerRow: View {
+    let partner: PartnerResponseDto
+    let isPendingRemoval: Bool
+    let onToggle: (Bool) -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: PVSpacing.s12) {
+            PartnerAvatarCircle(partner: partner)
+            VStack(alignment: .leading, spacing: PVSpacing.s2) {
+                Text(partner.name)
+                    .font(.pvBody)
+                    .foregroundStyle(Color.textPrimaryPV)
+                Text(partner.inTimeline ? "Shown in timeline" : "Hidden from timeline")
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.textSecondaryPV)
+            }
+            Spacer()
+            Toggle("Show in timeline", isOn: Binding(
+                get: { partner.inTimeline },
+                set: { onToggle($0) }
+            ))
+            .labelsHidden()
+            .accessibilityLabel("Show in timeline")
+            .accessibilityIdentifier("partnerTimelineToggle-\(partner.id)")
+            Button {
+                onRemove()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.pvBody)
+                    .foregroundStyle(Color.immichError)
+            }
+            .buttonStyle(.plain)
+            .disabled(isPendingRemoval)
+            .accessibilityLabel("Remove partner")
+        }
+        .padding(.vertical, PVSpacing.s4)
+    }
+}
+
+/// Initials avatar for a partner, same look as `UserAvatarCircle` (avatarColor
+/// hex, fallback primary) — partners carry their own DTO shape.
+struct PartnerAvatarCircle: View {
+    let partner: PartnerResponseDto
+    var size: CGFloat = 36
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Color(hex: partner.avatarColor) ?? Color.immichPrimary)
+            Text(initials)
+                .font(.system(size: size * 0.4, weight: .semibold))
+                .foregroundStyle(Color.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    private var initials: String {
+        let parts = partner.name.split(separator: " ")
+        let letters = parts.prefix(2).compactMap { $0.first }.map(String.init)
+        return letters.isEmpty ? "?" : letters.joined().uppercased()
     }
 }
 
