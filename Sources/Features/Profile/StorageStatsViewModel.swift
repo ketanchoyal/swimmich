@@ -39,8 +39,8 @@ final class StorageStatsViewModel {
             usage = Int64(stats.usage)
             // First user-level entry carrying a quota wins; no quota → bar hidden.
             var quota: Int64?
-            for entry in stats.usageByUser where entry.quotaSizeInBytes > 0 {
-                quota = Int64(entry.quotaSizeInBytes)
+            for entry in stats.usageByUser where (entry.quotaSizeInBytes ?? 0) > 0 {
+                quota = Int64(entry.quotaSizeInBytes ?? 0)
                 break
             }
             quotaSizeInBytes = quota

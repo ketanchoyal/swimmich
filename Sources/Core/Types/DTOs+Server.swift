@@ -20,7 +20,7 @@ struct UsageByUserDto: Codable, Equatable {
     let usage: Int
     let usagePhotos: Int
     let usageVideos: Int
-    let quotaSizeInBytes: Int
+    let quotaSizeInBytes: Int?
 }
 
 // MARK: - Shared link edit DTOs (P0 api-surface-expansion)
