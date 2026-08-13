@@ -74,4 +74,26 @@ final class AssetDetailViewModel {
             errorMessage = e.localizedDescription
         }
     }
+
+    /// Adjust-location (map-extras): PATCH /api/assets/:id {latitude, longitude},
+    /// then re-run reverse geocoding so the panel label reflects the new spot.
+    /// Out-of-bounds coordinates are rejected without touching the network.
+    @MainActor
+    func setLocation(latitude: Double, longitude: Double) async {
+        guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
+            errorMessage = "Invalid coordinates."
+            return
+        }
+        let body = UpdateAssetDto(latitude: latitude, longitude: longitude)
+        lastUpdateBody = body
+        lastUpdateAssetId = asset.id
+        do {
+            let updated = try await client.updateAsset(id: asset.id, dto: body)
+            detail = updated
+            geocoded = false // FM-3 guard reset: the spot changed, re-geocode allowed.
+            await reverseGeocodeIfNeeded()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
 }

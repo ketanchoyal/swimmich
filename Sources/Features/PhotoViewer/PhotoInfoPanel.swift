@@ -20,6 +20,11 @@ struct PhotoInfoPanel: View {
     var onClose: () -> Void = {}
     var onSnapBack: () -> Void = {}
     var onDragChange: (CGFloat) -> Void = { _ in }
+    /// Open in Apple Maps at the photo's coordinates (map-extras).
+    /// Nil = button hidden (callbacks only wired at the viewer root).
+    var onOpenInMaps: ((Double, Double) -> Void)? = nil
+    /// Present the adjust-location sheet (map-extras). Nil = button hidden.
+    var onAdjustLocation: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: PVSpacing.s0) {
@@ -100,7 +105,9 @@ struct PhotoInfoPanel: View {
                     exif: exif,
                     placeName: placeLabel(exif: exif),
                     fallbackLatitude: asset.latitude,
-                    fallbackLongitude: asset.longitude
+                    fallbackLongitude: asset.longitude,
+                    onOpenInMaps: onOpenInMaps,
+                    onAdjustLocation: onAdjustLocation
                 )
                 .padding(.horizontal, PVSpacing.s16)
                 .padding(.bottom, PVSpacing.s24)
@@ -159,6 +166,9 @@ struct ExifInfoPanel: View {
     let placeName: String?
     let fallbackLatitude: Double?
     let fallbackLongitude: Double?
+    /// map-extras: wired at the PhotoViewer root; nil hides the action row.
+    var onOpenInMaps: ((Double, Double) -> Void)? = nil
+    var onAdjustLocation: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: PVSpacing.s12) {
@@ -220,10 +230,46 @@ struct ExifInfoPanel: View {
                         }
                         MiniMapView(latitude: lat, longitude: lon)
                             .frame(height: 180)
+                        if onOpenInMaps != nil || onAdjustLocation != nil {
+                            InfoCardDivider()
+                            actionRow(latitude: lat, longitude: lon)
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Map-extras: "Open in Maps" launches Apple Maps at the photo spot;
+    /// "Adjust Location" presents the drag-pin sheet (wired by the viewer).
+    private func actionRow(latitude lat: Double, longitude lon: Double) -> some View {
+        HStack(spacing: PVSpacing.s8) {
+            if let onOpenInMaps {
+                Button {
+                    onOpenInMaps(lat, lon)
+                } label: {
+                    Label("Open in Maps", systemImage: "map")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityLabel("Open in Maps")
+            }
+            if let onAdjustLocation {
+                Button {
+                    onAdjustLocation()
+                } label: {
+                    Label("Adjust Location", systemImage: "mappin.and.ellipse")
+                        .frame(maxWidth: .infinity)
+                }
+                .accessibilityLabel("Adjust Location")
+            }
+        }
+        .font(.pvBody.weight(.medium))
+        .foregroundStyle(Color.textPrimaryPV)
+        .buttonStyle(.plain)
+        .padding(.horizontal, PVSpacing.s16)
+        .padding(.vertical, PVSpacing.s12)
+        .background(RoundedRectangle(cornerRadius: PVRadius.md, style: .continuous).fill(Color.gray.opacity(0.12)))
+        .padding(PVSpacing.s12)
     }
 
     /// Free-text description on its own card (Photos-style), when present.

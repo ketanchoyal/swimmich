@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import MapKit
 
 /// Identifiable payload for `.fullScreenCover(item:)` — carries the ordered
 /// photo list (the paging source) plus the tapped index.
@@ -133,6 +134,9 @@ struct PhotoViewer: View {
     @State private var deleteIsPermanent = false
     @State private var presentEdit = false
     @State private var presentShare = false
+    /// Adjust-location sheet (map-extras) — third root-level sheet, same
+    /// proven pattern as edit/share (:266/:271).
+    @State private var presentAdjustLocation = false
     @State private var showInfo = false
     @State private var infoDragOffset: CGFloat = 0
     @State private var infoVM: AssetDetailViewModel?
@@ -274,6 +278,16 @@ struct PhotoViewer: View {
                         .presentationDragIndicator(.visible)
                 }
             }
+            .sheet(isPresented: $presentAdjustLocation) {
+                if let asset = currentAsset, let vm = infoVM {
+                    AdjustLocationSheet(asset: asset, vm: vm) { saved in
+                        presentAdjustLocation = false
+                        if saved { refreshInfo() }
+                    }
+                    .presentationDetents([.fraction(0.75)])
+                    .presentationDragIndicator(.visible)
+                }
+            }
 
             // Slide-up EXIF info panel (Photos-style). Positioned in ABSOLUTE
             // screen coordinates (sibling of the chrome ZStack, inside the
@@ -289,7 +303,9 @@ struct PhotoViewer: View {
                     isPresented: showInfo || infoDragOffset != 0,
                     onClose: closeInfo,
                     onSnapBack: snapBackInfo,
-                    onDragChange: infoDragChanged
+                    onDragChange: infoDragChanged,
+                    onOpenInMaps: openInMaps,
+                    onAdjustLocation: { presentAdjustLocation = true }
                 )
                 .frame(width: proxy.size.width, height: panelHeight)
                 .position(
@@ -693,6 +709,18 @@ struct PhotoViewer: View {
         } else {
             toggleChrome()
         }
+    }
+
+    /// map-extras: launch Apple Maps at the photo's coordinates, named after
+    /// its place label when one is known. Handed to the info panel's
+    /// where-card action row.
+    private func openInMaps(_ latitude: Double, _ longitude: Double) {
+        let cityCountry = [currentAsset?.city, currentAsset?.country].compactMap { $0 }.joined(separator: ", ")
+        let item = MKMapItem(
+            placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+        )
+        item.name = infoVM?.placeName ?? (cityCountry.isEmpty ? nil : cityCountry)
+        item.openInMaps()
     }
 
     /// Photos-style LIVE pill over a Live Photo still — tap plays the video
