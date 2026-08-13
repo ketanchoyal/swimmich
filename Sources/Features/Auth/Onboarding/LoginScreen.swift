@@ -47,8 +47,25 @@ struct LoginScreen: View {
                             .pvFieldSurface()
                     }
 
-                    // TODO: $PHASE_OAUTH — SSO / OAuth2 sign-in via ASWebAuthenticationSession.
-                    // Email/password is the only path wired in Phase 0.
+                    // P5 oauth: SSO sign-in via ASWebAuthenticationSession when
+                    // the server advertises OAuth (oauthButtonText non-empty).
+                    if auth.canOAuthLogin {
+                        Button(action: oauthSignIn) {
+                            HStack(spacing: PVSpacing.s8) {
+                                Image(systemName: "person.badge.key.fill")
+                                Text(auth.serverConfig?.oauthButtonText ?? "Sign in with SSO")
+                                    .lineLimit(1)
+                            }
+                            .font(.pvBody.weight(.medium))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.textPrimaryPV)
+                        .background(Color.gray.opacity(0.12), in: RoundedRectangle(cornerRadius: PVRadius.md, style: .continuous))
+                        .disabled(auth.isLoading)
+                    }
+
+                    // TODO: $PHASE_QR — QR scan from the login screen.
                     // Auth errors render inline under the field card (PRD §5.10 Écran 4),
                     // never as a popup.
                     if let err = auth.errorMessage {
@@ -97,6 +114,12 @@ struct LoginScreen: View {
     private func signIn() {
         Task {
             await auth.login(email: email, password: password)
+        }
+    }
+
+    private func oauthSignIn() {
+        Task {
+            await auth.startOAuthFlow()
         }
     }
 }

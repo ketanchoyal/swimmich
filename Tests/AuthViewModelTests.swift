@@ -301,4 +301,123 @@ final class AuthViewModelTests: XCTestCase {
             return XCTFail("Expected reachable, got \(auth.serverStatus)")
         }
     }
+
+    // MARK: - OAuth (P5)
+
+    private func makeOAuthConfig() -> ServerConfigDto {
+        ServerConfigDto(
+            oauthButtonText: "Continue with Immich SSO", loginPageMessage: "", trashDays: 30,
+            userDeleteDelay: 7, isInitialized: true, isOnboarded: true, externalDomain: "",
+            publicUsers: false, mapDarkStyleUrl: "", mapLightStyleUrl: "",
+            maintenanceMode: false, minFaces: 0
+        )
+    }
+
+    private func makeOAuthConfigEmptyText() -> ServerConfigDto {
+        ServerConfigDto(
+            oauthButtonText: "", loginPageMessage: "", trashDays: 30,
+            userDeleteDelay: 7, isInitialized: true, isOnboarded: true, externalDomain: "",
+            publicUsers: false, mapDarkStyleUrl: "", mapLightStyleUrl: "",
+            maintenanceMode: false, minFaces: 0
+        )
+    }
+
+    @MainActor
+    func test_oauth_canOAuthLogin_requiresButtonText() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let auth = AuthViewModel(client: MockImmichClient(), keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverConfig = makeOAuthConfig()
+
+        XCTAssertTrue(auth.canOAuthLogin)
+        auth.serverConfig = makeOAuthConfigEmptyText()
+        XCTAssertFalse(auth.canOAuthLogin)
+        auth.serverConfig = nil
+        XCTAssertFalse(auth.canOAuthLogin)
+    }
+
+    @MainActor
+    func test_oauth_flowExchangesCodeAndAppliesSession() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.oauthCallbackResponse = OAuthCallbackResponseDto(
+            accessToken: "oauth-jwt", isAdmin: true, name: "OAuth Alice",
+            email: "alice@sso.example.com", profileImagePath: "", shouldChangePassword: false
+        )
+        let keychain = MockKeychainStore()
+        let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        auth.serverConfig = makeOAuthConfig()
+        auth.oauthSessionHandler = { url in
+            XCTAssertEqual(url.absoluteString, "https://sso.example.com/authorize")
+            return URL(string: "app.immich://oauth-callback?code=abc")
+        }
+
+        await auth.startOAuthFlow()
+
+        XCTAssertEqual(mock.lastOAuthRedirectURI, AuthViewModel.oauthRedirectURI)
+        XCTAssertEqual(mock.lastOAuthCallbackURL, "app.immich://oauth-callback?code=abc")
+        XCTAssertEqual(mock.lastOAuthCallbackRedirectURI, AuthViewModel.oauthRedirectURI)
+        XCTAssertEqual(keychain.savedToken, "oauth-jwt")
+        XCTAssertTrue(auth.isAuthenticated)
+        XCTAssertTrue(auth.isAdmin)
+        XCTAssertEqual(auth.userName, "OAuth Alice")
+    }
+
+    @MainActor
+    func test_oauth_cancelLeavesStateUntouched() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        let keychain = MockKeychainStore()
+        let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        auth.serverConfig = makeOAuthConfig()
+        auth.oauthSessionHandler = { _ in nil }
+
+        await auth.startOAuthFlow()
+
+        XCTAssertNil(auth.accessToken)
+        XCTAssertNil(keychain.savedToken)
+        XCTAssertNil(auth.errorMessage)
+        XCTAssertEqual(mock.requestCount, 1, "Only the mobile-URL call; no callback exchange")
+    }
+
+    @MainActor
+    func test_oauth_failureSetsError() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.oauthError = APIError.serverError(500, "boom")
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        auth.serverConfig = makeOAuthConfig()
+        auth.oauthSessionHandler = { _ in URL(string: "app.immich://oauth-callback?code=abc") }
+
+        await auth.startOAuthFlow()
+
+        XCTAssertNil(auth.accessToken)
+        XCTAssertEqual(auth.errorMessage?.contains("boom"), true)
+    }
+
+    @MainActor
+    func test_oauth_disabledOnServerIsNoOp() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        auth.oauthSessionHandler = { _ in URL(string: "app.immich://oauth-callback?code=abc") }
+
+        await auth.startOAuthFlow()
+
+        XCTAssertNil(auth.accessToken)
+        XCTAssertEqual(auth.errorMessage, "OAuth is not enabled on this server.")
+        XCTAssertEqual(mock.requestCount, 0)
+    }
 }

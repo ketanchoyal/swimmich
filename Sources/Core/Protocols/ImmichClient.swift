@@ -21,6 +21,8 @@ protocol ImmichClient: AnyObject, Sendable {
     func login(email: String, password: String) async throws -> LoginResponseDto
     func logout() async throws -> LogoutResponseDto
     func validateToken() async throws -> ValidateAccessTokenResponseDto
+    func getOAuthMobileURL(redirectURI: String) async throws -> OAuthMobileResponseDto
+    func exchangeOAuthCode(url: String, redirectURI: String) async throws -> OAuthCallbackResponseDto
 
     // MARK: - Timeline (P0: person/partner/visibility filters)
     /// `GET /api/timeline/buckets` — optional filters; all extra params default nil.

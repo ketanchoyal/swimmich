@@ -77,6 +77,24 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.POST, path: ImmichAPI.auth.path("/validateToken"))
     }
 
+    // MARK: - OAuth (P5 oauth)
+
+    func getOAuthMobileURL(redirectURI: String) async throws -> OAuthMobileResponseDto {
+        try await sendNoAuth(
+            .GET,
+            path: ImmichAPI.oauthMobile.path(""),
+            query: [URLQueryItem(name: "redirectUri", value: redirectURI)]
+        )
+    }
+
+    func exchangeOAuthCode(url: String, redirectURI: String) async throws -> OAuthCallbackResponseDto {
+        try await sendNoAuth(
+            .POST,
+            path: ImmichAPI.oauthCallback.path(""),
+            body: AnyEncodable(OAuthCallbackRequestDto(url: url, redirectUri: redirectURI))
+        )
+    }
+
     // MARK: - Timeline
 
     func getTimeBuckets(

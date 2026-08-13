@@ -26,6 +26,15 @@ final class AuthViewModel: AuthSessionDelegate {
     static let userIdDefaultsKey = "authUserId"
     static let isAdminDefaultsKey = "authIsAdmin"
 
+    /// OAuth callback scheme — must match the `CFBundleURLTypes` entry.
+    static let oauthRedirectURI = "app.immich://oauth-callback"
+
+    /// Injectable browser-session hook. Production default runs an
+    /// `ASWebAuthenticationSession`; tests inject a mock closure.
+    var oauthSessionHandler: (URL) async -> URL? = { url in
+        await OAuthSessionPresenter.present(url)
+    }
+
     // Server connection
     var serverURLString: String = "" {
         didSet { _cachedBaseURL = nil }
@@ -195,22 +204,79 @@ final class AuthViewModel: AuthSessionDelegate {
         errorMessage = nil
         do {
             let response = try await client.login(email: email, password: password)
-            accessToken = response.accessToken
-            userEmail = response.userEmail
-            userName = response.name
-            userId = response.userId
-            isAdmin = response.isAdmin
-            keychain.saveToken(response.accessToken)
-            defaults.set(baseURL?.absoluteString ?? serverURLString, forKey: Self.serverURLDefaultsKey)
-            defaults.set(response.userEmail, forKey: Self.userEmailDefaultsKey)
-            defaults.set(response.name, forKey: Self.userNameDefaultsKey)
-            defaults.set(response.userId, forKey: Self.userIdDefaultsKey)
-            defaults.set(response.isAdmin, forKey: Self.isAdminDefaultsKey)
-            client.configure(baseURL: baseURL, token: response.accessToken)
+            applySession(
+                token: response.accessToken,
+                email: response.userEmail,
+                name: response.name,
+                userId: response.userId,
+                isAdmin: response.isAdmin
+            )
         } catch let e {
             errorMessage = e.localizedDescription
         }
         isLoading = false
+    }
+
+    // MARK: - OAuth (P5)
+
+    /// True when the server exposes OAuth (non-empty `oauthButtonText`).
+    var canOAuthLogin: Bool {
+        guard let text = serverConfig?.oauthButtonText else { return false }
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Mobile OAuth flow (P5): GET the provider URL → browser session →
+    /// exchange the callback code → apply the session like a normal login.
+    /// Cancelling the browser leaves the current state untouched.
+    @MainActor
+    func startOAuthFlow() async {
+        guard let url = baseURL, canOAuthLogin else {
+            errorMessage = "OAuth is not enabled on this server."
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        do {
+            let mobile = try await client.getOAuthMobileURL(redirectURI: Self.oauthRedirectURI)
+            guard let providerURL = URL(string: mobile.url) else {
+                errorMessage = "The server returned an invalid OAuth URL."
+                return
+            }
+            guard let callbackURL = await oauthSessionHandler(providerURL) else {
+                return // User cancelled — keep the current state.
+            }
+            let response = try await client.exchangeOAuthCode(
+                url: callbackURL.absoluteString,
+                redirectURI: Self.oauthRedirectURI
+            )
+            applySession(
+                token: response.accessToken,
+                email: response.email,
+                name: response.name,
+                userId: nil,
+                isAdmin: response.isAdmin
+            )
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+        isLoading = false
+    }
+
+    /// Applies a successful auth response: state + Keychain + UserDefaults +
+    /// client reconfiguration. Shared by password login and OAuth.
+    private func applySession(token: String, email: String?, name: String?, userId: String?, isAdmin: Bool) {
+        accessToken = token
+        userEmail = email
+        userName = name
+        self.userId = userId
+        self.isAdmin = isAdmin
+        keychain.saveToken(token)
+        defaults.set(baseURL?.absoluteString ?? serverURLString, forKey: Self.serverURLDefaultsKey)
+        if let email { defaults.set(email, forKey: Self.userEmailDefaultsKey) }
+        if let name { defaults.set(name, forKey: Self.userNameDefaultsKey) }
+        if let userId { defaults.set(userId, forKey: Self.userIdDefaultsKey) }
+        defaults.set(isAdmin, forKey: Self.isAdminDefaultsKey)
+        client.configure(baseURL: baseURL, token: token)
     }
 
     @MainActor

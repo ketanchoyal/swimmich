@@ -5,6 +5,8 @@ enum ImmichAPI {
     static let apiPath = "/api"
 
     static let auth = SubPath(root: "/auth")
+    static let oauthMobile = SubPath(root: "/auth/oauth/mobile") // P5 oauth
+    static let oauthCallback = SubPath(root: "/auth/oauth/callback") // P5 oauth
     static let server = SubPath(root: "/server")
     static let assets = SubPath(root: "/assets")
     static let timeline = SubPath(root: "/timeline")
