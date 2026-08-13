@@ -10,6 +10,7 @@ struct RootView: View {
     @State private var map: MapViewModel
     @State private var albums: AlbumsViewModel
     @State private var sharedLinks: SharedLinksViewModel
+    @State private var storage: StorageStatsViewModel
     @State private var appLock: AppLockViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
@@ -27,6 +28,7 @@ struct RootView: View {
         _map = State(initialValue: container.makeMapViewModel())
         _albums = State(initialValue: container.makeAlbumsViewModel())
         _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
+        _storage = State(initialValue: container.makeStorageStatsViewModel())
         _appLock = State(initialValue: container.appLock)
     }
 
@@ -87,7 +89,7 @@ struct RootView: View {
                 SharedLinksView(vm: sharedLinks)
             }
             Tab("Me", systemImage: "person.crop.circle", value: RootTab.me) {
-                ProfileView(trash: trash)
+                ProfileView(trash: trash, storage: storage)
             }
             Tab("Search", systemImage: bubbleIcon, value: RootTab.search, role: .search) {
                 SearchView(vm: search, mapVM: map)

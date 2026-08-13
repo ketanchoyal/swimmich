@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// "Moi" tab root (PRD §4).
-///
-/// Phase 0 scaffold: profile identity + relocation hub for the features that
-/// lost their top-level tab in the PRD §4 restructure (Trash, Backup) + logout.
-/// A full profile/settings screen (server, storage, about) is deferred.
+/// Profile identity + relocation hub for the features that lost their top-level
+/// tab in the PRD §4 restructure (Trash, Backup) + logout. Since P1
+/// storage-stats, also shows the server's storage usage + quota.
 struct ProfileView: View {
     @Environment(AuthViewModel.self) private var auth
     @State var trash: TrashViewModel
+    @State var storage: StorageStatsViewModel
 
     var body: some View {
         NavigationStack {
@@ -20,6 +19,8 @@ struct ProfileView: View {
                         Text("Compte")
                     }
                 }
+
+                storageSection
 
                 Section {
                     NavigationLink {
@@ -48,6 +49,39 @@ struct ProfileView: View {
             }
             .navigationTitle("Moi")
             .navigationBarTitleDisplayMode(.inline)
+            .task { await storage.load() }
+            .refreshable { await storage.load() }
+        }
+    }
+
+    /// Server storage usage (P1 storage-stats): photo/video counts, total
+    /// bytes used and, when the server defines a quota, a determinate bar.
+    @ViewBuilder
+    private var storageSection: some View {
+        Section {
+            LabeledContent("Photos", value: storage.photos.formatted())
+            LabeledContent("Vidéos", value: storage.videos.formatted())
+            LabeledContent("Utilisation", value: StorageStatsViewModel.format(storage.usage))
+            if let quota = storage.quotaSizeInBytes, quota > 0 {
+                ProgressView(
+                    value: min(Double(storage.usage) / Double(quota), 1.0)
+                )
+                LabeledContent("Quota", value: StorageStatsViewModel.format(quota))
+            }
+            if storage.isLoading {
+                HStack(spacing: PVSpacing.s8) {
+                    ProgressView()
+                    Text("Chargement…")
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.textSecondaryPV)
+                }
+            } else if let error = storage.errorMessage {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.immichError)
+            }
+        } header: {
+            Text("Stockage")
         }
     }
 }
