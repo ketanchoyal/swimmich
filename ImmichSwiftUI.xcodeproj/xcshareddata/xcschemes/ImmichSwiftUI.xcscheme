@@ -35,6 +35,20 @@
                ReferencedContainer = "container:ImmichSwiftUI.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "739F8A00265AD66EFBB0F27A"
+               BuildableName = "ImmichWidgets.appex"
+               BlueprintName = "ImmichWidgets"
+               ReferencedContainer = "container:ImmichSwiftUI.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
