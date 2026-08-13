@@ -11,15 +11,15 @@ import Foundation
 /// keeps decoding resilient to server-side field additions.
 struct AlbumResponseDto: Codable, Equatable {
     let id: String
-    let albumName: String
-    let description: String
+    var albumName: String
+    var description: String
     let createdAt: String
     let updatedAt: String
     var albumThumbnailAssetId: String?
     let shared: Bool
     let hasSharedLink: Bool
     let assetCount: Int
-    let isActivityEnabled: Bool
+    var isActivityEnabled: Bool
     let order: AssetOrder?
     var albumUsers: [AlbumUserResponseDto] = []
 

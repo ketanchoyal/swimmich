@@ -285,6 +285,40 @@ final class AlbumsTests: XCTestCase {
         XCTAssertNotNil(vm.errorMessage)
     }
 
+    // MARK: - AC-1100 update album details
+
+    func test_updateAlbumDetails_sendsDtoAndUpdatesAlbum() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", name: "Old Name")]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+        XCTAssertEqual(vm.album?.albumName, "Old Name")
+
+        let ok = await vm.updateAlbumDetails(name: "New Name", description: "Trip", isActivityEnabled: true)
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(mock.lastUpdateAlbumId, "alb")
+        XCTAssertEqual(mock.lastUpdateAlbumDto?.albumName, "New Name")
+        XCTAssertEqual(mock.lastUpdateAlbumDto?.description, "Trip")
+        XCTAssertEqual(mock.lastUpdateAlbumDto?.isActivityEnabled, true)
+        XCTAssertEqual(vm.album?.albumName, "New Name", "album replaced with server response")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_updateAlbumDetails_failure_keepsAlbum() async {
+        let mock = MockImmichClient()
+        mock.getAlbumResponse = ["alb": makeAlbum(id: "alb", name: "Old Name")]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.load()
+        mock.updateAlbumError = Boom()
+
+        let ok = await vm.updateAlbumDetails(name: "New Name", description: nil, isActivityEnabled: nil)
+
+        XCTAssertFalse(ok)
+        XCTAssertEqual(vm.album?.albumName, "Old Name", "failed edit must keep the album")
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
     // MARK: - AC-717 AlbumsViewModel.addAssets (V1.5 polish — no searchMetadata round-trip)
 
     func test_AC_717_addAssets_albumsVM_success() async {

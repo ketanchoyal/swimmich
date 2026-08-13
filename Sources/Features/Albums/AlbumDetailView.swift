@@ -24,6 +24,7 @@ struct AlbumDetailView: View {
     @State private var vm: AlbumDetailViewModel
 
     @State private var presentingShare = false
+    @State private var presentingEditAlbum = false
     @State private var shareSheetItem: AlbumShareSheetItem?
     @State private var presentingDeleteConfirm = false
     @State private var pendingRemoveAssetId: String?
@@ -181,6 +182,14 @@ struct AlbumDetailView: View {
                         .tint(Color.primary)
                         Divider()
                         Button {
+                            presentingEditAlbum = true
+                        } label: {
+                            Label("Edit Album", systemImage: "pencil")
+                                .foregroundStyle(Color.primary)
+                        }
+                        .tint(Color.primary)
+                        Divider()
+                        Button {
                             presentingShare = true
                         } label: {
                             Label("Shared Links", systemImage: "square.and.arrow.up")
@@ -245,6 +254,9 @@ struct AlbumDetailView: View {
         .task { await vm.load() }
         .sheet(isPresented: $presentingShare) {
             SharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+        }
+        .sheet(isPresented: $presentingEditAlbum) {
+            EditAlbumSheet(vm: vm)
         }
         .sheet(item: $shareSheetItem, onDismiss: {
             Task { await vm.refreshAlbum() }

@@ -233,6 +233,28 @@ final class AlbumDetailViewModel {
         }
     }
 
+    /// Updates the album's name, description and/or activity toggle
+    /// (AC-1100). Try-then-mutate: `album` is replaced only after the PATCH
+    /// succeeds. Returns success so the sheet can dismiss.
+    @discardableResult
+    func updateAlbumDetails(name: String?, description: String?, isActivityEnabled: Bool?) async -> Bool {
+        do {
+            let updated = try await client.updateAlbum(
+                id: albumId,
+                dto: UpdateAlbumDto(
+                    albumName: name, description: description,
+                    albumThumbnailAssetId: nil, isActivityEnabled: isActivityEnabled, order: nil
+                )
+            )
+            album = updated
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     /// Refetches album metadata only (no spinner): used after the share sheet
     /// mutates `albumUsers` / roles so the detail screen stays in sync.
     func refreshAlbum() async {
