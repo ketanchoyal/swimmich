@@ -14,6 +14,7 @@ struct RootView: View {
     @State private var upload: UploadViewModel
     @State private var people: PeopleViewModel
     @State private var memories: MemoriesViewModel
+    @State private var duplicates: DuplicatesViewModel
     @State private var appLock: AppLockViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
@@ -35,6 +36,7 @@ struct RootView: View {
         _upload = State(initialValue: container.makeUploadViewModel())
         _people = State(initialValue: container.makePeopleViewModel())
         _memories = State(initialValue: container.makeMemoriesViewModel())
+        _duplicates = State(initialValue: container.makeDuplicatesViewModel())
         _appLock = State(initialValue: container.appLock)
     }
 
@@ -132,7 +134,7 @@ struct RootView: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, people: people)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

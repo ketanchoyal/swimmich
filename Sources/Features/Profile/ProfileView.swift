@@ -8,6 +8,7 @@ struct ProfileView: View {
     @State var trash: TrashViewModel
     @State var storage: StorageStatsViewModel
     @State var upload: UploadViewModel
+    @State var duplicates: DuplicatesViewModel
     @State var people: PeopleViewModel
 
     var body: some View {
@@ -35,6 +36,12 @@ struct ProfileView: View {
                         BackupSettingsView(vm: upload)
                     } label: {
                         Label("Sauvegarde", systemImage: "icloud.and.arrow.up")
+                    }
+
+                    NavigationLink {
+                        DuplicatesView(vm: duplicates)
+                    } label: {
+                        Label("Doublons", systemImage: "rectangle.on.rectangle.angled")
                     }
 
                     NavigationLink {
