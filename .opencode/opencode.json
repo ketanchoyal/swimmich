@@ -2,33 +2,38 @@
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",
   "mcp": {
-    "exa": {
-      "type": "remote",
-      "url": "https://mcp.exa.ai/mcp",
-      "enabled": true
-    },
-    "zai-mcp-server": {
-      "type": "local",
-      "command": ["npx","-y","@z_ai/mcp-server"],
-      "environment": {
-        "Z_AI_API_KEY": "07f6f31955c0408c8fb7e3ca844cb2a4.4yklL11vWCfdwUkh",
-        "Z_AI_MODE": "ZAI"
+    "servers": {
+      "exa": {
+        "type": "remote",
+        "url": "https://mcp.exa.ai/mcp",
+        "disabled": false
+      },
+      "zai-mcp-server": {
+        "type": "local",
+        "command": ["npx","-y","@z_ai/mcp-server"],
+        "environment": {
+          "Z_AI_API_KEY": "07f6f31955c0408c8fb7e3ca844cb2a4.4yklL11vWCfdwUkh",
+          "Z_AI_MODE": "ZAI"
+        }
+      },
+      "codebase-memory-mcp": {
+        "type": "local",
+        "command": ["codebase-memory-mcp"],
+        "disabled": false,
+        "timeout": {
+          "catalog": 60000,
+          "execution": 60000
+        }
+      },
+      "xcode": {
+        "type": "local",
+        "command": ["xcrun",  "mcpbridge"],
+        "disabled": false
+      },
+      "sosumi-apple-documentation": {
+        "type": "remote",
+        "url": "https://sosumi.ai/mcp"
       }
-    },
-    "codebase-memory-mcp": {
-      "type": "local",
-      "command": ["codebase-memory-mcp"],
-      "enabled": true,
-      "timeout": 60000
-    },
-    "xcode": {
-      "type": "local",
-      "command": ["xcrun",  "mcpbridge"],
-      "enabled": true
-    },
-    "sosumi-apple-documentation": {
-      "type": "remote",
-      "url": "https://sosumi.ai/mcp"
     }
   }
 }
