@@ -1,3 +1,4 @@
+import BackgroundTasks
 import SwiftUI
 
 @main
@@ -8,8 +9,6 @@ struct ImmichSwiftUIApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(container: container)
-                // AC-105: lock on background, attempt unlock on active.
-                // FM-1 mitigated by AppLockViewModel.isAuthenticating guard.
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background:
@@ -22,6 +21,30 @@ struct ImmichSwiftUIApp: App {
                         break
                     }
                 }
+                .onAppear {
+                    registerBackgroundBackup()
+                }
+        }
+    }
+
+    /// Registers the one-shot background processing task. Launched by the OS
+    /// at its discretion (low priority, network required). Each run resubmits
+    /// so the chain survives as long as backups are enabled.
+    private func registerBackgroundBackup() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: BGTaskBackupScheduler.taskIdentifier,
+            using: nil
+        ) { task in
+            guard let task = task as? BGProcessingTask else { return }
+            let upload = container.makeUploadViewModel()
+            task.expirationHandler = {
+                upload.engine.cancel()
+            }
+            Task {
+                await upload.runBackup()
+                task.setTaskCompleted(success: upload.engine.failedCount == 0)
+                BGTaskBackupScheduler().submit()
+            }
         }
     }
 }

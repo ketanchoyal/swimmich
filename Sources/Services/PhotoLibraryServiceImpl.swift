@@ -107,3 +107,89 @@ final class PhotoLibraryServiceImpl: PhotoLibraryService, @unchecked Sendable {
         return identifier
     }
 }
+
+// MARK: - BackupAssetSource
+
+extension PhotoLibraryServiceImpl: BackupAssetSource {
+    /// User albums (name + count), sorted by localized title. Smart albums
+    /// ("Recents") are excluded — backups target user albums only.
+    func fetchAlbums() -> [BackupAlbum] {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "localizedTitle", ascending: true)]
+        let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: options)
+        var albums: [BackupAlbum] = []
+        albums.reserveCapacity(collections.count)
+        collections.enumerateObjects { collection, _, _ in
+            guard let name = collection.localizedTitle, !name.isEmpty else { return }
+            let assets = PHAsset.fetchAssets(in: collection, options: nil)
+            albums.append(BackupAlbum(id: collection.localIdentifier, name: name, count: assets.count))
+        }
+        return albums
+    }
+
+    /// All library assets (creation date DESC), or the union of the selected
+    /// albums. Assets in multiple albums dedupe by localIdentifier. The
+    /// "Screenshots" album is dropped when the engine requests it.
+    func fetchCandidates(in albumIDs: Set<String>) -> [BackupCandidate] {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+        var samplers: [PHAsset] = []
+        if albumIDs.isEmpty {
+            let result = PHAsset.fetchAssets(with: options)
+            result.enumerateObjects { asset, _, _ in samplers.append(asset) }
+        } else {
+            var seen = Set<ObjectIdentifier>()
+            for albumID in albumIDs {
+                guard let collection = PHAssetCollection.fetchAssetCollections(
+                    withLocalIdentifiers: [albumID], options: nil
+                ).firstObject else { continue }
+                let result = PHAsset.fetchAssets(in: collection, options: options)
+                result.enumerateObjects { asset, _, _ in
+                    if seen.insert(ObjectIdentifier(asset)).inserted { samplers.append(asset) }
+                }
+            }
+        }
+        return samplers.compactMap(makeCandidate)
+    }
+
+    func loadData(for candidate: BackupCandidate) async throws -> Data {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [candidate.id], options: nil).firstObject else {
+            throw APIError.decoding("PHAsset not found for \(candidate.id)")
+        }
+        return try await loadData(for: asset)
+    }
+
+    /// Maps a PHAsset to its value-typed candidate. Local albums are resolved
+    /// per-asset (first album match carries the album name; "Screenshots" is
+    /// the convention the engine filters on).
+    private func makeCandidate(_ asset: PHAsset) -> BackupCandidate? {
+        let kind: BackupAssetKind = asset.mediaType == .video ? .video : .image
+        let timestamps = isoTimestamps(for: asset)
+        let resources = PHAssetResource.assetResources(for: asset)
+        let originalName = resources.first(where: { $0.type == .photo || $0.type == .video })?.originalFilename
+        return BackupCandidate(
+            id: asset.localIdentifier,
+            kind: kind,
+            fileName: originalName ?? (kind == .video ? "Video" : "Photo"),
+            fileCreatedAt: timestamps.createdAt,
+            fileModifiedAt: timestamps.modifiedAt,
+            duration: kind == .video ? Int(max(0, asset.duration)) : nil,
+            isFavorite: asset.isFavorite,
+            albumName: assetAlbumName(asset)
+        )
+    }
+
+    /// First enclosing user album name (used to filter "Screenshots").
+    private func assetAlbumName(_ asset: PHAsset) -> String? {
+        let result = PHAssetCollection.fetchAssetCollectionsContaining(
+            asset, with: .album, options: nil
+        )
+        for i in 0..<result.count {
+            let collection = result.object(at: i)
+            guard let name = collection.localizedTitle, !name.isEmpty else { continue }
+            return name
+        }
+        return nil
+    }
+}
