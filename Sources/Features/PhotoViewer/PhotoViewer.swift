@@ -932,6 +932,7 @@ private struct PhotoShareSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var vm: PhotoShareViewModel?
+    @State private var saveVM: SaveToLibraryViewModel?
     @State private var didCopyLink = false
 
     var body: some View {
@@ -948,9 +949,13 @@ private struct PhotoShareSheet: View {
             let new = PhotoShareViewModel(asset: asset, client: client, baseURL: baseURL)
             vm = new
             await new.load()
+            let saver = SaveToLibraryViewModel(asset: asset, client: client, baseURL: baseURL, token: token)
+            saveVM = saver
         }
         .sensoryFeedback(.success, trigger: vm?.lastCreatedAlbumId)
         .sensoryFeedback(.success, trigger: vm?.lastAddedAlbumId)
+        .sensoryFeedback(.success, trigger: saveVM?.lastSavedIdentifier)
+        .sensoryFeedback(.success, trigger: saveVM?.didPresentDownload)
     }
 
     private var header: some View {
@@ -997,6 +1002,10 @@ private struct PhotoShareSheet: View {
     private func content(_ vm: PhotoShareViewModel) -> some View {
         @Bindable var vm = vm
         List {
+            if let saveVM {
+                SaveSection(saveVM: saveVM)
+            }
+
             Section {
                 TextField("Album name", text: $vm.albumName)
                     .textInputAutocapitalization(.words)
@@ -1128,65 +1137,79 @@ private struct PhotoShareSheet: View {
         } catch {}
 
         let url = asset.thumbnailURL(base: baseURL, size: .fullsize)
-        var request = URLRequest(url: url)
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return }
-            guard !data.isEmpty else { return }
+            let (data, contentType) = try await AssetFileTransfer.fetchData(from: url, token: token, session: .shared)
 
             // The bytes actually being shared win for the extension (preview
             // accuracy); fall back to the original mime, then jpg.
-            let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type")
-            let ext = Self.fileExtension(forMime: contentType ?? originalMime)
-            let base = Self.shareFileBaseName(
+            let ext = AssetFileTransfer.fileExtension(forMime: contentType ?? originalMime)
+            let base = AssetFileTransfer.baseName(
                 originalName: originalName,
                 datePrefix: String(asset.fileCreatedAt.prefix(10))
             )
-            let fileURL = try Self.writeTempFile(data: data, name: "\(base).\(ext)")
+            let fileURL = try AssetFileTransfer.writeTempFile(data: data, name: "\(base).\(ext)")
             ActivityPresenter.present(items: [fileURL]) {
                 // Remove the whole unique temp directory.
                 try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent())
             }
         } catch {}
     }
+}
 
-    /// The shared file's base name (no extension): the server's original file
-    /// name stripped of its extension, else a readable date-based fallback.
-    private static func shareFileBaseName(originalName: String?, datePrefix: String) -> String {
-        if let originalName, !originalName.isEmpty {
-            let base = (originalName as NSString).deletingPathExtension
-            return base.isEmpty ? originalName : base
+// MARK: - Save section
+
+/// "Save to Photos" / "Download original" actions atop the share sheet.
+private struct SaveSection: View {
+    @Bindable var saveVM: SaveToLibraryViewModel
+
+    var body: some View {
+        Section {
+            Button {
+                Task { await saveVM.saveToPhotos() }
+            } label: {
+                HStack(spacing: PVSpacing.s12) {
+                    Label("Save to Photos", systemImage: "photo.badge.plus")
+                    Spacer()
+                    saveIndicator(
+                        isBusy: saveVM.isSaving,
+                        done: saveVM.lastSavedIdentifier != nil
+                    )
+                }
+            }
+            .disabled(saveVM.isSaving)
+
+            Button {
+                Task { await saveVM.downloadOriginal() }
+            } label: {
+                HStack(spacing: PVSpacing.s12) {
+                    Label("Download original", systemImage: "arrow.down.circle")
+                    Spacer()
+                    saveIndicator(
+                        isBusy: saveVM.isDownloading,
+                        done: saveVM.didPresentDownload
+                    )
+                }
+            }
+            .disabled(saveVM.isDownloading)
+
+            if let message = saveVM.errorMessage {
+                Text(message)
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.immichError)
+            }
+        } header: {
+            Text("Save")
         }
-        return "Photo-\(datePrefix)"
     }
 
-    /// Maps a MIME type (or falls back to `jpg`) to a file extension so the
-    /// system resolves the correct UTI for the QuickLook preview.
-    private static func fileExtension(forMime mime: String?) -> String {
-        guard let mime else { return "jpg" }
-        switch mime.lowercased() {
-        case let m where m.contains("png"): return "png"
-        case let m where m.contains("webp"): return "webp"
-        case let m where m.contains("heic"), let m where m.contains("heif"): return "heic"
-        case let m where m.contains("gif"): return "gif"
-        case let m where m.contains("avif"): return "avif"
-        default: return "jpg"
+    @ViewBuilder
+    private func saveIndicator(isBusy: Bool, done: Bool) -> some View {
+        if isBusy {
+            ProgressView()
+        } else if done {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.immichSuccess)
         }
-    }
-
-    /// Writes the image bytes into a UNIQUE temp directory so the shared
-    /// file's basename is the real name — no `immich-share-UUID-` prefix
-    /// pollutes the filename the share sheet displays.
-    private static func writeTempFile(data: Data, name: String) throws -> URL {
-        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("immich-share-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fileURL = dir.appendingPathComponent(name)
-        try data.write(to: fileURL, options: .atomic)
-        return fileURL
     }
 }
 
@@ -1194,7 +1217,7 @@ private struct PhotoShareSheet: View {
 
 /// Presents `UIActivityViewController` from the top-most presented controller.
 @MainActor
-private enum ActivityPresenter {
+enum ActivityPresenter {
     static func present(items: [Any], completion: (() -> Void)? = nil) {
         guard let top = Self.topViewController() else { return }
         let activity = UIActivityViewController(activityItems: items, applicationActivities: nil)

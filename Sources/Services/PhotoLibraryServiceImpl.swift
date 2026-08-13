@@ -65,4 +65,45 @@ final class PhotoLibraryServiceImpl: PhotoLibraryService, @unchecked Sendable {
         let modifiedAt = ISO8601.immichFormatter.string(from: modified)
         return (createdAt, modifiedAt)
     }
+
+    func saveImage(data: Data) async throws -> String {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("immich-save-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fileURL = dir.appendingPathComponent("image.\(Self.imageExtension(for: data))")
+        try data.write(to: fileURL, options: .atomic)
+
+        var identifier: String?
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
+            identifier = request?.placeholderForCreatedAsset?.localIdentifier
+        }
+        guard let identifier else {
+            throw APIError.decoding("Photos save returned no local identifier")
+        }
+        return identifier
+    }
+
+    /// Sniffs the leading bytes for a HEIC/HEIF brand; anything else gets the
+    /// safe `jpg` extension (Photos re-detects the actual content type).
+    private static func imageExtension(for data: Data) -> String {
+        let head = String(data: data.prefix(16), encoding: .ascii) ?? ""
+        if head.contains("ftypheic") || head.contains("ftypheix") || head.contains("ftypmif1") {
+            return "heic"
+        }
+        return "jpg"
+    }
+
+    func saveVideo(at fileURL: URL) async throws -> String {
+        var identifier: String?
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
+            identifier = request?.placeholderForCreatedAsset?.localIdentifier
+        }
+        guard let identifier else {
+            throw APIError.decoding("Photos save returned no local identifier")
+        }
+        return identifier
+    }
 }

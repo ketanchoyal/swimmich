@@ -17,4 +17,12 @@ protocol PhotoLibraryService: AnyObject, Sendable {
 
     /// Creation + modification timestamps formatted as ISO8601 `yyyy-MM-dd'T'HH:mm:ss.SSSZ`.
     func isoTimestamps(for asset: PHAsset) -> (createdAt: String, modifiedAt: String)
+
+    /// Saves image bytes into the user's photo library. Returns the new asset's
+    /// `localIdentifier`.
+    func saveImage(data: Data) async throws -> String
+
+    /// Saves a video (local file) into the user's photo library. Returns the new
+    /// asset's `localIdentifier`.
+    func saveVideo(at fileURL: URL) async throws -> String
 }
