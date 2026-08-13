@@ -75,18 +75,21 @@ final class AuthViewModel: AuthSessionDelegate {
     private let keychain: KeychainStore
     private let defaults: UserDefaults
     private let trustStore: TrustedServerStore
+    private let realtime: RealtimeService
     private var _cachedBaseURL: URL?
 
     init(
         client: any ImmichClient,
         keychain: KeychainStore,
         defaults: UserDefaults = .standard,
-        trustStore: TrustedServerStore = TrustedServerStoreImpl()
+        trustStore: TrustedServerStore = TrustedServerStoreImpl(),
+        realtime: RealtimeService = RealtimeService()
     ) {
         self.client = client
         self.keychain = keychain
         self.defaults = defaults
         self.trustStore = trustStore
+        self.realtime = realtime
         self.serverURLString = defaults.string(forKey: Self.serverURLDefaultsKey) ?? ""
         self.userEmail = defaults.string(forKey: Self.userEmailDefaultsKey)
         self.userName = defaults.string(forKey: Self.userNameDefaultsKey)
@@ -290,6 +293,7 @@ final class AuthViewModel: AuthSessionDelegate {
         if let userId { defaults.set(userId, forKey: Self.userIdDefaultsKey) }
         defaults.set(isAdmin, forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: token)
+        if let baseURL { realtime.connect(baseURL: baseURL, token: token) }
         addCurrentAccountToSaved()
     }
 
@@ -315,6 +319,7 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.removeObject(forKey: Self.userIdDefaultsKey)
         defaults.removeObject(forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: nil)
+        realtime.disconnect()
     }
 
     // MARK: - Multi-server / multi-account (P5)
@@ -393,6 +398,7 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.set(account.userId, forKey: Self.userIdDefaultsKey)
         defaults.set(account.isAdmin, forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: url, token: token)
+        realtime.connect(baseURL: url, token: token)
         do {
             _ = try await client.validateToken()
         } catch APIError.unauthorized {

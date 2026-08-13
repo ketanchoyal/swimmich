@@ -4,6 +4,10 @@ options:
   deploymentTarget:
     iOS: "26.0"
   developmentLanguage: en
+packages:
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    from: 16.1.0
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -36,10 +40,20 @@ targets:
         NSPhotoLibraryUsageDescription: "Immich needs Photos access to upload and back up your library."
         NSPhotoLibraryAddUsageDescription: "Immich needs Photos access to add uploaded assets."
         NSFaceIDUsageDescription: "PhotoVault uses Face ID to unlock the app."
+        NSCameraUsageDescription: "Immich uses the camera to scan server configuration QR codes."
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        BGTaskSchedulerPermittedIdentifiers:
+          - app.immich.background-backup
+        UIBackgroundModes:
+          - processing
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - app.immich
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.millianlmx.immich-ios
@@ -47,6 +61,44 @@ targets:
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: ImmichSharedKit
+        embed: true
+      - target: ImmichWidgets
+        embed: true
+      - package: SocketIO
+        product: SocketIO
+  ImmichSharedKit:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Sources/ImmichSharedKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.millianlmx.immich-ios.sharedkit
+        SKIP_INSTALL: YES
+        GENERATE_INFOPLIST_FILE: YES
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.0"
+        SWIFT_VERSION: "5.9"
+  ImmichWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ImmichWidgets
+    info:
+      path: ImmichWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Immich
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.millianlmx.immich-ios.widgets
+        DEVELOPMENT_TEAM: 2MJF39L8VY
+    dependencies:
+      - target: ImmichSharedKit
+        embed: true
   ImmichSwiftUITests:
     type: bundle.unit-test
     platform: iOS
@@ -63,6 +115,7 @@ schemes:
     build:
       targets:
         ImmichSwiftUI: all
+        ImmichWidgets: all
         ImmichSwiftUITests: [test]
     run:
       config: Debug
