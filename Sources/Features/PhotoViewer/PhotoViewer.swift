@@ -119,6 +119,7 @@ struct PhotoViewer: View {
     var client: any ImmichClient = DependencyContainer.shared.client
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
+    var onArchive: ((AssetReactItem) -> Void)? = nil
     var onRestore: ((AssetReactItem) -> Void)? = nil
     var onDeletePermanent: ((AssetReactItem) -> Void)? = nil
     var onDataChanged: (() -> Void)? = nil
