@@ -8,6 +8,13 @@ private struct AlbumShareSheetItem: Identifiable {
     let vm: AlbumShareViewModel
 }
 
+/// Identifiable wrapper for the Activity sheet — same pattern as the share
+/// sheet so the VM is built on tap, never while the row renders.
+private struct ActivityFeedSheetItem: Identifiable {
+    let id = UUID()
+    let vm: ActivityFeedViewModel
+}
+
 /// Album detail screen (AC-508..AC-513). A Photos-style stretchy parallax hero
 /// (album cover + overlaid title/count) sits above a 3-column photo grid with a
 /// "Photos" section header. Toolbar menu offers share-link management + delete;
@@ -23,6 +30,7 @@ struct AlbumDetailView: View {
     @State private var pendingRemoveSelected = false
     @State private var pendingDeleteSelected = false
     @State private var presentAlbumPicker = false // Add selected assets to another album
+    @State private var activityFeedItem: ActivityFeedSheetItem?
     @State private var lastRemoveTick = 0
     @State private var lastDeleteTick = 0
     @State private var lastFavoriteTick = 0
@@ -179,6 +187,20 @@ struct AlbumDetailView: View {
                                 .foregroundStyle(Color.primary)
                         }
                         .tint(Color.primary)
+                        Button {
+                            activityFeedItem = ActivityFeedSheetItem(
+                                vm: ActivityFeedViewModel(
+                                    client: DependencyContainer.shared.client,
+                                    albumId: vm.albumId,
+                                    currentUserId: auth.userId ?? ""
+                                )
+                            )
+                        } label: {
+                            Label("Activity", systemImage: "bubble.left.and.bubble.right")
+                                .foregroundStyle(Color.primary)
+                        }
+                        .tint(Color.primary)
+                        Divider()
                         // "Shared With" is owner-only: the server puts the
                         // album owner first in `albumUsers`, and only owners
                         // may manage collaborators (403 otherwise).
@@ -228,6 +250,11 @@ struct AlbumDetailView: View {
             Task { await vm.refreshAlbum() }
         }) { item in
             AlbumShareSheet(vm: item.vm)
+        }
+        .sheet(item: $activityFeedItem) { item in
+            ActivityFeedSheet(vm: item.vm)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "Delete this album? The photos themselves are not deleted.",

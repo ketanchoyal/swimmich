@@ -35,4 +35,10 @@ enum LongDateFormatter {
         }
         return longFormatter.string(from: date)
     }
+
+    /// Parses a full ISO timestamp (`"2024-07-29T14:30:00.000Z"`) to a Date;
+    /// nil when malformed. Needed for relative-time rendering (activity feed).
+    static func parse(isoTimestamp: String) -> Date? {
+        ISO8601DateFormatter().date(from: isoTimestamp)
+    }
 }
