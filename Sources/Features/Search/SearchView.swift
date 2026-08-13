@@ -20,6 +20,8 @@ struct SearchView: View {
     @Environment(\.openProfile) private var openProfile
 
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
+    @State private var showSaveSearch = false
+    @State private var saveSearchName = ""
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
@@ -60,6 +62,14 @@ struct SearchView: View {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if vm.viewMode == .results {
                             searchModeMenu
+                            Button {
+                                saveSearchName = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+                                showSaveSearch = true
+                            } label: {
+                                Image(systemName: "bookmark")
+                            }
+                            .disabled(vm.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .accessibilityLabel("Save search")
                         }
                         ProfileAvatarButton { openProfile() }
                     }
@@ -75,6 +85,16 @@ struct SearchView: View {
                         Task { await vm.search() }
                     }
                 )
+                .alert("Save Search", isPresented: $showSaveSearch) {
+                    TextField("Name", text: $saveSearchName)
+                        .textInputAutocapitalization(.words)
+                    Button("Cancel", role: .cancel) {}
+                    Button("Save") {
+                        vm.saveCurrentSearch(name: saveSearchName)
+                    }
+                } message: {
+                    Text("Save the current search for quick access.")
+                }
         }
     }
 
@@ -131,6 +151,24 @@ struct SearchView: View {
     @ViewBuilder
     private var searchSuggestions: some View {
         if vm.query.isEmpty {
+            if !vm.savedSearches.isEmpty {
+                Section("Saved") {
+                    ForEach(vm.savedSearches) { saved in
+                        Button {
+                            Task { await vm.searchSaved(saved) }
+                        } label: {
+                            Label(saved.name, systemImage: "bookmark")
+                        }
+                        .swipeActions {
+                            Button(role: .destructive) {
+                                vm.deleteSavedSearch(id: saved.id)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
             if !vm.recentSearches.isEmpty {
                 Section("Recent") {
                     ForEach(vm.recentSearches, id: \.self) { term in

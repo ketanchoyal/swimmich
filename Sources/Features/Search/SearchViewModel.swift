@@ -69,6 +69,7 @@ final class SearchViewModel {
 
     let client: any ImmichClient
     private let recentsStore: RecentSearchesStore
+    private let savedStore: SavedSearchesStore
 
     // Inputs
     var query: String = ""
@@ -103,6 +104,9 @@ final class SearchViewModel {
     // Recent searches (UX)
     private(set) var recentSearches: [String] = []
 
+    // Saved searches (gap #11, local)
+    private(set) var savedSearches: [SavedSearch] = []
+
     // UI state
     private(set) var isLoading: Bool = false
     var errorMessage: String? = nil
@@ -121,10 +125,12 @@ final class SearchViewModel {
     /// from overwriting the idle state after clear/reset.
     private var searchGeneration = 0
 
-    init(client: any ImmichClient, recents: RecentSearchesStore = RecentSearchesStore()) {
+    init(client: any ImmichClient, recents: RecentSearchesStore = RecentSearchesStore(), saved: SavedSearchesStore = SavedSearchesStore()) {
         self.client = client
         self.recentsStore = recents
+        self.savedStore = saved
         self.recentSearches = recents.load()
+        self.savedSearches = saved.load()
     }
 
     // MARK: - Live search (debounced)
@@ -237,6 +243,33 @@ final class SearchViewModel {
     func searchRecent(_ term: String) async {
         searchTask?.cancel()
         query = term
+        await search()
+    }
+
+    // MARK: - Saved searches (gap #11, local persistence)
+
+    /// Saves the current free-text query under a name. No-op for an empty
+    /// query or duplicate name (updates the existing entry instead).
+    func saveCurrentSearch(name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedQuery.isEmpty else { return }
+        var saved = savedSearches
+        saved.removeAll { $0.name == trimmedName || $0.id == trimmedName }
+        saved.insert(SavedSearch(id: UUID().uuidString, name: trimmedName, query: trimmedQuery), at: 0)
+        savedSearches = saved
+        savedStore.save(saved)
+    }
+
+    func deleteSavedSearch(id: String) {
+        savedSearches.removeAll { $0.id == id }
+        savedStore.save(savedSearches)
+    }
+
+    /// Saved-search tap: write its query into the field, then search.
+    func searchSaved(_ saved: SavedSearch) async {
+        searchTask?.cancel()
+        query = saved.query
         await search()
     }
 
