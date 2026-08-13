@@ -47,6 +47,7 @@ struct AssetThumbnailCell: View {
             .overlay { selectionTint }
             .overlay { favoriteBadge }
             .overlay(alignment: .topLeading) { projectionBadge }
+            .overlay(alignment: .bottomLeading) { livePhotoBadge }
             .overlay(alignment: .bottomTrailing) { videoBadge }
             .overlay(alignment: .bottomTrailing) { checkmark }
             .clipShape(RoundedRectangle(cornerRadius: PVRadius.xs, style: .continuous))
@@ -139,6 +140,19 @@ struct AssetThumbnailCell: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .padding(4)
+        }
+    }
+
+    /// "LIVE" pill for Live Photos — bottom-leading (Photos parity; the video
+    /// badge owns bottom-trailing). Hidden in selection mode with the others.
+    @ViewBuilder
+    private var livePhotoBadge: some View {
+        if asset.livePhotoVideoId != nil && !selectionMode {
+            badge {
+                Text("LIVE")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             .padding(4)
         }
     }

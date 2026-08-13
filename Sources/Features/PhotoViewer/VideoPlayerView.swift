@@ -46,8 +46,15 @@ struct VideoPlayerView: View {
     let asset: AssetReactItem
     let baseURL: URL
     let token: String?
+    /// Playback id override — set for Live Photo pairs, where the playable
+    /// video is a different asset than the still page (`livePhotoVideoId`).
+    /// `nil` plays `asset.id` itself.
+    var assetID: String? = nil
     var controlsVisible: Bool = true
     var onSingleTap: () -> Void = {}
+    /// Fired when playback reaches the end — lets the viewer swap back to
+    /// the Live Photo still (Photos behavior).
+    var onPlaybackEnded: (() -> Void)? = nil
 
     @State private var vm = VideoPlaybackViewModel()
     @State private var playerLayer: AVPlayerLayer?
@@ -79,10 +86,15 @@ struct VideoPlayerView: View {
             if playerLayer == nil {
                 playerLayer = vm.engine.makePlayerLayer()
             }
-            Task { await vm.prepare(asset: asset, baseURL: baseURL, token: token) }
+            Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token) }
         }
         .onDisappear {
             vm.pause()
+        }
+        .onChange(of: vm.status) { _, newStatus in
+            if case .ended = newStatus {
+                onPlaybackEnded?()
+            }
         }
         .onTapGesture(perform: onSingleTap)
         .contentShape(Rectangle())
@@ -189,7 +201,7 @@ struct VideoPlayerView: View {
             }
             Button {
                 vm.reset()
-                Task { await vm.prepare(asset: asset, baseURL: baseURL, token: token) }
+                Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token) }
             } label: {
                 Text("Retry")
                     .font(.pvSubhead.weight(.semibold))

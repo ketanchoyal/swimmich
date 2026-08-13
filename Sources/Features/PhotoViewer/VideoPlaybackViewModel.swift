@@ -42,8 +42,26 @@ final class VideoPlaybackViewModel {
     /// Prepares the video page for `asset` against `baseURL` (HLS playback
     /// URL via `ImmichAssetURL.videoPlayback`) and auto-plays.
     func prepare(asset: AssetReactItem, baseURL: URL, token: String?) async {
-        let url = ImmichAssetURL.videoPlayback(assetId: asset.id, baseURL: baseURL)
-        await prepare(url: url, assetID: asset.id, token: token)
+        await prepare(assetID: asset.id, baseURL: baseURL, token: token)
+    }
+
+    /// Prepares by explicit asset ID — used by the viewer for Live Photo
+    /// video pairs, where the playable pair has a different id than the
+    /// still page (`livePhotoVideoId`).
+    func prepare(assetID: String, baseURL: URL, token: String?) async {
+        let url = ImmichAssetURL.videoPlayback(assetId: assetID, baseURL: baseURL)
+        await prepare(url: url, assetID: assetID, token: token)
+    }
+
+    /// Prepares the video PAIR of a Live Photo still (Photos-style live
+    /// playback). Fails upstream when the still has no pair — the engine is
+    /// never touched.
+    func prepareLivePhoto(asset: AssetReactItem, baseURL: URL, token: String?) async {
+        guard let pairID = asset.livePhotoVideoId, !pairID.isEmpty else {
+            status = .failed("This Live Photo has no video pair.")
+            return
+        }
+        await prepare(assetID: pairID, baseURL: baseURL, token: token)
     }
 
     /// Re-entrant safe core — tests call this directly with a crafted URL.

@@ -133,6 +133,9 @@ struct PhotoViewer: View {
     @State private var infoDragOffset: CGFloat = 0
     @State private var infoVM: AssetDetailViewModel?
     @State private var filmstripPosition = ScrollPosition()
+    /// Asset ids currently showing their Live Photo video pair instead of the
+    /// still — per-page toggle, reset when paging away (Photos behavior).
+    @State private var livePlayingIDs: Set<String> = []
 
     /// Height of the bottom chrome stack — filmstrip (56) + spacing (8) +
     /// bottom bar (68) + safe-area-inset spacing (16) — used to exclude
@@ -221,6 +224,8 @@ struct PhotoViewer: View {
             .onChange(of: selectedIndex) { _, _ in
                 isZoomed = false
                 showChrome = true
+                // Paging away stops any Live Photo pair — back to stills.
+                livePlayingIDs.removeAll()
                 withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
                     dragOffset = .zero
                 }
@@ -300,14 +305,30 @@ struct PhotoViewer: View {
                             controlsVisible: showChrome,
                             onSingleTap: dismissOrToggleChrome
                         )
-                    } else {
-                        ZoomableImageView(
+                    } else if let pairID = asset.livePhotoVideoId, livePlayingIDs.contains(asset.id) {
+                        // Live Photo playing its video pair (Photos-style).
+                        VideoPlayerView(
                             asset: asset,
                             baseURL: baseURL,
                             token: token,
+                            assetID: pairID,
+                            controlsVisible: showChrome,
                             onSingleTap: dismissOrToggleChrome,
-                            onZoomChange: { isZoomed = $0 > 1.01 }
+                            onPlaybackEnded: { livePlayingIDs.remove(asset.id) }
                         )
+                    } else {
+                        ZStack {
+                            ZoomableImageView(
+                                asset: asset,
+                                baseURL: baseURL,
+                                token: token,
+                                onSingleTap: dismissOrToggleChrome,
+                                onZoomChange: { isZoomed = $0 > 1.01 }
+                            )
+                            if asset.livePhotoVideoId != nil {
+                                livePhotoOverlay(asset)
+                            }
+                        }
                     }
                 }
                 .id(asset.id)
@@ -612,6 +633,36 @@ struct PhotoViewer: View {
         } else {
             toggleChrome()
         }
+    }
+
+    /// Photos-style LIVE pill over a Live Photo still — tap plays the video
+    /// pair, tap again swaps back to the still.
+    private func livePhotoOverlay(_ asset: AssetReactItem) -> some View {
+        Button {
+            withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
+                if livePlayingIDs.contains(asset.id) {
+                    livePlayingIDs.remove(asset.id)
+                } else {
+                    livePlayingIDs.insert(asset.id)
+                }
+            }
+        } label: {
+            HStack(spacing: PVSpacing.s4) {
+                Image(systemName: "viewfinder")
+                    .font(.system(size: 10)) // DS-exempt: badge micro-glyph
+                Text("LIVE")
+                    .font(.pvCaption.weight(.bold))
+            }
+            .foregroundStyle(Color.white) // DS-exempt: badge contrast on material
+            .padding(.horizontal, PVSpacing.s12)
+            .padding(.vertical, PVSpacing.s4)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.3), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Play Live Photo")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding(.bottom, PVSpacing.s24)
     }
 
     /// Favorite — uses the surface VM callback when provided, else self-contained.

@@ -173,4 +173,44 @@ final class VideoPlaybackViewModelTests: XCTestCase {
         }
         XCTAssertEqual(message, "stream unavailable")
     }
+
+    // MARK: - Live Photo pair (P1)
+
+    func test_P1_livePhoto_pairUsesPairAssetID() async {
+        let mock = MockVideoPlaybackEngine()
+        let vm = VideoPlaybackViewModel(engine: mock)
+        let still = makeLivePhotoStill(livePair: "vid-42")
+
+        await vm.prepareLivePhoto(asset: still, baseURL: baseURL, token: "tok-lp")
+
+        XCTAssertEqual(vm.preparedAssetID, "vid-42")
+        XCTAssertEqual(mock.preparedURL?.path, "/api/assets/vid-42/video/playback")
+        XCTAssertEqual(mock.preparedToken, "tok-lp")
+        XCTAssertEqual(vm.status, .playing)
+    }
+
+    func test_P1_livePhoto_prepareByID_override() async {
+        let mock = MockVideoPlaybackEngine()
+        let vm = VideoPlaybackViewModel(engine: mock)
+
+        await vm.prepare(assetID: "vid-7", baseURL: baseURL, token: nil)
+
+        XCTAssertEqual(vm.preparedAssetID, "vid-7")
+        XCTAssertEqual(mock.preparedURL?.path, "/api/assets/vid-7/video/playback")
+    }
+
+    func test_P1_livePhoto_missingPair_fails() async {
+        let mock = MockVideoPlaybackEngine()
+        let vm = VideoPlaybackViewModel(engine: mock)
+        let orphan = makeLivePhotoStill(livePair: nil)
+
+        await vm.prepareLivePhoto(asset: orphan, baseURL: baseURL, token: nil)
+
+        guard case .failed(let message) = vm.status else {
+            return XCTFail("expected failed, got \(vm.status)")
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertNil(mock.preparedURL, "engine must not prepare without a pair")
+        XCTAssertEqual(mock.playCount, 0)
+    }
 }
