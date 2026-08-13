@@ -399,4 +399,90 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertNotEqual(original, copy, "Equatable divergence on favorite")
         XCTAssertEqual(copy.hashValue != original.hashValue, true, "Hashable reflects favorite")
     }
+
+    // MARK: - Archive (P1 card 5/8)
+
+    /// Seeds the VM with a single bucket of items for selection tests.
+    @MainActor
+    private func makeLoadedVM(_ mock: MockImmichClient) async -> TimelineViewModel {
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 3)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(
+                ids: ["a1", "a2", "a3"], ratios: [1, 1, 1],
+                thumbhashes: [nil, nil, nil], favorites: [false, false, false]
+            )
+        ]
+        let vm = TimelineViewModel(client: mock)
+        await vm.load()
+        return vm
+    }
+
+    @MainActor
+    func test_archive_selected_bulkVisibilityArchive() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        vm.toggleSelection(id: "a3")
+
+        await vm.archiveSelected()
+
+        XCTAssertEqual(mock.lastBulkUpdateDto?.ids.sorted(), ["a1", "a3"])
+        XCTAssertEqual(mock.lastBulkUpdateDto?.visibility, .archive)
+    }
+
+    @MainActor
+    func test_archive_selected_removesItemsAndExitsSelection() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a2")
+
+        await vm.archiveSelected()
+
+        XCTAssertEqual(vm.items.map(\.id), ["a1", "a3"])
+        XCTAssertEqual(vm.loadedIds, Set(["a1", "a3"]))
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+    }
+
+    @MainActor
+    func test_archive_selected_failureKeepsItems() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        mock.globalError = APIError.serverError(500, "boom")
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+
+        await vm.archiveSelected()
+
+        XCTAssertEqual(vm.items.map(\.id), ["a1", "a2", "a3"], "failure keeps items for retry")
+        XCTAssertTrue(vm.selectionMode, "selection survives failure")
+        XCTAssertEqual(vm.errorMessage, "Server error 500: boom")
+    }
+
+    @MainActor
+    func test_archive_single() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+
+        await vm.archive(id: "a2")
+
+        XCTAssertEqual(mock.lastBulkUpdateDto?.ids, ["a2"])
+        XCTAssertEqual(mock.lastBulkUpdateDto?.visibility, .archive)
+        XCTAssertEqual(vm.items.map(\.id), ["a1", "a3"])
+        XCTAssertEqual(vm.loadedIds, Set(["a1", "a3"]))
+    }
+
+    @MainActor
+    func test_archive_emptySelection_isNoOp() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        vm.enterSelectionMode()
+
+        await vm.archiveSelected()
+
+        XCTAssertNil(mock.lastBulkUpdateDto)
+        XCTAssertEqual(vm.items.count, 3)
+    }
 }

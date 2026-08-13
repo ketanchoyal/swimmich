@@ -21,6 +21,7 @@ struct AssetThumbnailCell: View {
     var onTap: () -> Void = {}
     var onToggleFavorite: () -> Void = {}
     var onDelete: () -> Void = {}
+    var onArchive: (() -> Void)? = nil
     /// Trash-only callbacks. When `onRestore` is set, the context menu switches
     /// to Restore + Delete Permanently (AC-301 / AC-303). Callers that leave
     /// these `nil` keep the existing Favorite + Delete menu (TimelineView).
@@ -86,6 +87,13 @@ struct AssetThumbnailCell: View {
                             asset.isFavorite ? "Unfavorite" : "Favorite",
                             systemImage: asset.isFavorite ? "heart.slash" : "heart"
                         )
+                    }
+                    if let onArchive {
+                        Button {
+                            onArchive()
+                        } label: {
+                            Label("Archive", systemImage: "archivebox")
+                        }
                     }
                     Button(role: .destructive) {
                         onDelete()

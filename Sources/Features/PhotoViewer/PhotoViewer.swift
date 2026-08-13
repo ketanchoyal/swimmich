@@ -164,6 +164,7 @@ struct PhotoViewer: View {
         client: any ImmichClient = DependencyContainer.shared.client,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
+        onArchive: ((AssetReactItem) -> Void)? = nil,
         onRestore: ((AssetReactItem) -> Void)? = nil,
         onDeletePermanent: ((AssetReactItem) -> Void)? = nil,
         onDataChanged: (() -> Void)? = nil
@@ -173,6 +174,7 @@ struct PhotoViewer: View {
         self.client = client
         self.onToggleFavorite = onToggleFavorite
         self.onDelete = onDelete
+        self.onArchive = onArchive
         self.onRestore = onRestore
         self.onDeletePermanent = onDeletePermanent
         self.onDataChanged = onDataChanged
@@ -576,6 +578,20 @@ struct PhotoViewer: View {
 
                 Spacer()
 
+                if !isTrash {
+                    Button {
+                        archive(asset)
+                    } label: {
+                        Image(systemName: "archivebox")
+                            .font(.pvHeadline)
+                            .foregroundStyle(Color.white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Archive")
+                }
+
                 Button(role: .destructive) {
                     if isTrash {
                         deleteIsPermanent = true
@@ -729,6 +745,25 @@ struct PhotoViewer: View {
                     favoriteIDs.insert(asset.id)
                 }
             }
+        }
+    }
+
+    /// Archive — surface VM callback when provided, else self-contained
+    /// (bulk visibility "archive", mirrors the delete self-contained path).
+    /// No confirmation: archiving is reversible.
+    private func archive(_ asset: AssetReactItem) {
+        if let onArchive {
+            onArchive(asset)
+            return
+        }
+        Task {
+            do {
+                try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: [asset.id], visibility: .archive))
+                onDataChanged?()
+            } catch {}
+        }
+        if let index = localAssets.firstIndex(where: { $0.id == asset.id }) {
+            removeAsset(at: index)
         }
     }
 

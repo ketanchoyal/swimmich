@@ -249,6 +249,9 @@ struct TimelineView: View {
             },
             onDelete: { asset in
                 Task { await vm.delete(id: asset.id) }
+            },
+            onArchive: { asset in
+                Task { await vm.archive(id: asset.id) }
             }
         )
     }
@@ -372,6 +375,11 @@ struct TimelineView: View {
             },
             onDelete: {
                 pendingDeleteSingleID = item.id
+            },
+            onArchive: {
+                Task {
+                    await vm.archive(id: item.id)
+                }
             }
         )
         .buttonStyle(.plain)
@@ -453,6 +461,18 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.isEmpty)
                 .accessibilityIdentifier("addToAlbumButton")
+
+                // Archive selected assets — bulk visibility "archive".
+                Button {
+                    Task {
+                        await vm.archiveSelected()
+                    }
+                } label: {
+                    Label("Archive", systemImage: "archivebox")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(vm.selectedIds.isEmpty)
+                .accessibilityIdentifier("archiveButton")
             }
         }
     }

@@ -101,6 +101,31 @@ final class TimelineViewModel {
     /// Pull-to-refresh: exits selection, re-fetches buckets, reloads only the
     /// first bucket. Subsequent buckets come back on scroll (`loadMore`).
     @MainActor
+    func archiveSelected() async {
+        guard !selectedIds.isEmpty else { return }
+        let ids = Array(selectedIds)
+        do {
+            try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: ids, visibility: .archive))
+            items.removeAll { selectedIds.contains($0.id) }
+            loadedIds.subtract(selectedIds)
+            exitSelectionMode()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    @MainActor
+    func archive(id: String) async {
+        do {
+            try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: [id], visibility: .archive))
+            items.removeAll { $0.id == id }
+            loadedIds.remove(id)
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    @MainActor
     func refresh() async {
         exitSelectionMode()
         isLoading = true
