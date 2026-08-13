@@ -473,6 +473,41 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.isEmpty)
                 .accessibilityIdentifier("archiveButton")
+            } else {
+                // AC-1010 — timeline filter menu (All / Favorites / Archived).
+                Menu {
+                    Button {
+                        Task { await vm.setFilter(isFavorite: nil, visibility: nil) }
+                    } label: {
+                        if vm.filterIsFavorite == nil && vm.filterVisibility == nil {
+                            Label("All", systemImage: "checkmark")
+                        } else {
+                            Text("All")
+                        }
+                    }
+                    Button {
+                        Task { await vm.setFilter(isFavorite: true, visibility: nil) }
+                    } label: {
+                        if vm.filterIsFavorite == true {
+                            Label("Favorites", systemImage: "checkmark")
+                        } else {
+                            Text("Favorites")
+                        }
+                    }
+                    Button {
+                        Task { await vm.setFilter(isFavorite: nil, visibility: "archive") }
+                    } label: {
+                        if vm.filterVisibility == "archive" {
+                            Label("Archived", systemImage: "checkmark")
+                        } else {
+                            Text("Archived")
+                        }
+                    }
+                } label: {
+                    Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .accessibilityIdentifier("filterMenu")
             }
         }
     }

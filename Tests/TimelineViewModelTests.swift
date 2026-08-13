@@ -485,4 +485,92 @@ final class TimelineViewModelTests: XCTestCase {
         XCTAssertNil(mock.lastBulkUpdateDto)
         XCTAssertEqual(vm.items.count, 3)
     }
+
+    // MARK: - Filter (P1 card 6/8)
+
+    @MainActor
+    func test_filter_favorite_reloadsWithFavoriteParam() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+
+        await vm.setFilter(isFavorite: true, visibility: nil)
+
+        XCTAssertEqual(mock.lastTimeBucketsIsFavorite, true)
+        XCTAssertNil(mock.lastTimeBucketsVisibility)
+        XCTAssertFalse(mock.lastTimeBucketsIsTrashed ?? false)
+        XCTAssertEqual(vm.items.map(\.id), ["a1", "a2", "a3"], "fresh reload after filter change")
+    }
+
+    @MainActor
+    func test_filter_archive_visibility() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+
+        await vm.setFilter(isFavorite: nil, visibility: "archive")
+
+        XCTAssertNil(mock.lastTimeBucketsIsFavorite)
+        XCTAssertEqual(mock.lastTimeBucketsVisibility, "archive")
+        XCTAssertEqual(mock.lastTimeBucketVisibility, "archive", "bucket load inherits the filter")
+    }
+
+    @MainActor
+    func test_filter_unchanged_isNoOp() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        let calls = mock.requestCount
+
+        await vm.setFilter(isFavorite: nil, visibility: nil)
+
+        XCTAssertEqual(mock.requestCount, calls, "identical filter does not reload")
+        XCTAssertEqual(vm.items.count, 3)
+    }
+
+    @MainActor
+    func test_filter_change_reloadsFreshFromServer() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a1")
+        // Server now only returns a subset for the active filter.
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 1)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(
+                ids: ["a4"], ratios: [1],
+                thumbhashes: [nil], favorites: [true]
+            )
+        ]
+
+        await vm.setFilter(isFavorite: true, visibility: nil)
+
+        XCTAssertEqual(mock.lastTimeBucketsIsFavorite, true)
+        XCTAssertEqual(vm.items.map(\.id), ["a4"], "no stale items leak across filter change")
+        XCTAssertEqual(vm.loadedIds, Set(["a4"]))
+        XCTAssertFalse(vm.selectionMode)
+        XCTAssertTrue(vm.selectedIds.isEmpty)
+    }
+
+    @MainActor
+    func test_filter_failureShowsError() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        mock.globalError = APIError.serverError(500, "boom")
+
+        await vm.setFilter(isFavorite: true, visibility: nil)
+
+        XCTAssertEqual(vm.errorMessage, "Server error 500: boom")
+    }
+
+    @MainActor
+    func test_filter_retryViaRefresh() async {
+        let mock = MockImmichClient()
+        let vm = await makeLoadedVM(mock)
+        mock.globalError = APIError.serverError(500, "boom")
+        await vm.setFilter(isFavorite: true, visibility: nil)
+        mock.globalError = nil
+
+        await vm.refresh()
+
+        XCTAssertEqual(mock.lastTimeBucketsIsFavorite, true, "refresh keeps the committed filter")
+        XCTAssertEqual(vm.items.map(\.id), ["a1", "a2", "a3"])
+    }
 }

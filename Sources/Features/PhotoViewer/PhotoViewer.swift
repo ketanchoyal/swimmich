@@ -39,6 +39,7 @@ struct PhotoViewerPresentation: ViewModifier {
     var client: any ImmichClient = DependencyContainer.shared.client
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
+    var onArchive: ((AssetReactItem) -> Void)? = nil
     var onRestore: ((AssetReactItem) -> Void)? = nil
     var onDeletePermanent: ((AssetReactItem) -> Void)? = nil
     var onDataChanged: (() -> Void)? = nil
@@ -54,6 +55,7 @@ struct PhotoViewerPresentation: ViewModifier {
                     client: client,
                     onToggleFavorite: onToggleFavorite,
                     onDelete: onDelete,
+                    onArchive: onArchive,
                     onRestore: onRestore,
                     onDeletePermanent: onDeletePermanent,
                     onDataChanged: onDataChanged
@@ -78,6 +80,7 @@ extension View {
         client: any ImmichClient = DependencyContainer.shared.client,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
+        onArchive: ((AssetReactItem) -> Void)? = nil,
         onRestore: ((AssetReactItem) -> Void)? = nil,
         onDeletePermanent: ((AssetReactItem) -> Void)? = nil,
         onDataChanged: (() -> Void)? = nil
@@ -90,6 +93,7 @@ extension View {
                 client: client,
                 onToggleFavorite: onToggleFavorite,
                 onDelete: onDelete,
+                onArchive: onArchive,
                 onRestore: onRestore,
                 onDeletePermanent: onDeletePermanent,
                 onDataChanged: onDataChanged
