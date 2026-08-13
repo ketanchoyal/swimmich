@@ -10,6 +10,7 @@ final class DependencyContainer {
     let photos: PhotoLibraryService
     let appLock: AppLockViewModel
     let trustedServers: TrustedServerStore
+    let realtime: RealtimeService
 
     init() {
         self.keychain = KeychainStoreImpl()
@@ -18,10 +19,11 @@ final class DependencyContainer {
         self.client = ImmichAPIClient(trustStore: trustStore)
         self.photos = PhotoLibraryServiceImpl()
         self.appLock = AppLockViewModel()
+        self.realtime = RealtimeService()
     }
 
     func makeAuthViewModel() -> AuthViewModel {
-        AuthViewModel(client: client as any ImmichClient, keychain: keychain)
+        AuthViewModel(client: client as any ImmichClient, keychain: keychain, realtime: realtime)
     }
 
     func makeTimelineViewModel() -> TimelineViewModel {
@@ -62,6 +64,14 @@ final class DependencyContainer {
 
     func makePeopleViewModel() -> PeopleViewModel {
         PeopleViewModel(client: client as any ImmichClient)
+    }
+
+    func makeTagsViewModel() -> TagsViewModel {
+        TagsViewModel(client: client as any ImmichClient)
+    }
+
+    func makeAdminViewModel() -> AdminViewModel {
+        AdminViewModel(client: client as any ImmichClient)
     }
 
     func makeMemoriesViewModel() -> MemoriesViewModel {

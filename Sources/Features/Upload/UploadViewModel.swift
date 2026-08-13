@@ -67,6 +67,7 @@ final class UploadViewModel {
     var settings: BackupSettingsStore
     let scheduler: any BackgroundBackupScheduling
     let activityService: any BackupLiveActivityServicing
+    let notifications: any BackupNotificationServicing
 
     var albums: [BackupAlbum] = []
 
@@ -76,7 +77,8 @@ final class UploadViewModel {
         engine: BackupEngine? = nil,
         settings: BackupSettingsStore? = nil,
         scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
-        activityService: any BackupLiveActivityServicing = LiveActivityBackupService()
+        activityService: any BackupLiveActivityServicing = LiveActivityBackupService(),
+        notifications: any BackupNotificationServicing = BackupNotificationService()
     ) {
         self.client = client
         self.photos = photos
@@ -87,6 +89,7 @@ final class UploadViewModel {
         self.settings = settings ?? BackupSettingsStore()
         self.scheduler = scheduler
         self.activityService = activityService
+        self.notifications = notifications
     }
 
     var running: Bool {
@@ -94,6 +97,7 @@ final class UploadViewModel {
     }
 
     func runBackup() async {
+        notifications.requestAuthorization()
         engine.onProgressUpdate = { [weak self] uploaded, total in
             self?.activityService.update(uploaded: uploaded, total: total)
         }
@@ -102,7 +106,14 @@ final class UploadViewModel {
         engine.onProgressUpdate = nil
         switch engine.phase {
         case .done:
-            activityService.end(uploaded: engine.uploadedCount, total: engine.total, success: engine.failedCount == 0)
+            let success = engine.failedCount == 0
+            activityService.end(uploaded: engine.uploadedCount, total: engine.total, success: success)
+            notifications.notifyBackupComplete(
+                uploaded: engine.uploadedCount,
+                total: engine.total,
+                failed: engine.failedCount,
+                success: success
+            )
             scheduler.submit()
         case .cancelled:
             activityService.end(uploaded: engine.uploadedCount, total: engine.total, success: false)

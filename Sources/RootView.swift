@@ -80,6 +80,8 @@ private struct AuthenticatedRoot: View {
     @State private var people: PeopleViewModel
     @State private var memories: MemoriesViewModel
     @State private var duplicates: DuplicatesViewModel
+    @State private var tags: TagsViewModel
+    @State private var admin: AdminViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var showCreateAlbum = false
@@ -98,6 +100,8 @@ private struct AuthenticatedRoot: View {
         _people = State(initialValue: container.makePeopleViewModel())
         _memories = State(initialValue: container.makeMemoriesViewModel())
         _duplicates = State(initialValue: container.makeDuplicatesViewModel())
+        _tags = State(initialValue: container.makeTagsViewModel())
+        _admin = State(initialValue: container.makeAdminViewModel())
     }
 
     var body: some View {
@@ -121,6 +125,14 @@ private struct AuthenticatedRoot: View {
         .immichBottomBar()
         .environment(\.openProfile) { showProfile = true }
         .environment(albums)
+        .onReceive(NotificationCenter.default.publisher(for: .immichAssetsChanged)) { _ in
+            Task {
+                await timeline.refresh()
+                await albums.refresh()
+                await people.load(force: true)
+                await memories.load()
+            }
+        }
         .onChange(of: selection) { _, newValue in
             if newValue == .search {
                 if lastContentTab == .photos {
@@ -150,7 +162,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, admin: admin)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

@@ -5,11 +5,14 @@ import SwiftUI
 /// storage-stats, also shows the server's storage usage + quota.
 struct ProfileView: View {
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.openURL) private var openURL
     @State var trash: TrashViewModel
     @State var storage: StorageStatsViewModel
     @State var upload: UploadViewModel
     @State var duplicates: DuplicatesViewModel
     @State var people: PeopleViewModel
+    @State var tags: TagsViewModel
+    @State var admin: AdminViewModel
 
     var body: some View {
         NavigationStack {
@@ -19,11 +22,13 @@ struct ProfileView: View {
                         LabeledContent("Name", value: user)
                         LabeledContent("Email", value: email)
                     } header: {
-                        Text("Compte")
+                        Text("Account")
                     }
                 }
 
                 serversSection
+
+                webSection
 
                 storageSection
 
@@ -31,40 +36,58 @@ struct ProfileView: View {
                     NavigationLink {
                         TrashView(vm: trash)
                     } label: {
-                        Label("Corbeille", systemImage: "trash")
+                        Label("Trash", systemImage: "trash")
                     }
 
                     NavigationLink {
                         BackupSettingsView(vm: upload)
                     } label: {
-                        Label("Sauvegarde", systemImage: "icloud.and.arrow.up")
+                        Label("Backup", systemImage: "icloud.and.arrow.up")
                     }
 
                     NavigationLink {
                         DuplicatesView(vm: duplicates)
                     } label: {
-                        Label("Doublons", systemImage: "rectangle.on.rectangle.angled")
+                        Label("Duplicates", systemImage: "rectangle.on.rectangle.angled")
                     }
 
                     NavigationLink {
                         PeopleView(vm: people)
                     } label: {
-                        Label("Personnes", systemImage: "person.2")
+                        Label("People", systemImage: "person.2")
+                    }
+
+                    NavigationLink {
+                        TagsView(vm: tags)
+                    } label: {
+                        Label("Tags", systemImage: "tag")
                     }
                 } header: {
-                    Text("Gestion")
+                    Text("Management")
+                }
+
+                if auth.isAdmin {
+                    Section {
+                        NavigationLink {
+                            AdminView(vm: admin)
+                        } label: {
+                            Label("Administration", systemImage: "gearshape.2")
+                        }
+                    } header: {
+                        Text("Administration")
+                    }
                 }
 
                 Section {
                     Button(role: .destructive) {
                         Task { await auth.logout() }
                     } label: {
-                        Label("Se déconnecter", systemImage: "rectangle.portrait.and.arrow.right")
+                        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                     .disabled(auth.isLoading)
                 }
             }
-            .navigationTitle("Moi")
+            .navigationTitle("Me")
             .navigationBarTitleDisplayMode(.inline)
             .task { await storage.load() }
             .refreshable { await storage.load() }
@@ -100,10 +123,25 @@ struct ProfileView: View {
             Button {
                 auth.addNewServer()
             } label: {
-                Label("Ajouter un compte", systemImage: "plus")
+                Label("Add Account", systemImage: "plus")
             }
         } header: {
-            Text("Serveurs")
+            Text("Servers")
+        }
+    }
+
+    /// Open the Immich web UI of the active server in the browser (gap #9).
+    @ViewBuilder
+    private var webSection: some View {
+        Section {
+            Button {
+                if let url = auth.baseURL { openURL(url) }
+            } label: {
+                Label("Open in Browser", systemImage: "safari")
+            }
+            .disabled(auth.baseURL == nil)
+        } header: {
+            Text("Server")
         }
     }
 
@@ -113,8 +151,8 @@ struct ProfileView: View {
     private var storageSection: some View {
         Section {
             LabeledContent("Photos", value: storage.photos.formatted())
-            LabeledContent("Vidéos", value: storage.videos.formatted())
-            LabeledContent("Utilisation", value: StorageStatsViewModel.format(storage.usage))
+            LabeledContent("Videos", value: storage.videos.formatted())
+            LabeledContent("Usage", value: StorageStatsViewModel.format(storage.usage))
             if let quota = storage.quotaSizeInBytes, quota > 0 {
                 ProgressView(
                     value: min(Double(storage.usage) / Double(quota), 1.0)
@@ -124,7 +162,7 @@ struct ProfileView: View {
             if storage.isLoading {
                 HStack(spacing: PVSpacing.s8) {
                     ProgressView()
-                    Text("Chargement…")
+                    Text("Loading…")
                         .font(.pvCaption)
                         .foregroundStyle(Color.textSecondaryPV)
                 }
@@ -134,7 +172,7 @@ struct ProfileView: View {
                     .foregroundStyle(Color.immichError)
             }
         } header: {
-            Text("Stockage")
+            Text("Storage")
         }
     }
 }

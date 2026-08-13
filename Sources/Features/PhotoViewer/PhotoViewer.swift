@@ -135,11 +135,7 @@ struct PhotoViewer: View {
     @State private var deleteIsPermanent = false
     @State private var presentEdit = false
     @State private var presentShare = false
-    /// Adjust-location sheet (map-extras) — third root-level sheet, same
-    /// proven pattern as edit/share (:266/:271).
-    @State private var presentAdjustLocation = false
     @State private var showInfo = false
-    @State private var infoDragOffset: CGFloat = 0
     @State private var infoVM: AssetDetailViewModel?
     @State private var filmstripPosition = ScrollPosition()
     /// Asset ids currently showing their Live Photo video pair instead of the
@@ -156,11 +152,6 @@ struct PhotoViewer: View {
     /// bottom-chrome drags from the swipe-up reveal. Home indicator comes
     /// on top via `proxy.safeAreaInsets.bottom`.
     static let bottomChromeHeight: CGFloat = 148
-
-    /// Extra travel for the hidden panel so NOTHING pokes above the screen
-    /// edge — covers the panel's top shadow (radius 16 + y-offset 4) plus a
-    /// small margin.
-    static let panelHiddenSlack: CGFloat = 24
 
     @Environment(\.dismiss) private var dismissAction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -194,13 +185,6 @@ struct PhotoViewer: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // Panel geometry uses the PHYSICAL screen height (UIKit), NOT the
-            // proxy size: inside a fullScreenCover the GeometryReader is
-            // inset (~home indicator + Liquid Glass chrome), which made a
-            // proxy-based hidden panel peek above the screen edge.
-            let screenHeight = UIScreen.main.bounds.height
-            let panelHeight = screenHeight * PhotoInfoPanel.heightFactor
-            let panelTopY = screenHeight - panelHeight
             ZStack {
                 Color.black.ignoresSafeArea()
 
@@ -229,10 +213,8 @@ struct PhotoViewer: View {
             .statusBarHidden(true)
             .simultaneousGesture(
                 dismissDrag(
-                    screenHeight: screenHeight,
-                    safeAreaBottom: proxy.safeAreaInsets.bottom,
-                    panelTopY: panelTopY,
-                    panelHeight: panelHeight
+                    screenHeight: UIScreen.main.bounds.height,
+                    safeAreaBottom: proxy.safeAreaInsets.bottom
                 )
             )
             .offset(y: dragOffset.height)
@@ -246,7 +228,7 @@ struct PhotoViewer: View {
                     dragOffset = .zero
                 }
                 // Info stays open while paging — refetch for the new photo.
-                if showInfo || infoDragOffset != 0 {
+                if showInfo {
                     refreshInfo()
                 }
             }
@@ -279,42 +261,22 @@ struct PhotoViewer: View {
                         .presentationDragIndicator(.visible)
                 }
             }
-            .sheet(isPresented: $presentAdjustLocation) {
-                if let asset = currentAsset, let vm = infoVM {
-                    AdjustLocationSheet(asset: asset, vm: vm) { saved in
-                        presentAdjustLocation = false
-                        if saved { refreshInfo() }
-                    }
-                    .presentationDetents([.fraction(0.75)])
+
+            // EXIF info bottom sheet (native Liquid Glass, like tags/faces).
+            .sheet(isPresented: $showInfo) {
+                if let asset = currentAsset {
+                    PhotoInfoPanel(
+                        asset: asset,
+                        client: client,
+                        vm: infoVM,
+                        baseURL: baseURL,
+                        token: token,
+                        onClose: { showInfo = false },
+                        onOpenInMaps: openInMaps
+                    )
+                    .presentationDetents([.fraction(0.7), .large])
                     .presentationDragIndicator(.visible)
                 }
-            }
-
-            // Slide-up EXIF info panel (Photos-style). Positioned in ABSOLUTE
-            // screen coordinates (sibling of the chrome ZStack, inside the
-            // root GeometryReader) — no safe-area involvement, so a hidden
-            // panel (center pushed a full panel height below the screen
-            // bottom) can never show a sliver.
-            if let asset = currentAsset {
-                PhotoInfoPanel(
-                    asset: asset,
-                    client: client,
-                    vm: infoVM,
-                    panelHeight: panelHeight,
-                    isPresented: showInfo || infoDragOffset != 0,
-                    onClose: closeInfo,
-                    onSnapBack: snapBackInfo,
-                    onDragChange: infoDragChanged,
-                    onOpenInMaps: openInMaps,
-                    onAdjustLocation: { presentAdjustLocation = true }
-                )
-                .frame(width: proxy.size.width, height: panelHeight)
-                .position(
-                    x: proxy.size.width / 2,
-                    y: screenHeight - panelHeight / 2
-                        + (showInfo ? 0 : panelHeight + Self.panelHiddenSlack) + infoDragOffset
-                )
-                .allowsHitTesting(showInfo)
             }
 
             // Slideshow overlay — INTERNAL layer, topmost. It covers the pager,
@@ -652,40 +614,19 @@ struct PhotoViewer: View {
 
     // MARK: - Info panel
 
-    /// Opens the EXIF panel — same animated movement as a swipe-up release.
+    /// Opens the EXIF info bottom sheet — refreshes the detail VM then presents.
     private func openInfo() {
         refreshInfo()
-        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
-            showInfo = true
-            infoDragOffset = 0
-        }
+        showInfo = true
     }
 
     private func closeInfo() {
-        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
-            showInfo = false
-            infoDragOffset = 0
-        }
-    }
-
-    /// Cancelled close-drag: animate back to fully open.
-    private func snapBackInfo() {
-        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
-            infoDragOffset = 0
-        }
-    }
-
-    /// The panel's drag handle follows the finger while the panel is open.
-    private func infoDragChanged(_ height: CGFloat) {
-        guard showInfo, height > 0 else { return }
-        infoDragOffset = height
+        showInfo = false
     }
 
     /// (Re)creates the detail VM for the CURRENT asset — refetches the EXIF
-    /// (getAsset + reverse geocode) when the panel opens and when the user
-    /// pages to another photo while it is open. Idempotent per asset: called
-    /// on EVERY frame of the upward drag, so a fresh VM (and a second
-    /// `loadDetail`) is only spawned when the asset actually changed.
+    /// (getAsset + reverse geocode + faces) when the sheet opens and when the
+    /// user pages to another photo while it is open. Idempotent per asset.
     private func refreshInfo() {
         guard let asset = currentAsset else { return }
         if infoVM?.asset.id == asset.id { return }
@@ -855,7 +796,6 @@ struct PhotoViewer: View {
         localAssets.removeAll { $0.id == id }
         favoriteIDs.remove(id)
         showInfo = false
-        infoDragOffset = 0
         if localAssets.isEmpty {
             dismissAction()
         } else {
@@ -868,9 +808,7 @@ struct PhotoViewer: View {
 
     private func dismissDrag(
         screenHeight: CGFloat,
-        safeAreaBottom: CGFloat,
-        panelTopY: CGFloat,
-        panelHeight: CGFloat
+        safeAreaBottom: CGFloat
     ) -> some Gesture {
         DragGesture()
             .onChanged { value in
@@ -878,38 +816,13 @@ struct PhotoViewer: View {
                 let w = value.translation.width
                 let verticalDominant = abs(h) > abs(w) * 1.2
 
-                // Panel open: a downward drag STARTING on the photo (above the
-                // panel) drags it shut; drags on the panel itself belong to its
-                // handle / scroll view and are ignored here.
-                if showInfo {
-                    guard !isZoomed, h > 0, verticalDominant, value.startLocation.y < panelTopY else {
-                        infoDragOffset = 0
-                        return
-                    }
-                    infoDragOffset = h
-                    return
-                }
-
                 guard !isZoomed, verticalDominant else {
                     dragOffset = .zero
-                    infoDragOffset = 0
                     return
                 }
 
-                // Upward (1x): reveal the info panel — the panel follows the
-                // finger; the viewer itself never moves. The detail VM is
-                // created on the FIRST frame of the drag so the EXIF is loaded
-                // (or already cached) by the time the panel settles open. Any
-                // start point on the photo works — only the bottom chrome
-                // (filmstrip + bottom bar) is excluded.
-                if h < 0, value.startLocation.y < maxSwipeUpStartY(screenHeight: screenHeight, safeAreaBottom: safeAreaBottom) {
-                    refreshInfo()
-                    infoDragOffset = h
-                    dragOffset = .zero
-                    return
-                }
-
-                // Downward (1x): slide the whole viewer out (dismiss).
+                // Only a downward drag slides the viewer; upward is a candidate
+                // for the info sheet and never moves the viewer.
                 guard h > 0 else {
                     dragOffset = .zero
                     return
@@ -918,41 +831,37 @@ struct PhotoViewer: View {
             }
             .onEnded { value in
                 let velocity = value.predictedEndTranslation.height - value.translation.height
+                let h = value.translation.height
+                let w = value.translation.width
+                let verticalDominant = abs(h) > abs(w) * 1.2
 
-                if showInfo {
-                    let progress = infoDragOffset / panelHeight
-                    if PhotoViewerSwipeDecision.shouldClose(progress: progress, velocity: velocity) {
-                        closeInfo()
-                    } else {
-                        snapBackInfo()
-                    }
-                    return
-                }
-
-                guard !isZoomed else {
+                guard !isZoomed, verticalDominant else {
                     dragOffset = .zero
                     return
                 }
 
-                // Upward drag → open the panel once past the threshold.
-                if infoDragOffset != 0 {
-                    let progress = infoDragOffset / panelHeight
-                    if PhotoViewerSwipeDecision.shouldOpen(progress: progress, velocity: velocity) {
+                // Upward swipe (1x) → open the info sheet. The bottom chrome
+                // (filmstrip / bottom bar) is excluded from the gesture.
+                if h < 0, value.startLocation.y < maxSwipeUpStartY(screenHeight: screenHeight, safeAreaBottom: safeAreaBottom) {
+                    if PhotoViewerSwipeDecision.shouldOpen(progress: h / 300, velocity: velocity) {
                         openInfo()
-                    } else {
-                        snapBackInfo()
                     }
                     return
                 }
 
-                let progress = dismissProgress
-                if PhotoViewerSwipeDecision.shouldClose(progress: progress, velocity: velocity) {
-                    dismissAction()
-                } else {
-                    withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
-                        dragOffset = .zero
+                // Downward swipe (1x) → dismiss the viewer.
+                if h > 0 {
+                    if PhotoViewerSwipeDecision.shouldClose(progress: dismissProgress, velocity: velocity) {
+                        dismissAction()
+                    } else {
+                        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
+                            dragOffset = .zero
+                        }
                     }
+                    return
                 }
+
+                dragOffset = .zero
             }
     }
 
@@ -1320,8 +1229,8 @@ enum ActivityPresenter {
 #Preview("Photo Viewer") {
     PhotoViewer(
         assets: [
-            AssetReactItem(id: "p1", ownerId: "o", ratio: 0.75, isFavorite: false, visibility: "timeline", isTrashed: false, isImage: true, thumbhash: nil, createdAt: "2024-07-29T10:00:00.000Z", fileCreatedAt: "2024-07-29T10:00:00.000Z", localOffsetHours: 0, duration: nil, livePhotoVideoId: nil, projectionType: nil, city: "Paris", country: "France", latitude: nil, longitude: nil),
-            AssetReactItem(id: "p2", ownerId: "o", ratio: 1.5, isFavorite: true, visibility: "timeline", isTrashed: false, isImage: true, thumbhash: nil, createdAt: "2024-07-30T10:00:00.000Z", fileCreatedAt: "2024-07-30T10:00:00.000Z", localOffsetHours: 0, duration: nil, livePhotoVideoId: nil, projectionType: nil, city: nil, country: "France", latitude: nil, longitude: nil)
+            AssetReactItem(id: "p1", ownerId: "o", ratio: 0.75, isFavorite: false, visibility: "timeline", isTrashed: false, isImage: true, thumbhash: nil, createdAt: "2024-07-29T10:00:00.000Z", fileCreatedAt: "2024-07-29T10:00:00.000Z", localOffsetHours: 0, duration: nil, livePhotoVideoId: nil, projectionType: nil, city: "Paris", country: "France", latitude: nil, longitude: nil, stack: []),
+            AssetReactItem(id: "p2", ownerId: "o", ratio: 1.5, isFavorite: true, visibility: "timeline", isTrashed: false, isImage: true, thumbhash: nil, createdAt: "2024-07-30T10:00:00.000Z", fileCreatedAt: "2024-07-30T10:00:00.000Z", localOffsetHours: 0, duration: nil, livePhotoVideoId: nil, projectionType: nil, city: nil, country: "France", latitude: nil, longitude: nil, stack: [])
         ],
         index: 0,
         baseURL: URL(string: "https://example.com")!,

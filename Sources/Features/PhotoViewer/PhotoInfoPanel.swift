@@ -1,73 +1,72 @@
 import SwiftUI
 import MapKit
 
-/// Slide-up EXIF info panel (Photos-style): drag handle, date/location header,
-/// scrollable EXIF rows + map. Anchored to the viewer's bottom edge at
-/// `heightFactor` of the screen; PhotoViewer owns the slide/close animation
-/// and the per-asset `AssetDetailViewModel` (refetched on page change).
+/// EXIF info bottom sheet (Photos-style, native Liquid Glass). Presented as a
+/// `.sheet` by PhotoViewer. Owns its sub-sheets (adjust location/date, faces,
+/// tags, stack) so they present over this sheet.
 struct PhotoInfoPanel: View {
-    /// Panel height as a fraction of the screen (Photos uses ~70%).
-    static let heightFactor: CGFloat = 0.7
-
     let asset: AssetReactItem
     let client: any ImmichClient
     let vm: AssetDetailViewModel?
-    let panelHeight: CGFloat
-    /// True while the panel is on screen (open or mid-drag) — the top shadow
-    /// is dropped when it rests fully below the screen edge so no artefact
-    /// pokes above it.
-    let isPresented: Bool
+    /// Base server URL + token for face/person thumbnails (gap #5).
+    let baseURL: URL
+    let token: String?
     var onClose: () -> Void = {}
-    var onSnapBack: () -> Void = {}
-    var onDragChange: (CGFloat) -> Void = { _ in }
     /// Open in Apple Maps at the photo's coordinates (map-extras).
-    /// Nil = button hidden (callbacks only wired at the viewer root).
     var onOpenInMaps: ((Double, Double) -> Void)? = nil
-    /// Present the adjust-location sheet (map-extras). Nil = button hidden.
-    var onAdjustLocation: (() -> Void)? = nil
+
+    @State private var presentAdjustLocation = false
+    @State private var presentAdjustDate = false
+    @State private var selectedFace: AssetFaceResponseDto?
+    @State private var presentTags = false
+    @State private var presentStack = false
 
     var body: some View {
         VStack(spacing: PVSpacing.s0) {
-            handle
-                .padding(.top, PVSpacing.s8)
             header
                 .padding(.horizontal, PVSpacing.s16)
                 .padding(.vertical, PVSpacing.s8)
             content
         }
-        .background(.regularMaterial)
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: PVRadius.lg,
-                bottomLeadingRadius: PVRadius.none,
-                bottomTrailingRadius: PVRadius.none,
-                topTrailingRadius: PVRadius.lg,
-                style: .continuous
-            )
-        )
-        .modifier(InfoShadowModifier(isPresented: isPresented))
-    }
-
-    /// Grab handle — dragging it down closes the panel (thresholds shared with
-    /// the viewer's own swipe-down close).
-    private var handle: some View {
-        Capsule()
-            .fill(Color.white.opacity(0.4))
-            .frame(width: 36, height: 5)
-            .gesture(
-                DragGesture()
-                    .onChanged { onDragChange($0.translation.height) }
-                    .onEnded { value in
-                        let progress = value.translation.height / panelHeight
-                        let velocity = value.predictedEndTranslation.height - value.translation.height
-                        if PhotoViewerSwipeDecision.shouldClose(progress: progress, velocity: velocity) {
-                            onClose()
-                        } else {
-                            onSnapBack()
-                        }
-                    }
-            )
-            .accessibilityLabel("Details")
+        .sheet(isPresented: $presentAdjustLocation) {
+            if let vm {
+                AdjustLocationSheet(asset: asset, vm: vm) { _ in
+                    presentAdjustLocation = false
+                }
+                .presentationDetents([.fraction(0.75)])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $presentAdjustDate) {
+            if let vm {
+                AdjustDateSheet(asset: asset, vm: vm) { _ in
+                    presentAdjustDate = false
+                }
+                .presentationDetents([.fraction(0.6)])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(item: $selectedFace) { face in
+            if let vm {
+                FaceAssignSheet(face: face, asset: asset, vm: vm, baseURL: baseURL, token: token) {}
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $presentTags) {
+            AssetTagsSheet(asset: asset, client: client) {
+                Task { await vm?.loadDetail() }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $presentStack) {
+            StackSheet(asset: asset, client: client, baseURL: baseURL, token: token) {
+                Task { await vm?.loadDetail() }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private var header: some View {
@@ -101,13 +100,23 @@ struct PhotoInfoPanel: View {
     private var content: some View {
         if let detail = vm?.detail, let exif = detail.exifInfo {
             ScrollView {
+                facesCard(faces: vm?.faces ?? [])
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.top, PVSpacing.s8)
+                tagsCard(tags: detail.tags)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.top, PVSpacing.s8)
+                stackCard(stack: detail.stack)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.top, PVSpacing.s8)
                 ExifInfoPanel(
                     exif: exif,
                     placeName: placeLabel(exif: exif),
                     fallbackLatitude: asset.latitude,
                     fallbackLongitude: asset.longitude,
                     onOpenInMaps: onOpenInMaps,
-                    onAdjustLocation: onAdjustLocation
+                    onAdjustLocation: { presentAdjustLocation = true },
+                    onAdjustDate: { presentAdjustDate = true }
                 )
                 .padding(.horizontal, PVSpacing.s16)
                 .padding(.bottom, PVSpacing.s24)
@@ -120,6 +129,115 @@ struct PhotoInfoPanel: View {
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Faces card (gap #5): a horizontal row of face thumbnails with the
+    /// person's name (or "Unnamed"). Tap a thumbnail to assign the face.
+    @ViewBuilder
+    private func facesCard(faces: [AssetFaceResponseDto]) -> some View {
+        if !faces.isEmpty {
+            InfoCard {
+                VStack(alignment: .leading, spacing: PVSpacing.s8) {
+                    Label("People", systemImage: "person.2")
+                        .font(.pvCaption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondaryPV)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: PVSpacing.s12) {
+                            ForEach(faces) { face in
+                                Button {
+                                    selectedFace = face
+                                } label: {
+                                    VStack(spacing: PVSpacing.s4) {
+                                        FaceThumbnailView(asset: asset, face: face, baseURL: baseURL, token: token)
+                                            .frame(width: 56, height: 56)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().strokeBorder(Color.separatorPV, lineWidth: 0.5))
+                                        Text(face.person?.name ?? "Unnamed")
+                                            .font(.pvCaption)
+                                            .foregroundStyle(Color.textPrimaryPV)
+                                            .lineLimit(1)
+                                    }
+                                    .frame(width: 68)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(face.person?.name ?? "Unnamed face")
+                            }
+                        }
+                    }
+                }
+                .padding(PVSpacing.s16)
+            }
+        }
+    }
+
+    /// Tags card (gap #2): shows the asset's tags as chips + an "Edit Tags"
+    /// action that opens the tag-assignment sheet.
+    @ViewBuilder
+    private func tagsCard(tags: [TagResponseDto]?) -> some View {
+        InfoCard {
+            VStack(alignment: .leading, spacing: PVSpacing.s8) {
+                if let tags, !tags.isEmpty {
+                    ForEach(tags, id: \.id) { tag in
+                        HStack(spacing: PVSpacing.s8) {
+                            Image(systemName: "tag.fill")
+                                .font(.pvCaption)
+                                .foregroundStyle((tag.color.flatMap { Color(hex: $0) }) ?? Color.immichPrimary)
+                            Text(tag.name)
+                                .font(.pvBody)
+                                .foregroundStyle(Color.textPrimaryPV)
+                        }
+                    }
+                } else {
+                    Text("No tags")
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.textSecondaryPV)
+                }
+                Divider()
+                Button {
+                    presentTags = true
+                } label: {
+                    Label("Edit Tags", systemImage: "tag")
+                        .frame(maxWidth: .infinity)
+                }
+                .font(.pvBody.weight(.medium))
+                .foregroundStyle(Color.textPrimaryPV)
+                .buttonStyle(.plain)
+                .padding(.vertical, PVSpacing.s4)
+            }
+            .padding(PVSpacing.s16)
+        }
+    }
+
+    /// Stack card (gap #1): shown only when the asset belongs to a stack. Lists
+    /// the stack size + a "Manage Stack" action (change primary / unstack).
+    @ViewBuilder
+    private func stackCard(stack: AssetStackResponseDto?) -> some View {
+        if let stack, stack.assetCount > 1 {
+            InfoCard {
+                VStack(alignment: .leading, spacing: PVSpacing.s8) {
+                    HStack(spacing: PVSpacing.s8) {
+                        Image(systemName: "square.stack.3d.up")
+                            .font(.pvBody)
+                            .foregroundStyle(Color.immichPrimary)
+                        Text("\(stack.assetCount) photos in stack")
+                            .font(.pvBody)
+                            .foregroundStyle(Color.textPrimaryPV)
+                    }
+                    Divider()
+                    Button {
+                        presentStack = true
+                    } label: {
+                        Label("Manage Stack", systemImage: "square.stack.3d.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .font(.pvBody.weight(.medium))
+                    .foregroundStyle(Color.textPrimaryPV)
+                    .buttonStyle(.plain)
+                    .padding(.vertical, PVSpacing.s4)
+                }
+                .padding(PVSpacing.s16)
+            }
         }
     }
 
@@ -143,20 +261,6 @@ struct PhotoInfoPanel: View {
     }
 }
 
-/// Applies the top shadow only while the panel is presented — a resting
-/// (fully off-screen) panel must cast nothing above the screen edge.
-private struct InfoShadowModifier: ViewModifier {
-    let isPresented: Bool
-
-    func body(content: Content) -> some View {
-        if isPresented {
-            content.shadow(color: .black.opacity(0.35), radius: 16, y: -4)
-        } else {
-            content
-        }
-    }
-}
-
 /// EXIF info grouped into Photos-style rounded cards. Each card holds an
 /// adaptive icon+value grid (wrap-around automatic; long values truncate
 /// with "…"). Cards with no data are dropped entirely. AC-202: ≥12 rows
@@ -169,12 +273,14 @@ struct ExifInfoPanel: View {
     /// map-extras: wired at the PhotoViewer root; nil hides the action row.
     var onOpenInMaps: ((Double, Double) -> Void)? = nil
     var onAdjustLocation: (() -> Void)? = nil
+    /// gap #3: wired at the PhotoViewer root; nil hides the action row.
+    var onAdjustDate: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: PVSpacing.s12) {
             if !cameraItems.isEmpty { InfoCard { InfoGrid(items: cameraItems) } }
             if !fileItems.isEmpty { InfoCard { InfoGrid(items: fileItems) } }
-            if !whenItems.isEmpty { InfoCard { InfoGrid(items: whenItems) } }
+            whenCard
             whereCard
             descriptionCard
         }
@@ -205,6 +311,42 @@ struct ExifInfoPanel: View {
             ("calendar", exif.dateFormatted),
             ("globe", exif.timeZone),
         ].compactMap { symbol, value in value.map { (symbol, $0) } }
+    }
+
+    /// When card — date/time grid + an "Adjust Date" action row (gap #3) when
+    /// the viewer wired a presenter. Mirrors the where-card's action row.
+    @ViewBuilder
+    private var whenCard: some View {
+        if !whenItems.isEmpty || onAdjustDate != nil {
+            InfoCard {
+                VStack(spacing: 0) {
+                    if !whenItems.isEmpty {
+                        InfoGrid(items: whenItems)
+                    }
+                    if let onAdjustDate {
+                        if !whenItems.isEmpty {
+                            InfoCardDivider()
+                        }
+                        HStack(spacing: PVSpacing.s8) {
+                            Button {
+                                onAdjustDate()
+                            } label: {
+                                Label("Adjust Date", systemImage: "calendar.badge.clock")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .accessibilityLabel("Adjust Date")
+                        }
+                        .font(.pvBody.weight(.medium))
+                        .foregroundStyle(Color.textPrimaryPV)
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, PVSpacing.s16)
+                        .padding(.vertical, PVSpacing.s12)
+                        .background(RoundedRectangle(cornerRadius: PVRadius.md, style: .continuous).fill(Color.gray.opacity(0.12)))
+                        .padding(PVSpacing.s12)
+                    }
+                }
+            }
+        }
     }
 
     private var whereItems: [(symbol: String, value: String)] {
