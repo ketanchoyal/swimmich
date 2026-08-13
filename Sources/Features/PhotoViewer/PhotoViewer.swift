@@ -136,6 +136,11 @@ struct PhotoViewer: View {
     /// Asset ids currently showing their Live Photo video pair instead of the
     /// still — per-page toggle, reset when paging away (Photos behavior).
     @State private var livePlayingIDs: Set<String> = []
+    /// Internal slideshow overlay (never a new presentation layer — cover-
+    /// inside-cover is a teardown crash, memory 2026-08-05). VM is created on
+    /// demand from the top-bar button so the slideshow always starts on the
+    /// photo that is on screen.
+    @State private var slideshowVM: SlideshowViewModel?
 
     /// Height of the bottom chrome stack — filmstrip (56) + spacing (8) +
     /// bottom bar (68) + safe-area-inset spacing (16) — used to exclude
@@ -288,6 +293,19 @@ struct PhotoViewer: View {
                 )
                 .allowsHitTesting(showInfo)
             }
+
+            // Slideshow overlay — INTERNAL layer, topmost. It covers the pager,
+            // the chrome and the info panel; no new presentation (cover-inside-
+            // cover crash lesson 2026-08-05).
+            if let vm = slideshowVM {
+                SlideshowView(
+                    vm: vm,
+                    baseURL: baseURL,
+                    token: token,
+                    onClose: { slideshowVM = nil }
+                )
+                .zIndex(10)
+            }
         }
     }
 
@@ -386,6 +404,19 @@ struct PhotoViewer: View {
                 .glassEffect(.regular, in: Capsule())
 
                 Spacer()
+
+                Button {
+                    presentSlideshow()
+                } label: {
+                    Image(systemName: "play.circle")
+                        .font(.pvHeadline)
+                        .foregroundStyle(Color.white)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Slideshow")
+                .disabled(localAssets.count < 2)
 
                 Button {
                     openInfo()
@@ -572,6 +603,15 @@ struct PhotoViewer: View {
     /// that surface swaps favorite/edit for restore and soft-delete for
     /// delete-permanently (no share).
     private var isTrash: Bool { onRestore != nil }
+
+    /// Starts the slideshow on the currently visible photo. The VM is created
+    /// here (top bar button), never stored while inactive — closing the
+    /// overlay nils it out, so the next start begins fresh.
+    private func presentSlideshow() {
+        let vm = SlideshowViewModel(assets: localAssets, startIndex: selectedIndex)
+        vm.start()
+        slideshowVM = vm
+    }
 
     // MARK: - Info panel
 
