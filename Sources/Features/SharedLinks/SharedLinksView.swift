@@ -13,6 +13,7 @@ struct SharedLinksView: View {
     @State private var showRevokeConfirm = false
     @State private var partnerPendingRemovalId: String?
     @State private var showPartnerRemoveConfirm = false
+    @State private var editLinkItem: EditLinkItem?
 
     init(vm: SharedLinksViewModel) {
         _vm = State(initialValue: vm)
@@ -68,6 +69,12 @@ struct SharedLinksView: View {
             }
             .sheet(isPresented: $presentingCreate) {
                 CreateSharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+            }
+            .sheet(item: $editLinkItem) { item in
+                EditSharedLinkSheet(link: item.link) { dto in
+                    await vm.updateLink(id: item.link.id, dto: dto)
+                }
+                .presentationDetents([.medium, .large])
             }
             .alert("Revoke this shared link?", isPresented: $showRevokeConfirm) {
                 Button("Revoke", role: .destructive) {
@@ -155,6 +162,19 @@ struct SharedLinksView: View {
                     isPendingRevoke: pendingRevokeId == link.id,
                     onRevoke: { pendingRevokeId = link.id }
                 )
+                .contextMenu {
+                    Button {
+                        editLinkItem = EditLinkItem(link: link)
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        pendingRevokeId = link.id
+                        showRevokeConfirm = true
+                    } label: {
+                        Label("Revoke", systemImage: "trash")
+                    }
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button("Revoke", systemImage: "trash", role: .destructive) {
                         withAnimation(PVMotion.snappy) {
@@ -176,6 +196,14 @@ struct SharedLinksView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
     }
+}
+
+/// Identifiable wrapper for the edit sheet — `SharedLinkResponseDto` is not
+/// `Identifiable`, and `.sheet(item:)` requires one. Shared by both edit
+/// surfaces (Shared tab + album sheet).
+struct EditLinkItem: Identifiable {
+    let id = UUID()
+    let link: SharedLinkResponseDto
 }
 
 // MARK: - Row

@@ -248,6 +248,43 @@ final class AlbumsTests: XCTestCase {
         XCTAssertFalse(vm.sharedLinks.contains { $0.id == "link-1" })
     }
 
+    // MARK: - AC-1091 update shared link
+
+    func test_updateSharedLink_sendsDtoAndReplacesRow() async {
+        let mock = MockImmichClient()
+        mock.sharedLinksResponse = [makeSharedLink(id: "link-1")]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.loadSharedLinks()
+
+        let updated = makeSharedLink(id: "link-1", password: "x")
+        mock.updateSharedLinkResponse = updated
+        let dto = SharedLinkEditDto(
+            password: "x", expiresAt: nil, allowUpload: true,
+            allowDownload: true, showMetadata: false, description: "Edited"
+        )
+        let ok = await vm.updateSharedLink(id: "link-1", dto: dto)
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(mock.lastUpdateSharedLinkId, "link-1")
+        XCTAssertEqual(mock.lastUpdateSharedLinkDto, dto)
+        XCTAssertEqual(vm.sharedLinks[0].password, "x", "row replaced with server response")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_updateSharedLink_failure_keepsRow() async {
+        let mock = MockImmichClient()
+        mock.sharedLinksResponse = [makeSharedLink(id: "link-1")]
+        let vm = AlbumDetailViewModel(client: mock, albumId: "alb")
+        await vm.loadSharedLinks()
+        mock.sharedLinksError = Boom()
+
+        let ok = await vm.updateSharedLink(id: "link-1", dto: SharedLinkEditDto())
+
+        XCTAssertFalse(ok)
+        XCTAssertEqual(vm.sharedLinks.count, 1, "failed edit must keep the row")
+        XCTAssertNotNil(vm.errorMessage)
+    }
+
     // MARK: - AC-717 AlbumsViewModel.addAssets (V1.5 polish — no searchMetadata round-trip)
 
     func test_AC_717_addAssets_albumsVM_success() async {

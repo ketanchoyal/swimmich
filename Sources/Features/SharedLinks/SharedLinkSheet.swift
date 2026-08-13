@@ -16,6 +16,7 @@ struct SharedLinkSheet: View {
     @State private var password = ""
     @State private var pendingRevokeId: String?
     @State private var showRevokeConfirm = false
+    @State private var editLinkItem: EditLinkItem?
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,12 @@ struct SharedLinkSheet: View {
                 }
             }
             .task { await vm.loadSharedLinks() }
+            .sheet(item: $editLinkItem) { item in
+                EditSharedLinkSheet(link: item.link) { dto in
+                    await vm.updateSharedLink(id: item.link.id, dto: dto)
+                }
+                .presentationDetents([.medium, .large])
+            }
             .alert("Revoke this shared link?", isPresented: $showRevokeConfirm) {
                 Button("Revoke", role: .destructive) {
                     if let id = pendingRevokeId {
@@ -122,6 +129,19 @@ struct SharedLinkSheet: View {
                     onRevoke: { pendingRevokeId = link.id },
                     cardBackground: Color(uiColor: .systemBackground)
                 )
+                .contextMenu {
+                    Button {
+                        editLinkItem = EditLinkItem(link: link)
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        pendingRevokeId = link.id
+                        showRevokeConfirm = true
+                    } label: {
+                        Label("Revoke", systemImage: "trash")
+                    }
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button("Revoke", systemImage: "trash", role: .destructive) {
                         withAnimation(PVMotion.snappy) {

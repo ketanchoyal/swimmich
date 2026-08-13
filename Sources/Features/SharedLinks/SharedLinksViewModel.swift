@@ -99,6 +99,25 @@ final class SharedLinksViewModel {
         }
     }
 
+    // MARK: - Edit (AC-1090)
+
+    /// Updates an existing shared link (description, password, expiry,
+    /// permissions). Try-then-mutate: the row is replaced only on success.
+    @discardableResult
+    func updateLink(id: String, dto: SharedLinkEditDto) async -> Bool {
+        do {
+            let updated = try await client.updateSharedLink(id: id, dto: dto)
+            if let idx = sharedLinks.firstIndex(where: { $0.id == id }) {
+                sharedLinks[idx] = updated
+            }
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     // MARK: - Create (album-typed)
 
     /// Creates a new album shared link. The caller provides an `albumId` (from

@@ -295,4 +295,21 @@ final class AlbumDetailViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    /// Updates an existing shared link (description, password, expiry,
+    /// permissions). Try-then-mutate: the row is replaced only on success.
+    @discardableResult
+    func updateSharedLink(id: String, dto: SharedLinkEditDto) async -> Bool {
+        do {
+            let updated = try await client.updateSharedLink(id: id, dto: dto)
+            if let idx = sharedLinks.firstIndex(where: { $0.id == id }) {
+                sharedLinks[idx] = updated
+            }
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
 }
