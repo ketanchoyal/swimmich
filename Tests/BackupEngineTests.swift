@@ -358,3 +358,22 @@ final class BackupSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.selectedAlbumIDs.isEmpty)
         UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
     }
+
+    @MainActor
+    func test_viewModel_runBackupSubmitsSchedulerOnDone() async {
+        let mockClient = MockImmichClient()
+        let photos = MockPhotoLibraryService()
+        let scheduler = MockBackupScheduler()
+        let engine = BackupEngine(client: mockClient, source: MockBackupAssetSource(), environment: MockBackupEnvironment())
+        let settings = BackupSettingsStore(suiteName: "backup-vm-test-\(UUID().uuidString)")
+        settings.isEnabled = true
+        let activity = MockBackupLiveActivityService()
+        let vm = UploadViewModel(client: mockClient, photos: photos, engine: engine, settings: settings, scheduler: scheduler, activityService: activity)
+
+        await vm.runBackup()
+
+        XCTAssertEqual(engine.phase, .done)
+        XCTAssertEqual(scheduler.submitCount, 1)
+        UserDefaults(suiteName: "backup-vm-test-\(UUID().uuidString)")?.removePersistentDomain(forName: "backup-vm-test-\(UUID().uuidString)")
+    }
+}

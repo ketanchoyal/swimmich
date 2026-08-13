@@ -66,6 +66,7 @@ final class UploadViewModel {
     let engine: BackupEngine
     var settings: BackupSettingsStore
     let scheduler: any BackgroundBackupScheduling
+    let activityService: any BackupLiveActivityServicing
 
     var albums: [BackupAlbum] = []
 
@@ -74,7 +75,8 @@ final class UploadViewModel {
         photos: any PhotoLibraryService,
         engine: BackupEngine? = nil,
         settings: BackupSettingsStore? = nil,
-        scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler()
+        scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
+        activityService: any BackupLiveActivityServicing = LiveActivityBackupService()
     ) {
         self.client = client
         self.photos = photos
@@ -84,6 +86,7 @@ final class UploadViewModel {
         )
         self.settings = settings ?? BackupSettingsStore()
         self.scheduler = scheduler
+        self.activityService = activityService
     }
 
     var running: Bool {
@@ -91,9 +94,20 @@ final class UploadViewModel {
     }
 
     func runBackup() async {
+        engine.onProgressUpdate = { [weak self] uploaded, total in
+            self?.activityService.update(uploaded: uploaded, total: total)
+        }
+        activityService.start(uploaded: 0, total: 0)
         await engine.run(settings: settings.snapshot())
-        if engine.phase == .done {
+        engine.onProgressUpdate = nil
+        switch engine.phase {
+        case .done:
+            activityService.end(uploaded: engine.uploadedCount, total: engine.total, success: engine.failedCount == 0)
             scheduler.submit()
+        case .cancelled:
+            activityService.end(uploaded: engine.uploadedCount, total: engine.total, success: false)
+        default:
+            break
         }
     }
 
