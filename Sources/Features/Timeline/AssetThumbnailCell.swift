@@ -47,7 +47,7 @@ struct AssetThumbnailCell: View {
             }
             .overlay { selectionTint }
             .overlay { favoriteBadge }
-            .overlay(alignment: .topLeading) { projectionBadge }
+            .overlay(alignment: .topLeading) { topLeadingBadges }
             .overlay(alignment: .bottomLeading) { livePhotoBadge }
             .overlay(alignment: .bottomTrailing) { videoBadge }
             .overlay(alignment: .bottomTrailing) { checkmark }
@@ -121,16 +121,23 @@ struct AssetThumbnailCell: View {
         }
     }
 
-    /// 360° pill for equirectangular projections — top-leading.
+    /// 360° pill + stack badge — top-leading, stacked vertically when both
+    /// apply (rare). The stack badge marks assets that belong to a stack
+    /// (gap #1, Photos parity).
     @ViewBuilder
-    private var projectionBadge: some View {
-        if asset.projectionType == "equirectangular" {
-            badge {
-                Text("360°")
+    private var topLeadingBadges: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if asset.projectionType == "equirectangular" {
+                badge { Text("360°") }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(4)
+            if asset.isStacked {
+                badge {
+                    Image(systemName: "square.stack.fill")
+                }
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(4)
     }
 
     /// Video play + duration — bottom-trailing. Hidden in selection mode:

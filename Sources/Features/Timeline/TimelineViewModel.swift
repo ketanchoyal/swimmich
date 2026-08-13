@@ -291,4 +291,22 @@ final class TimelineViewModel {
             errorMessage = e.localizedDescription
         }
     }
+
+    // MARK: - Stack (gap #1)
+
+    /// Stacks the selected assets (first selected becomes primary, min 2).
+    /// On success exits selection mode and refreshes so the new stack badges
+    /// appear. Same try-then-mutate discipline as the other batch actions.
+    @MainActor
+    func stackSelected() async {
+        guard selectedIds.count >= 2 else { return }
+        let ids = Array(selectedIds)
+        do {
+            _ = try await client.createStack(assetIds: ids)
+            exitSelectionMode()
+            await refresh()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
 }

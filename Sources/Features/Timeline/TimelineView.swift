@@ -479,6 +479,18 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.isEmpty)
                 .accessibilityIdentifier("archiveButton")
+
+                // Stack selected assets (gap #1) — 2+ required.
+                Button {
+                    Task {
+                        await vm.stackSelected()
+                    }
+                } label: {
+                    Label("Stack", systemImage: "square.stack.3d.up")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(vm.selectedIds.count < 2)
+                .accessibilityIdentifier("stackButton")
             } else {
                 // AC-1010 — timeline filter menu (All / Favorites / Archived).
                 Menu {
