@@ -5,11 +5,14 @@ import SwiftUI
 /// cover is a known teardown crash, memory 2026-08-05).
 ///
 /// The ticking loop lives HERE (view-owned), not in the VM: a `.task(id:)`
-/// loop re-arms whenever speed or play state changes and calls `vm.advance()`
-/// only when `vm.isPlaying && !vm.isVideoActive`, so the VM stays a pure,
-/// unit-testable state machine. Videos play inline via the existing
-/// `VideoPlayerView`; the ticker suspends during playback and resumes when
-/// the video ends.
+/// loop re-arms whenever speed/play/video-active state changes and calls
+/// `vm.advance()` only when `vm.isPlaying && !vm.isVideoActive`, so the VM
+/// stays a pure, unit-testable state machine. Videos and Live Photos play
+/// inline via the existing `VideoPlayerView`; the ticker suspends during
+/// playback and resumes the instant the video ends or fails.
+///
+/// Chrome is Liquid Glass, auto-hides after a few seconds while playing, and
+/// reappears on tap (single tap toggles it).
 struct SlideshowView: View {
     let vm: SlideshowViewModel
     let baseURL: URL
@@ -17,63 +20,157 @@ struct SlideshowView: View {
     var onClose: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @State private var showControls = true
+    @State private var directionForward = true
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black
+                .ignoresSafeArea()
+                .onTapGesture(perform: toggleControls)
 
             if let asset = vm.currentAsset {
-                Group {
-                    if asset.isVideo {
-                        VideoPlayerView(
-                            asset: asset,
-                            baseURL: baseURL,
-                            token: token,
-                            controlsVisible: false,
-                            onPlaybackEnded: { vm.videoEnded() }
-                        )
-                    } else {
-                        ZoomableImageView(
-                            asset: asset,
-                            baseURL: baseURL,
-                            token: token,
-                            onSingleTap: {}
-                        )
-                    }
-                }
-                .transition(.opacity)
-                .id(asset.id)
-                .animation(
-                    PVMotion.adaptive(.easeInOut(duration: 0.4), reduceMotion: reduceMotion),
-                    value: vm.currentIndex
-                )
+                slideContent(asset)
+                    .ignoresSafeArea()
+                    .transition(slideTransition)
+                    .id(asset.id)
+                    .animation(transitionAnimation, value: vm.currentIndex)
             }
         }
-        .ignoresSafeArea()
+        .overlay(alignment: .top) {
+            if showControls { topBar }
+        }
+        .overlay(alignment: .bottom) {
+            if showControls { chromeFooter }
+        }
         .statusBarHidden(true)
-        .overlay(alignment: .top) { topBar }
-        .overlay(alignment: .bottom) { bottomBar }
-        .task(id: tickerKey) {
-            guard vm.isPlaying else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(vm.speed.rawValue))
-                guard vm.isPlaying, !vm.isVideoActive else { continue }
-                vm.advance()
-            }
+        .task(id: tickerKey) { await runTicker() }
+        .task(id: autoHideKey) { await autoHideControls() }
+        .onAppear {
+            vm.slideChanged()
+            vm.start()
         }
-        .onAppear { vm.slideChanged(); vm.start() }
-        .onChange(of: vm.currentIndex) { _, _ in
+        .onChange(of: vm.currentIndex) { old, new in
+            directionForward = SlideshowDirection.isForward(from: old, to: new, count: vm.count)
             vm.slideChanged()
         }
     }
 
-    /// Restarts the ticking loop whenever speed or play state changes.
-    private var tickerKey: String { "\(vm.speed.rawValue)-\(vm.isPlaying)" }
+    // MARK: - Slide content
+
+    @ViewBuilder
+    private func slideContent(_ asset: AssetReactItem) -> some View {
+        if asset.isVideo {
+            VideoPlayerView(
+                asset: asset,
+                baseURL: baseURL,
+                token: token,
+                controlsVisible: false,
+                onSingleTap: toggleControls,
+                isPaused: !vm.isPlaying,
+                onStatusChange: handleStatusChange
+            )
+        } else if let pairID = asset.livePhotoVideoId, !pairID.isEmpty {
+            VideoPlayerView(
+                asset: asset,
+                baseURL: baseURL,
+                token: token,
+                assetID: pairID,
+                controlsVisible: false,
+                onSingleTap: toggleControls,
+                isPaused: !vm.isPlaying,
+                onStatusChange: handleStatusChange
+            )
+        } else if vm.transition == .kenBurns {
+            KenBurnsImageView(
+                asset: asset,
+                baseURL: baseURL,
+                token: token,
+                onSingleTap: toggleControls
+            )
+        } else {
+            ZoomableImageView(
+                asset: asset,
+                baseURL: baseURL,
+                token: token,
+                onSingleTap: toggleControls
+            )
+        }
+    }
+
+    private func handleStatusChange(_ status: VideoPlaybackStatus) {
+        switch status {
+        case .ended, .failed:
+            vm.videoEnded()
+        default:
+            break
+        }
+    }
+
+    // MARK: - Ticker (view-owned)
+
+    private var tickerKey: String { "\(vm.speed.rawValue)-\(vm.isPlaying)-\(vm.isVideoActive)" }
+
+    private func runTicker() async {
+        guard vm.isPlaying, !vm.isVideoActive else { return }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(vm.speed.rawValue))
+            guard vm.isPlaying, !vm.isVideoActive else { return }
+            vm.advance()
+        }
+    }
+
+    // MARK: - Auto-hide chrome
+
+    private var autoHideKey: String { "\(showControls)-\(vm.isPlaying)-\(vm.isVideoActive)" }
+
+    private func autoHideControls() async {
+        guard vm.isPlaying, showControls else { return }
+        try? await Task.sleep(for: .seconds(3))
+        guard !Task.isCancelled, vm.isPlaying else { return }
+        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
+            showControls = false
+        }
+    }
+
+    private func toggleControls() {
+        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
+            showControls.toggle()
+        }
+    }
+
+    // MARK: - Transition
+
+    private var slideTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        switch vm.transition {
+        case .dissolve, .kenBurns:
+            return .opacity
+        case .slide:
+            let insertEdge: Edge = directionForward ? .trailing : .leading
+            let removeEdge: Edge = directionForward ? .leading : .trailing
+            return .asymmetric(
+                insertion: .move(edge: insertEdge).combined(with: .opacity),
+                removal: .move(edge: removeEdge).combined(with: .opacity)
+            )
+        }
+    }
+
+    private var transitionAnimation: Animation {
+        switch vm.transition {
+        case .dissolve, .kenBurns:
+            return PVMotion.adaptive(.easeInOut(duration: 0.4), reduceMotion: reduceMotion)
+        case .slide:
+            return PVMotion.adaptive(.spring(duration: 0.35, bounce: 0), reduceMotion: reduceMotion)
+        }
+    }
 
     // MARK: - Chrome
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: PVSpacing.s12) {
             if let asset = vm.currentAsset {
                 Text("\(vm.currentIndex + 1) of \(vm.count)")
                     .font(.pvCaption.weight(.semibold))
@@ -81,10 +178,12 @@ struct SlideshowView: View {
                     .padding(.horizontal, PVSpacing.s12)
                     .padding(.vertical, PVSpacing.s4)
                     .glassEffect(.regular, in: Capsule())
-                    .accessibilityLabel("Slide \(vm.currentIndex + 1) of \(vm.count): \(asset.isVideo ? "Video" : "Photo")")
+                    .accessibilityLabel("Slide \(vm.currentIndex + 1) of \(vm.count): \(asset.hasPlayableMotion ? "Video" : "Photo")")
             }
 
             Spacer()
+
+            transitionMenu
 
             Button {
                 vm.stop()
@@ -103,78 +202,116 @@ struct SlideshowView: View {
         .padding(.top, PVSpacing.s8)
     }
 
-    private var bottomBar: some View {
-        GlassEffectContainer {
-            HStack(spacing: PVSpacing.s16) {
-                Button {
-                    vm.previous()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.pvHeadline)
-                        .foregroundStyle(Color.white)
-                        .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Previous")
-                .disabled(vm.count < 2)
-
-                Spacer()
-
-                Button {
-                    vm.togglePlayPause()
-                } label: {
-                    Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.pvHeadline)
-                        .foregroundStyle(Color.white)
-                        .frame(width: 44, height: 44)
-                        .glassEffect(.regular, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(vm.isPlaying ? "Pause" : "Play")
-
-                Spacer()
-
-                Button {
-                    vm.next()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.pvHeadline)
-                        .foregroundStyle(Color.white)
-                        .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Next")
-                .disabled(vm.count < 2)
-            }
-            .padding(.horizontal, PVSpacing.s16)
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Menu {
-                ForEach(SlideshowViewModel.SlideshowSpeed.allCases) { speed in
-                    Button {
-                        vm.speed = speed
-                    } label: {
-                        if speed == vm.speed {
-                            Label(speed.label, systemImage: "checkmark")
-                        } else {
-                            Text(speed.label)
-                        }
-                    }
-                }
-            } label: {
-                Text(vm.speed.label)
-                    .font(.pvCaption.weight(.semibold))
-                    .foregroundStyle(Color.white)
-                    .padding(.horizontal, PVSpacing.s12)
-                    .padding(.vertical, PVSpacing.s4)
-                    .glassEffect(.regular, in: Capsule())
-            }
-            .accessibilityLabel("Slideshow Speed")
-            .padding(.trailing, PVSpacing.s16)
-            .padding(.bottom, PVSpacing.s8)
+    private var chromeFooter: some View {
+        VStack(spacing: PVSpacing.s8) {
+            progressBar
+            bottomBar
         }
         .padding(.bottom, PVSpacing.s8)
+    }
+
+    private var progressBar: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.2))
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: max(0, geo.size.width * progress))
+            }
+        }
+        .frame(height: 3)
+        .padding(.horizontal, PVSpacing.s24)
+        .accessibilityHidden(true)
+    }
+
+    private var progress: Double {
+        guard vm.count > 0 else { return 0 }
+        return Double(vm.currentIndex + 1) / Double(vm.count)
+    }
+
+    private var bottomBar: some View {
+        GlassEffectContainer {
+            HStack(spacing: PVSpacing.s4) {
+                controlButton(systemName: "shuffle", label: "Shuffle") { vm.shuffle() }
+                    .disabled(vm.count < 2)
+
+                controlButton(systemName: "chevron.left", label: "Previous") { vm.previous() }
+                    .disabled(vm.count < 2)
+
+                Spacer(minLength: PVSpacing.s8)
+
+                playPauseButton
+
+                Spacer(minLength: PVSpacing.s8)
+
+                controlButton(systemName: "chevron.right", label: "Next") { vm.next() }
+                    .disabled(vm.count < 2)
+
+                speedMenu
+            }
+            .padding(.horizontal, PVSpacing.s16)
+            .padding(.vertical, PVSpacing.s8)
+        }
+    }
+
+    private var playPauseButton: some View {
+        Button {
+            vm.togglePlayPause()
+        } label: {
+            Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
+                .font(.pvTitle)
+                .foregroundStyle(Color.white)
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(vm.isPlaying ? "Pause" : "Play")
+        .sensoryFeedback(.selection, trigger: vm.isPlaying)
+    }
+
+    private var speedMenu: some View {
+        Menu {
+            Picker("Slideshow Speed", selection: Binding(get: { vm.speed }, set: { vm.speed = $0 })) {
+                ForEach(SlideshowViewModel.SlideshowSpeed.allCases) { speed in
+                    Text(speed.label).tag(speed)
+                }
+            }
+        } label: {
+            Text(vm.speed.label)
+                .font(.pvCaption.weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(minWidth: 44, minHeight: 40)
+                .glassEffect(.regular, in: Capsule())
+        }
+        .accessibilityLabel("Slideshow Speed")
+    }
+
+    private var transitionMenu: some View {
+        Menu {
+            Picker("Transition", selection: Binding(get: { vm.transition }, set: { vm.transition = $0 })) {
+                ForEach(SlideshowViewModel.SlideshowTransitionStyle.allCases) { style in
+                    Text(style.label).tag(style)
+                }
+            }
+        } label: {
+            Image(systemName: "sparkles")
+                .font(.pvHeadline)
+                .foregroundStyle(Color.white)
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular, in: Circle())
+        }
+        .accessibilityLabel("Transition")
+    }
+
+    private func controlButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.pvHeadline)
+                .foregroundStyle(Color.white)
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }

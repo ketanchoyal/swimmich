@@ -3,11 +3,12 @@ import Observation
 
 /// Pure slideshow state machine — no Timer, no AVFoundation (unit-testable).
 ///
-/// The VIEW owns the ticking loop (see `SlideshowView`): it runs a
-/// `Timer.publish` and calls `advance()` only when `isPlaying` and the current
-/// slide is not an active video. `videoStarted()` / `videoEnded()` suspend and
-/// resume the ticker around inline video playback (Photos behavior: the
-/// slideshow pauses on a video and continues after it ends).
+/// The VIEW owns the ticking loop (see `SlideshowView`): it runs a `.task(id:)`
+/// loop re-armed whenever speed/play/video-active state changes, and calls
+/// `advance()` only when `isPlaying` and the current slide is not an active
+/// video. `slideChanged()` arms the video suspension when a video/Live-Photo
+/// slide appears; `videoEnded()` releases it and moves on immediately (Photos
+/// behavior: the slideshow pauses on a video and continues the instant it ends).
 @MainActor
 @Observable
 final class SlideshowViewModel {
@@ -23,20 +24,43 @@ final class SlideshowViewModel {
         var label: String { "\(Int(rawValue))s" }
     }
 
+    /// Cross-slide transition flavor. `kenBurns` only affects stills (the
+    /// image itself drifts); the cross-slide transition stays a crossfade.
+    enum SlideshowTransitionStyle: String, CaseIterable, Identifiable {
+        case dissolve
+        case slide
+        case kenBurns
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .dissolve: return "Fondu"
+            case .slide: return "Glissement"
+            case .kenBurns: return "Ken Burns"
+            }
+        }
+    }
+
     // MARK: - State
 
     private(set) var currentIndex: Int
     private(set) var isPlaying = false
     var speed: SlideshowSpeed = .threeSeconds
-    /// True while the current slide is a video being played inline — the
-    /// ticker must not advance during playback.
+    var transition: SlideshowTransitionStyle = .dissolve
+    /// True while the current slide is a video/Live-Photo being played inline —
+    /// the ticker must not advance during playback.
     private(set) var isVideoActive = false
 
     let assets: [AssetReactItem]
+    /// Playback order: position → asset index. Identity until `shuffle()`.
+    private(set) var order: [Int]
 
     var currentAsset: AssetReactItem? {
-        guard assets.indices.contains(currentIndex) else { return nil }
-        return assets[currentIndex]
+        guard order.indices.contains(currentIndex) else { return nil }
+        let assetIndex = order[currentIndex]
+        guard assets.indices.contains(assetIndex) else { return nil }
+        return assets[assetIndex]
     }
 
     var count: Int { assets.count }
@@ -45,6 +69,7 @@ final class SlideshowViewModel {
 
     init(assets: [AssetReactItem], startIndex: Int = 0) {
         self.assets = assets
+        self.order = Array(assets.indices)
         self.currentIndex = assets.isEmpty ? 0 : min(max(startIndex, 0), assets.count - 1)
     }
 
@@ -80,24 +105,69 @@ final class SlideshowViewModel {
         currentIndex = min(max(index, 0), assets.count - 1)
     }
 
-    /// Called by the view when the current slide is a video that started
-    /// playing — the ticker suspends until `videoEnded()`.
-    func videoStarted() {
-        guard let asset = currentAsset, asset.isVideo else { return }
-        isVideoActive = true
+    /// Called via `VideoPlayerView.onStatusChange` on `.ended` AND `.failed` —
+    /// releases the suspension and advances immediately (Photos skips a broken
+    /// video). Idempotent: only advances if a video was actually active.
+    func videoEnded() {
+        let wasVideo = isVideoActive
+        isVideoActive = false
+        if wasVideo { advance() }
     }
 
-    /// Called via `VideoPlayerView.onPlaybackEnded` — the ticker resumes.
-    func videoEnded() { isVideoActive = false }
-
     /// Jolts the state machine when the slide changes (view calls on
-    /// `.onChange(of: currentIndex)`): a non-video slide never stays "video
-    /// active", a video slide arms the suspension.
+    /// `.onChange(of: currentIndex)`): a video/Live-Photo slide arms the
+    /// suspension, a still clears it.
     func slideChanged() {
-        if let asset = currentAsset, asset.isVideo {
+        if let asset = currentAsset, asset.hasPlayableMotion {
             isVideoActive = true
         } else {
             isVideoActive = false
         }
+    }
+
+    /// Randomizes the playback order while keeping the current asset on screen
+    /// (no visual jump). No-op for fewer than two assets.
+    func shuffle() {
+        guard assets.count > 1 else { return }
+        let currentAssetID = currentAsset?.id
+        order.shuffle()
+        if let id = currentAssetID, let newPosition = order.firstIndex(where: { assets[$0].id == id }) {
+            currentIndex = newPosition
+        } else {
+            currentIndex = min(currentIndex, assets.count - 1)
+        }
+    }
+}
+
+/// Pure swipe/step direction helper for the cross-slide transition (unit-testable,
+/// no SwiftUI): `isForward` decides whether moving `old → new` is a "next" step
+/// (insertion from the trailing edge) or a "previous" step, accounting for wrap.
+enum SlideshowDirection {
+    static func isForward(from old: Int, to new: Int, count: Int) -> Bool {
+        guard count > 1 else { return true }
+        let forward = (new - old + count) % count
+        let backward = (old - new + count) % count
+        return forward <= backward
+    }
+}
+
+/// Pure Ken Burns phase math (unit-testable, no SwiftUI): maps elapsed time to a
+/// slow drift (scale 1.0→1.06 + gentle pan). Identity when Reduce Motion is on —
+/// the image stays static.
+struct KenBurnsPhase: Equatable {
+    var scale: CGFloat = 1
+    var offset: CGSize = .zero
+
+    static let identity = KenBurnsPhase()
+
+    /// `elapsed` = seconds since an arbitrary epoch (e.g. reference date).
+    /// Ping-pong drift over `period`: zoom in, then back out, with a subtle pan.
+    static func progress(elapsed: TimeInterval, reduceMotion: Bool, period: TimeInterval = 16) -> KenBurnsPhase {
+        guard !reduceMotion else { return .identity }
+        let cycle = elapsed.truncatingRemainder(dividingBy: period * 2) / period   // 0..<2
+        let pingPong = cycle <= 1 ? cycle : 2 - cycle                              // 0→1→0
+        let scale = 1.0 + 0.06 * pingPong
+        let pan = 8 * sin(pingPong * .pi * 2)
+        return KenBurnsPhase(scale: scale, offset: CGSize(width: pan, height: pan * 0.5))
     }
 }

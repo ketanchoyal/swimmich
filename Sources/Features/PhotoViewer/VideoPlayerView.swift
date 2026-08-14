@@ -7,10 +7,10 @@ import SwiftUI
 final class VideoPlayerLayerContainer: UIView {
     private let playerLayer: AVPlayerLayer
 
-    init(playerLayer: AVPlayerLayer) {
+    init(playerLayer: AVPlayerLayer, videoGravity: AVLayerVideoGravity = .resizeAspect) {
         self.playerLayer = playerLayer
         super.init(frame: .zero)
-        playerLayer.videoGravity = .resizeAspect
+        playerLayer.videoGravity = videoGravity
         layer.addSublayer(playerLayer)
     }
 
@@ -29,9 +29,10 @@ final class VideoPlayerLayerContainer: UIView {
 /// SwiftUI wrapper over the AVPlayerLayer container.
 struct VideoPlayerLayerView: UIViewRepresentable {
     let playerLayer: AVPlayerLayer
+    var videoGravity: AVLayerVideoGravity = .resizeAspect
 
     func makeUIView(context: Context) -> UIView {
-        VideoPlayerLayerContainer(playerLayer: playerLayer)
+        VideoPlayerLayerContainer(playerLayer: playerLayer, videoGravity: videoGravity)
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {}
@@ -51,10 +52,18 @@ struct VideoPlayerView: View {
     /// `nil` plays `asset.id` itself.
     var assetID: String? = nil
     var controlsVisible: Bool = true
+    var videoGravity: AVLayerVideoGravity = .resizeAspect
     var onSingleTap: () -> Void = {}
     /// Fired when playback reaches the end — lets the viewer swap back to
     /// the Live Photo still (Photos behavior).
     var onPlaybackEnded: (() -> Void)? = nil
+    /// External pause channel (slideshow): pauses/resumes the player without
+    /// the transport controls. Resume only revives a `.paused` player — an
+    /// `.ended` player is left alone (the slideshow will advance past it).
+    var isPaused: Bool = false
+    /// Broadcasts every playback status change — the slideshow advances on
+    /// `.ended` and skips on `.failed`.
+    var onStatusChange: ((VideoPlaybackStatus) -> Void)? = nil
 
     @State private var vm = VideoPlaybackViewModel()
     @State private var playerLayer: AVPlayerLayer?
@@ -64,7 +73,7 @@ struct VideoPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let playerLayer {
-                VideoPlayerLayerView(playerLayer: playerLayer)
+                VideoPlayerLayerView(playerLayer: playerLayer, videoGravity: videoGravity)
                     .ignoresSafeArea()
             }
 
@@ -92,8 +101,21 @@ struct VideoPlayerView: View {
             vm.pause()
         }
         .onChange(of: vm.status) { _, newStatus in
+            onStatusChange?(newStatus)
             if case .ended = newStatus {
                 onPlaybackEnded?()
+            }
+            // External pause arrived before the player became ready/playing:
+            // suppress the auto-play so the slide respects the slideshow state.
+            if isPaused, newStatus == .ready || newStatus == .playing {
+                vm.pause()
+            }
+        }
+        .onChange(of: isPaused) { _, paused in
+            if paused {
+                vm.pause()
+            } else if vm.status == .paused {
+                vm.play()
             }
         }
         .onTapGesture(perform: onSingleTap)

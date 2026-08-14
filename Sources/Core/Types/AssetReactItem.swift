@@ -39,6 +39,11 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     /// True when this asset belongs to a stack of 2+ assets.
     var isStacked: Bool { !stack.isEmpty }
 
+    /// True when the slide plays inline motion in the slideshow: a real video,
+    /// or a Live Photo whose video pair is present and playable (a nil or empty
+    /// `livePhotoVideoId` renders as a still).
+    var hasPlayableMotion: Bool { isVideo || (livePhotoVideoId.map { !$0.isEmpty } ?? false) }
+
     /// Display aspect ratio clamped to sane bounds (avoid div-by-zero/overflow).
     var aspectRatio: Double {
         guard ratio > 0 else { return 1.0 }

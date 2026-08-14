@@ -608,7 +608,8 @@ struct PhotoViewer: View {
     /// overlay nils it out, so the next start begins fresh.
     private func presentSlideshow() {
         let vm = SlideshowViewModel(assets: localAssets, startIndex: selectedIndex)
-        vm.start()
+        // No `vm.start()` here — `SlideshowView.onAppear` starts the loop,
+        // avoiding a double start (and the VM is created fresh each time).
         slideshowVM = vm
     }
 
@@ -812,6 +813,7 @@ struct PhotoViewer: View {
     ) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                guard slideshowVM == nil else { dragOffset = .zero; return }
                 let h = value.translation.height
                 let w = value.translation.width
                 let verticalDominant = abs(h) > abs(w) * 1.2
@@ -830,6 +832,7 @@ struct PhotoViewer: View {
                 dragOffset = CGSize(width: 0, height: h)
             }
             .onEnded { value in
+                guard slideshowVM == nil else { dragOffset = .zero; return }
                 let velocity = value.predictedEndTranslation.height - value.translation.height
                 let h = value.translation.height
                 let w = value.translation.width

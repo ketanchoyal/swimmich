@@ -534,3 +534,23 @@ Ajout via :
 - Tests/AppStringsTests.swift (3): catalog JSON valide ≥196, clés tab bar avec fr, en-only ≤ 24 (placeholders + contenu FR).
 - Suite 483 → 486. AC-1180..1183 PASS (check édité: seuils réels).
 - P0-P5 shipped: api-surface-expansion, video-playback, live-photo, slideshow, save-download, archive, favorites-filter, map-extras, storage-stats, backup-engine, backup-live-activity, people-faces, partner-sharing, activity-feed, shared-link-edit, album-edit, memories, duplicates, oauth, qr-scan, selfsigned-cert, multi-server, widgets-appintents, i18n-catalog. Backlog: push-notifications. Docs: docs/feature-audit-vs-flutter.md + docs/feature-parity-plan.md.
+
+## [2026-08-13] Memories redesign Liquid Glass (moment + cards full-bleed) — [tag: feature, design]
+
+**Contexte** : Redesign de l'onglet Memories: remplacer les cartes grille 3x3 par des cartes full-bleed (hero photo + chips verre) + nouveau MemoryMomentView plein écran (Ken Burns, GlassEffectContainer, filmstrip, viewer).
+**Décision/apprentissage** : Onglet Memories conservé (pas de lane Photos). MemoryMomentView présente via fullScreenCover(isPresented:)+if let (pas d'identifiable sur le DTO). MemoryMomentPresentation pur (fullDateLabel/peopleLabel/tagsLabel/people/tags) testé. Héro en size:.preview. Ken Burns gated par accessibilityReduceMotion.
+**Pourquoi** : Shot de dopamine + nostalgie: photo plein écran, verre liquide flottant, surfacage de toutes les infos (année/date/comptes/lieu/personnes/tags/isSaved/caméra).
+**Fichiers concernés** : Sources/Features/Memories/MemoryMomentView.swift, MemoryMomentPresentation.swift, MemoriesView.swift; Tests/MemoryMomentPresentationTests.swift
+
+## [2026-08-14] Slideshow v2 "spectacle" + fix contrôle — [tag: feature, design, bug]
+
+**Contexte** : Audit slideshow → bugs (impossible d'arrêter, figement vidéo-échec, latence post-vidéo, fuite de gestes, menu vitesse chevauchant next) + refonte spectacle (Ken Burns, transitions, chrome auto-masqué, Live Photos animées, shuffle, progression).
+**Décisions** :
+- `videoEnded()` idempotent + avance immédiatement (`wasVideo = isVideoActive; isVideoActive = false; if wasVideo { advance() }`) — avance Photos dès fin/failure vidéo (B2/B3).
+- `VideoPlayerView` + `isPaused` (pause externe) + `onStatusChange` (`.ended`/`.failed` → `videoEnded`). Pause couple au player : `.onChange(of: isPaused)` → `vm.pause()` / reprise si `.paused` seulement (B1).
+- VM : `order:[Int]` + `shuffle()` (repositionne sur asset courant), `SlideshowTransitionStyle` (dissolve/slide/kenBurns), `hasPlayableMotion` (isVideo || livePhotoVideoId non-vide). Dead code `videoStarted()` supprimé.
+- Ticker : `tickerKey = "\(speed)-\(isPlaying)-\(isVideoActive)"` (ré-armé par l'état vidéo). Gestes : `dismissDrag` garde `guard slideshowVM == nil` (B4). `presentSlideshow()` ne fait plus `vm.start()` (onAppear le fait).
+- Chrome : GlassEffectContainer bottom `[shuffle|prev|play|next|speed]`, transition Menu top, progress bar, auto-hide 3 s, tap = toggle.
+**Piège** : l'app définit son propre `struct TimelineView` (timeline photos) qui shadow le `TimelineView` SwiftUI → utiliser `SwiftUI.TimelineView` pour le Ken Burns continu.
+**Tests** : SlideshowViewModelTests 12→22, nouveau SlideshowHelpersTests (7 : SlideshowDirection.isForward wrap, KenBurnsPhase identity/bornes/périodicité/pic). Suite 486→534.
+**Fichiers concernés** : Sources/Features/PhotoViewer/{SlideshowView,SlideshowViewModel,KenBurnsImageView,VideoPlayerView,PhotoViewer}.swift, Sources/Core/Types/AssetReactItem.swift; Tests/SlideshowViewModelTests.swift. Plan : .opencode/scratch/slideshow-v2-spectacle.plan.md

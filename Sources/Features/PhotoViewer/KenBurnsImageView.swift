@@ -1,0 +1,42 @@
+import SwiftUI
+
+/// Slow Ken Burns drift for slideshow stills — the image gently zooms and pans
+/// over a long period (16 s ping-pong). Driven by `TimelineView`, not a `Timer`,
+/// and fully disabled under Reduce Motion (static image). The phase math is a
+/// pure, unit-testable struct (`KenBurnsPhase` in SlideshowViewModel.swift).
+struct KenBurnsImageView: View {
+    let asset: AssetReactItem
+    let baseURL: URL
+    let token: String?
+    var onSingleTap: () -> Void = {}
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        // `SwiftUI.` qualification: the app ships its own `TimelineView` (photo
+        // timeline feature), which shadows SwiftUI's continuous-update container.
+        SwiftUI.TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+            let phase = KenBurnsPhase.progress(
+                elapsed: context.date.timeIntervalSinceReferenceDate,
+                reduceMotion: reduceMotion
+            )
+            image
+                .scaleEffect(phase.scale)
+                .offset(phase.offset)
+        }
+        .clipped()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSingleTap)
+    }
+
+    private var image: some View {
+        GeometryReader { proxy in
+            AuthenticatedAsyncImage(
+                url: asset.thumbnailURL(base: baseURL, size: .fullsize),
+                token: token,
+                contentMode: .fit
+            )
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+}
