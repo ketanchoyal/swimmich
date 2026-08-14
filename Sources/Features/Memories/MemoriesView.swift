@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// Memories tab — Photos-style "On this day" cards, one per server memory.
-/// Each card shows the year + an asset grid; tapping opens the photo viewer
-/// paging through that memory's assets. Empty state when the server has no
+/// Memories tab — "On this day" memories, one full-bleed hero card per memory
+/// (Liquid Glass chips over the hero photo). Tapping a card opens the full-screen
+/// `MemoryMomentView` (the nostalgia shot). Empty state when the server has no
 /// memories (e.g. a fresh library).
 struct MemoriesView: View {
     @Bindable var vm: MemoriesViewModel
     @Environment(AuthViewModel.self) private var auth
     @Environment(\.openProfile) private var openProfile
 
-    @State private var viewerItem: PhotoViewerItem?
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
+    @State private var selectedMemory: MemoryResponseDto?
 
     var body: some View {
         NavigationStack {
@@ -48,7 +46,7 @@ struct MemoriesView: View {
                                         memory: memory,
                                         baseURL: baseURL,
                                         token: auth.accessToken,
-                                        onOpen: { index in openViewer(memory: memory, at: index) }
+                                        onOpen: { selectedMemory = memory }
                                     )
                                 }
                             }
@@ -66,12 +64,16 @@ struct MemoriesView: View {
                 }
             }
             .task { await vm.load() }
-            .photoViewer(
-                item: $viewerItem,
-                baseURL: baseURL,
-                token: auth.accessToken,
-                onDataChanged: { Task { await vm.load() } }
-            )
+            .fullScreenCover(
+                isPresented: Binding(
+                    get: { selectedMemory != nil },
+                    set: { if !$0 { selectedMemory = nil } }
+                )
+            ) {
+                if let memory = selectedMemory {
+                    MemoryMomentView(memory: memory, baseURL: baseURL, token: auth.accessToken)
+                }
+            }
         }
     }
 
@@ -80,15 +82,6 @@ struct MemoriesView: View {
     /// renders a card in practice.
     private var baseURL: URL {
         auth.baseURL ?? URL(string: "https://example.com")!
-    }
-
-    private func openViewer(memory: MemoryResponseDto, at index: Int) {
-        let items = memory.assets.map { AssetReactItem(from: $0) }
-        guard !items.isEmpty else { return }
-        // Clamp: "+N more" opens at the first hidden asset; grid taps pass
-        // their own index (Photos parity).
-        let clamped = min(max(index, 0), items.count - 1)
-        viewerItem = PhotoViewerItem(assets: items, index: clamped)
     }
 
     private func refreshErrorBanner(_ message: String) -> some View {
@@ -110,157 +103,115 @@ struct MemoriesView: View {
     }
 }
 
-/// One "On this day" card: exact day + years-ago header, the memory's assets in a
-/// 3-column square mosaic (Photos-style, fill-cropped — no letterboxing), and
-/// a footer with photo/video counts, location and a "+N more" affordance.
-/// Tapping a photo opens the viewer at that photo; "+N more" at the first
-/// hidden one.
+/// One full-bleed "On this day" card: the memory's hero photo as the card
+/// background with the day + year set in big poster typography over a bottom
+/// scrim ("1 juillet" / "2022"), plus "N years ago" and Liquid Glass chips
+/// (photo/video counts, location, asset count). Tapping the card opens the
+/// full-screen `MemoryMomentView`.
 private struct MemoryCard: View {
     let memory: MemoryResponseDto
     let baseURL: URL
     let token: String?
-    let onOpen: (Int) -> Void
+    let onOpen: () -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
+    private var hero: AssetResponseDto? { memory.assets.first }
 
-    /// First 9 assets rendered in the mosaic; the rest live behind "+N more".
-    private var visibleAssets: [AssetResponseDto] {
-        Array(memory.assets.prefix(9))
+    private var heroURL: URL? {
+        guard let hero else { return nil }
+        return ImmichAssetURL.thumbnail(
+            assetId: hero.id,
+            thumbhash: hero.thumbhash ?? "",
+            baseURL: baseURL,
+            size: .preview
+        )
     }
 
-    private var hiddenCount: Int {
-        max(memory.assets.count - 9, 0)
+    private var yearsAgoText: String? {
+        guard let count = MemoryCardPresentation.yearsAgoCount(year: memory.data.year),
+              let text = MemoryCardPresentation.yearsAgoText(count: count) else { return nil }
+        return text
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PVSpacing.s12) {
-            header
-            LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
-                ForEach(Array(visibleAssets.enumerated()), id: \.element.id) { index, dto in
-                    Button {
-                        onOpen(index)
-                    } label: {
-                        thumbnailCell(dto)
+        Button(action: onOpen) {
+            ZStack {
+                if let heroURL {
+                    GeometryReader { proxy in
+                        AuthenticatedAsyncImage(url: heroURL, token: token, contentMode: .fill)
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .clipped()
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "Memory photo from \(memory.data.year)"))
+                } else {
+                    Rectangle().fill(Color.bgTertiary.opacity(0.3))
+                }
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.25),
+                        .init(color: .black.opacity(0.9), location: 0.85),
+                        .init(color: .black.opacity(0.98), location: 1.0)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: PVSpacing.s12) {
+                        header
+                        footer
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(PVSpacing.s16)
                 }
             }
-            footer
+            .frame(height: 320)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: PVRadius.xl, style: .continuous))
         }
-        .padding(PVSpacing.s16)
-        .background(Color.bgTertiary.opacity(0.5), in: RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: PVSpacing.s8) {
-            VStack(alignment: .leading, spacing: PVSpacing.s2) {
-                if let day = MemoryCardPresentation.dayLabel(for: memory) {
-                    Text(day)
-                        .font(.pvBody)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.textPrimaryPV)
-                }
-                if let count = MemoryCardPresentation.yearsAgoCount(year: memory.data.year),
-                   let ago = MemoryCardPresentation.yearsAgoText(count: count) {
-                    Text(ago)
-                        .font(.pvCaption)
-                        .foregroundStyle(Color.textSecondaryPV)
-                }
+        VStack(alignment: .leading, spacing: PVSpacing.s0) {
+            if let date = MemoryMomentPresentation.fullDateLabel(for: memory) {
+                Text(date)
+                    .font(.pvH3)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 4, y: 1)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
-            Spacer(minLength: 0)
-            Text(String(memory.data.year))
-                .font(.pvTitle)
-                .monospacedDigit()
-                .foregroundStyle(Color.textPrimaryPV)
+            if let ago = yearsAgoText {
+                Text(ago)
+                    .font(.pvSubhead)
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 3, y: 1)
+                    .padding(.top, PVSpacing.s4)
+            }
         }
     }
 
     private var footer: some View {
-        HStack(alignment: .firstTextBaseline, spacing: PVSpacing.s8) {
-            VStack(alignment: .leading, spacing: PVSpacing.s2) {
-                if let media = MemoryCardPresentation.mediaCountLabel(for: memory) {
-                    Text(media)
-                        .font(.pvCaption)
-                        .foregroundStyle(Color.textSecondaryPV)
-                }
-                if let location = MemoryCardPresentation.locationLabel(for: memory) {
-                    Label(location, systemImage: "mappin.and.ellipse")
-                        .font(.pvCaption)
-                        .foregroundStyle(Color.textSecondaryPV)
-                }
+        HStack(spacing: PVSpacing.s8) {
+            if let media = MemoryCardPresentation.mediaCountLabel(for: memory) {
+                Label(media, systemImage: "photo.on.rectangle")
+                    .lineLimit(1)
             }
-            Spacer(minLength: PVSpacing.s8)
-            if hiddenCount > 0 {
-                Button {
-                    onOpen(visibleAssets.count)
-                } label: {
-                    Text(String(localized: "+\(hiddenCount) more"))
-                        .font(.pvCaption.weight(.semibold))
-                        .foregroundStyle(Color.immichPrimary)
-                }
-                .buttonStyle(.plain)
+            if let location = MemoryCardPresentation.locationLabel(for: memory) {
+                Label(location, systemImage: "mappin.and.ellipse")
+                    .lineLimit(1)
+            }
+            if memory.assets.count > 1 {
+                Label(String(memory.assets.count), systemImage: "square.stack")
             }
         }
-    }
-
-    /// Square fill-cropped thumbnail (AssetThumbnailCell pattern). The square
-    /// frame comes from `Color.clear.aspectRatio(1,.fit)`; the image overlays
-    /// and crops with `.fill` — no letterboxing on mixed aspect ratios.
-    private func thumbnailCell(_ dto: AssetResponseDto) -> some View {
-        Color.clear
-            .aspectRatio(1, contentMode: .fit)
-            .overlay {
-                AuthenticatedAsyncImage(
-                    url: ImmichAssetURL.thumbnail(assetId: dto.id, thumbhash: dto.thumbhash ?? "", baseURL: baseURL),
-                    token: token
-                )
-            }
-            .overlay(alignment: .topTrailing) { favoriteBadge(dto) }
-            .overlay(alignment: .bottomTrailing) { videoBadge(dto) }
-            .clipShape(RoundedRectangle(cornerRadius: PVRadius.sm, style: .continuous))
-            .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private func favoriteBadge(_ dto: AssetResponseDto) -> some View {
-        if dto.isFavorite {
-            badge {
-                Image(systemName: "heart.fill")
-            }
-            .padding(4)
-        }
-    }
-
-    @ViewBuilder
-    private func videoBadge(_ dto: AssetResponseDto) -> some View {
-        if dto.type == "VIDEO" {
-            badge {
-                HStack(spacing: 3) {
-                    Image(systemName: "play.fill").font(.system(size: 8)) // DS-exempt: badge micro-glyph §8.6
-                    if let d = dto.duration, d > 0 {
-                        Text(AssetThumbnailCell.formattedDuration(d)).monospacedDigit()
-                    }
-                }
-            }
-            .padding(4)
-        }
-    }
-
-    /// Shared capsule treatment — mirrors AssetThumbnailCell's uniform badge
-    /// language (V4). `.ultraThinMaterial` + thin border.
-    @ViewBuilder
-    private func badge<Content: View>(
-        @ViewBuilder _ content: () -> Content
-    ) -> some View {
-        content()
-            .font(.pvCaption)
-            .foregroundStyle(.white) // DS-exempt: badge contrast on material
-            .padding(.horizontal, PVSpacing.s8)
-            .padding(.vertical, 3) // DS-exempt: badge micro-padding
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.2), radius: 1.5, y: 0.5) // DS-exempt: micro-badge shadow
+        .font(.pvCaption.weight(.medium))
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .padding(.horizontal, PVSpacing.s12)
+        .padding(.vertical, PVSpacing.s8)
+        .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
     }
 }
 
