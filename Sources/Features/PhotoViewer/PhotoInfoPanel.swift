@@ -89,7 +89,7 @@ struct PhotoInfoPanel: View {
                     .font(.pvHeadline)
                     .foregroundStyle(Color.textPrimaryPV)
                     .frame(width: 40, height: 40)
-                    .glassEffect(.regular, in: Circle())
+                    .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close details")

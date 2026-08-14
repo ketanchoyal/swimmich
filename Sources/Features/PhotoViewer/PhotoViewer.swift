@@ -365,7 +365,7 @@ struct PhotoViewer: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.white)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Back")
@@ -386,7 +386,7 @@ struct PhotoViewer: View {
                 }
                 .padding(.horizontal, PVSpacing.s16)
                 .padding(.vertical, PVSpacing.s4)
-                .glassEffect(.regular, in: Capsule())
+                .glassEffect(.regular.tint(.black.opacity(0.6)), in: Capsule())
 
                 Spacer()
 
@@ -397,7 +397,7 @@ struct PhotoViewer: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.white)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Slideshow")
@@ -410,7 +410,7 @@ struct PhotoViewer: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.white)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Details")
@@ -508,7 +508,7 @@ struct PhotoViewer: View {
                             .font(.pvHeadline)
                             .foregroundStyle(Color.white)
                             .frame(width: 40, height: 40)
-                            .glassEffect(.regular, in: Circle())
+                            .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Share")
@@ -557,7 +557,7 @@ struct PhotoViewer: View {
                 }
                 .padding(.horizontal, PVSpacing.s8)
                 .padding(.vertical, PVSpacing.s4)
-                .glassEffect(.regular, in: Capsule())
+                .glassEffect(.regular.tint(.black.opacity(0.6)), in: Capsule())
 
                 Spacer()
 
@@ -569,7 +569,7 @@ struct PhotoViewer: View {
                             .font(.pvHeadline)
                             .foregroundStyle(Color.white)
                             .frame(width: 40, height: 40)
-                            .glassEffect(.regular, in: Circle())
+                            .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Archive")
@@ -587,7 +587,7 @@ struct PhotoViewer: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.white)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isTrash ? "Delete Permanently" : "Delete")
@@ -948,7 +948,7 @@ private struct PhotoShareSheet: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.immichPrimary)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share")
@@ -967,7 +967,7 @@ private struct PhotoShareSheet: View {
                         .font(.pvHeadline)
                         .foregroundStyle(Color.immichPrimary)
                         .frame(width: 40, height: 40)
-                        .glassEffect(.regular, in: Circle())
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")

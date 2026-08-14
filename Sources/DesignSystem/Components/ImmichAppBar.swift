@@ -48,23 +48,21 @@ struct ImmichLogo: View {
     }
 }
 
-// MARK: - Immich gray bottom-bar styling
+// MARK: - Immich bottom-bar styling
 //
-// Immich keeps the bottom app bar a constant flat gray (separate from content).
-// Applied on the root TabView.
+// Native iOS 26 Liquid Glass floating tab bar (adaptive to content), with the
+// Immich indigo active-tab tint. Applied on the root TabView.
 
 private struct ImmichBottomBarModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .tint(Color.immichPrimary)
-            .toolbarBackground(Color.bgSecondary, for: .tabBar)
-            .toolbarBackground(.visible, for: .tabBar)
     }
 }
 
 extension View {
-    /// Styles a `TabView` to look like the immich flat-gray bottom app bar
-    /// (opaque `bgSecondary`, indigo active tint).
+    /// Styles the root `TabView` with the native floating Liquid Glass tab bar
+    /// (adaptive) and the Immich indigo active-tab tint.
     func immichBottomBar() -> some View {
         modifier(ImmichBottomBarModifier())
     }

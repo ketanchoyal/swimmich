@@ -211,7 +211,7 @@ private struct MemoryCard: View {
         .lineLimit(1)
         .padding(.horizontal, PVSpacing.s12)
         .padding(.vertical, PVSpacing.s8)
-        .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
+        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Capsule())
     }
 }
 

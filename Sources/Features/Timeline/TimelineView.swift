@@ -96,7 +96,7 @@ struct TimelineView: View {
                     // Hidden once selection mode is active (toolbar takes over).
                     if !vm.selectionMode {
                         HStack(spacing: PVSpacing.s8) {
-                            if pinnedDay != nil {
+                            if !vm.items.isEmpty {
                                 GlassEffectContainer {
                                     Button {
                                         vm.enterSelectionMode()
@@ -106,9 +106,7 @@ struct TimelineView: View {
                                             .foregroundStyle(.white)
                                             .padding(.horizontal, PVSpacing.s16)
                                             .padding(.vertical, PVSpacing.s8)
-                                            // Dark-tinted glass for legibility over
-                                            // photos (shared-album badge recipe).
-                                            .glassEffect(.regular.tint(.black.opacity(0.3)), in: Capsule())
+                                            .glassEffect(.regular, in: Capsule())
                                     }
                                     .buttonStyle(.plain)
                                 }

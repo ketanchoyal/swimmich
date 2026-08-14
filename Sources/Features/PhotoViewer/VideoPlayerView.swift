@@ -230,7 +230,7 @@ struct VideoPlayerView: View {
                     .foregroundStyle(Color.white)
                     .padding(.horizontal, PVSpacing.s16)
                     .padding(.vertical, PVSpacing.s8)
-                    .glassEffect(.regular, in: Capsule())
+                    .glassEffect(.regular.tint(.black.opacity(0.6)), in: Capsule())
             }
             .buttonStyle(.plain)
         }
