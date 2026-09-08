@@ -696,12 +696,12 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     }
 
     func uploadAsset(
-        data: Data, fileCreatedAt: String, fileModifiedAt: String, filename: String,
+        fileURL: URL, fileCreatedAt: String, fileModifiedAt: String, filename: String,
         duration: Int?, isFavorite: Bool, visibility: AssetVisibility, livePhotoVideoId: String?,
         checksum: String
     ) async throws -> AssetMediaResponseDto {
         bump()
-        lastUploadData = data
+        lastUploadData = (try? Data(contentsOf: fileURL)) ?? Data()
         lastUploadFileCreatedAt = fileCreatedAt
         lastUploadFileModifiedAt = fileModifiedAt
         lastUploadFilename = filename

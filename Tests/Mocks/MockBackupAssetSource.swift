@@ -7,7 +7,9 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
     nonisolated(unsafe) var albums: [BackupAlbum] = []
     nonisolated(unsafe) var dataProvider: (String) -> Data = { _ in Data() }
     nonisolated(unsafe) var loadError: Error?
-    /// Called synchronously on the first `loadData` (cancel-path tests).
+    /// Invoked exactly once on the first `exportOriginal` — cancellation-path
+    /// tests must be idempotent (the engine loops through all candidates
+    /// before honoring the flag).
     nonisolated(unsafe) var onFirstLoad: (() -> Void)?
     nonisolated(unsafe) var lastAlbumIDs: Set<String>?
 
@@ -22,11 +24,16 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
         return candidates
     }
 
-    func loadData(for candidate: BackupCandidate) async throws -> Data {
+    func exportOriginal(for candidate: BackupCandidate) async throws -> URL {
         onFirstLoad?()
         onFirstLoad = nil
         if let loadError { throw loadError }
-        return dataProvider(candidate.id)
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("immich-test-backup", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("\(UUID().uuidString)-\(candidate.fileName)")
+        try dataProvider(candidate.id).write(to: url)
+        return url
     }
 }
 

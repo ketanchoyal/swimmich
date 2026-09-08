@@ -175,12 +175,25 @@ final class BackupEngineTests: XCTestCase {
         let source = MockBackupAssetSource()
         source.candidates = [candidate("c1"), candidate("c2"), candidate("c3")]
         let engine = BackupEngine(client: mock, source: source, environment: MockBackupEnvironment())
-        source.onFirstLoad = { engine.cancel() }
+        var cancelled = false
+        let cancelOnce: () -> Void = {
+            guard !cancelled else { return }
+            cancelled = true
+            engine.cancel()
+        }
+        source.onFirstLoad = cancelOnce
+        // Same hook on every load: the streamed pipeline loops through all
+        // candidates before honoring the cancellation flag.
+        source.dataProvider = { _ in
+            cancelOnce()
+            return Data(repeating: 0, count: 4)
+        }
 
         await engine.run(settings: settings())
 
-        XCTAssertEqual(engine.phase, .cancelled)
-        XCTAssertLessThan(engine.uploadedCount, 3, "stoppé au premier élément")
+        XCTAssertEqual(engine.phase, .cancelled, "stoppé au point de contrôle suivant le flag")
+        XCTAssertLessThan(engine.uploadedCount, 3, "stoppé avant la fin")
+        XCTAssertEqual(mock.requestCount, 0, "check/upload appelés après le flag = aucun")
     }
 
     // MARK: - Erreurs
@@ -315,12 +328,13 @@ final class BackupEngineTests: XCTestCase {
 
         await engine.run(settings: settings())
 
-        XCTAssertEqual(progressCalls.count, 4, "début + 3 items")
-        XCTAssertEqual(progressCalls[0].uploaded, 0)
-        XCTAssertEqual(progressCalls[0].total, 3)
-        XCTAssertEqual(progressCalls[3].uploaded, 3)
-        XCTAssertEqual(progressCalls[3].total, 3)
+        XCTAssertEqual(progressCalls.count, 3, "une progression par upload accepté (pipeline streamé)")
+        XCTAssertEqual(progressCalls[0].uploaded, 1, "total inconnu avant le 1er upload — grandit ensuite")
+        XCTAssertEqual(progressCalls[0].total, 1)
+        XCTAssertEqual(progressCalls[2].uploaded, 3)
+        XCTAssertEqual(progressCalls[2].total, 3)
     }
+
 }
 
 // MARK: - Settings store (persistence)

@@ -84,6 +84,8 @@ private struct AuthenticatedRoot: View {
     @State private var admin: AdminViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
+    @State private var pendingTimelineScrollID: String?
+    @State private var pendingTimelineScrollDay: String?
     @State private var showCreateAlbum = false
     @State private var showCreateSharedLink = false
     @State private var showProfile = false
@@ -107,7 +109,7 @@ private struct AuthenticatedRoot: View {
     var body: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
-                TimelineView(vm: timeline)
+                TimelineView(vm: timeline, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
             }
             Tab("Memories", systemImage: "sparkles.rectangle.stack", value: RootTab.memories) {
                 MemoriesView(vm: memories)
@@ -123,7 +125,13 @@ private struct AuthenticatedRoot: View {
             }
         }
         .immichBottomBar()
+        .environment(upload)
         .environment(\.openProfile) { showProfile = true }
+        .environment(\.openInTimeline) { assetID, day in
+            pendingTimelineScrollID = assetID
+            pendingTimelineScrollDay = day
+            selection = .photos
+        }
         .environment(albums)
         .onReceive(NotificationCenter.default.publisher(for: .immichAssetsChanged)) { _ in
             Task {
@@ -242,6 +250,20 @@ extension EnvironmentValues {
     var openProfile: () -> Void {
         get { self[OpenProfileKey.self] }
         set { self[OpenProfileKey.self] = newValue }
+    }
+}
+
+/// Presentation action injected by AuthenticatedRoot so any surface (e.g. a
+/// memory's "view in timeline" button) can jump to the Photos tab and scroll
+/// the timeline to a specific asset (id + day).
+private struct OpenInTimelineKey: EnvironmentKey {
+    static let defaultValue: (String, String) -> Void = { _, _ in }
+}
+
+extension EnvironmentValues {
+    var openInTimeline: (String, String) -> Void {
+        get { self[OpenInTimelineKey.self] }
+        set { self[OpenInTimelineKey.self] = newValue }
     }
 }
 

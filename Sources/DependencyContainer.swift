@@ -11,6 +11,11 @@ final class DependencyContainer {
     let appLock: AppLockViewModel
     let trustedServers: TrustedServerStore
     let realtime: RealtimeService
+    /// Process-wide single instance so the BG handler, the settings toggle
+    /// and `UploadViewModel` all submit through the same request slot —
+    /// `submit()` cancels then re-submits, so concurrent independent
+    /// instances can't step on each other.
+    let backupScheduler: any BackgroundBackupScheduling
 
     init() {
         self.keychain = KeychainStoreImpl()
@@ -20,6 +25,7 @@ final class DependencyContainer {
         self.photos = PhotoLibraryServiceImpl()
         self.appLock = AppLockViewModel()
         self.realtime = RealtimeService()
+        self.backupScheduler = BGTaskBackupScheduler()
     }
 
     func makeAuthViewModel() -> AuthViewModel {
@@ -57,9 +63,23 @@ final class DependencyContainer {
     func makeStorageStatsViewModel() -> StorageStatsViewModel {
         StorageStatsViewModel(client: client as any ImmichClient)
     }
-
     func makeUploadViewModel() -> UploadViewModel {
-        UploadViewModel(client: client as any ImmichClient, photos: photos)
+        UploadViewModel(client: client as any ImmichClient, photos: photos, scheduler: backupScheduler)
+    }
+
+    /// Reads the persisted auto-backup toggle directly — no live VM needed
+    /// (the scene-phase code runs outside the tab tree's VMs).
+    func isAutoBackupEnabled() -> Bool {
+        BackupSettingsStore().isEnabled
+    }
+
+    /// Kicks the gated backup engine when auto-backup is configured and
+    /// nothing is running (foreground "upload at launch / on return").
+    func kickOffAutoBackup() {
+        Task {
+            let upload = makeUploadViewModel()
+            await upload.kickOffAutoBackupIfConfigured()
+        }
     }
 
     func makePeopleViewModel() -> PeopleViewModel {
@@ -76,6 +96,24 @@ final class DependencyContainer {
 
     func makeMemoriesViewModel() -> MemoriesViewModel {
         MemoriesViewModel(client: client as any ImmichClient)
+    }
+
+    func makeRoadTripViewModel(
+        albumId: String,
+        selectedAssetIds: Set<String>?,
+        albumTitle: String,
+        baseURL: URL,
+        token: String?
+    ) -> RoadTripViewModel {
+        RoadTripViewModel(
+            client: client as any ImmichClient,
+            albumId: albumId,
+            selectedAssetIds: selectedAssetIds,
+            albumTitle: albumTitle,
+            baseURL: baseURL,
+            token: token,
+            photos: photos
+        )
     }
 
     func makeDuplicatesViewModel() -> DuplicatesViewModel {

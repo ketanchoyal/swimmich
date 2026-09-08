@@ -46,6 +46,47 @@ struct MultipartBody {
         return len + closing
     }
 
+    /// Streams a complete multipart body to `destination`: one binary file
+    /// field whose bytes are copied from `fileField.fileURL` in bounded
+    /// chunks, then the text `fields`, then the closing boundary. Never holds
+    /// the file in memory — the caller uploads via `URLSession.upload(fromFile:)`.
+    func writeStreamed(
+        fileField: (name: String, filename: String, contentType: String, fileURL: URL),
+        fields: [(name: String, value: String)],
+        to destination: URL
+    ) throws {
+        FileManager.default.createFile(atPath: destination.path, contents: nil)
+        let out = try FileHandle(forWritingTo: destination)
+        defer { try? out.close() }
+
+        func write(_ string: String) throws {
+            try out.write(contentsOf: Data(string.utf8))
+        }
+
+        // File part header.
+        try write("--\(boundary)\(crlf)")
+        try write("Content-Disposition: form-data; name=\"\(fileField.name)\"; filename=\"\(fileField.filename)\"\(crlf)")
+        try write("Content-Type: \(fileField.contentType)\(crlf)\(crlf)")
+
+        // File bytes, streamed from disk one chunk at a time.
+        let input = try FileHandle(forReadingFrom: fileField.fileURL)
+        defer { try? input.close() }
+        while let chunk = try input.read(upToCount: 1 << 20), !chunk.isEmpty {
+            try out.write(contentsOf: chunk)
+        }
+        try write(crlf)
+
+        // Text fields.
+        for field in fields {
+            try write("--\(boundary)\(crlf)")
+            try write("Content-Disposition: form-data; name=\"\(field.name)\"\(crlf)\(crlf)")
+            try write("\(field.value)\(crlf)")
+        }
+
+        // Closing boundary.
+        try write("--\(boundary)--\(crlf)")
+    }
+
     /// Content-Type header value.
     var contentType: String { "multipart/form-data; boundary=\(boundary)" }
 }

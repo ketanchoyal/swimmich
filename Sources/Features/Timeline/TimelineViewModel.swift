@@ -10,6 +10,9 @@ final class TimelineViewModel {
     var buckets: [TimeBucketsResponseDto] = []
     var items: [AssetReactItem] = []
     var bucketIndex: Int = 0
+    /// Next NEWER bucket to load when scrolling up (after a `jump`). -1 = none
+    /// (the timeline already starts at the newest bucket).
+    var upperBucketIndex: Int = -1
     var isLoading: Bool = false
     var errorMessage: String?
 
@@ -150,6 +153,7 @@ final class TimelineViewModel {
         do {
             buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
             bucketIndex = 0
+            upperBucketIndex = -1
             items = []
             loadedIds = []
             await loadNextBucket()
@@ -166,6 +170,7 @@ final class TimelineViewModel {
         do {
             buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
             bucketIndex = 0
+            upperBucketIndex = -1
             items = []
             loadedIds = []
             await loadNextBucket()
@@ -179,6 +184,55 @@ final class TimelineViewModel {
     func loadMore() async {
         guard !isLoading else { return }
         await loadNextBucket()
+    }
+
+    /// Teleports the timeline to a specific day: loads that day's bucket
+    /// directly (replacing `items`), then lets `loadMore` continue into older
+    /// buckets and `loadNewer` into newer ones. No-op when the day isn't found.
+    @MainActor
+    func jump(toDay day: String) async {
+        guard !day.isEmpty else { return }
+        if buckets.isEmpty {
+            do {
+                buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            } catch let e {
+                errorMessage = e.localizedDescription
+                return
+            }
+        }
+        guard let index = buckets.firstIndex(where: { $0.timeBucket == day }) else { return }
+        isLoading = true
+        do {
+            let columnar = try await client.getTimeBucket(timeBucket: buckets[index].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            let zipped = AssetReactItem.zip(columnar)
+            items = zipped
+            loadedIds = Set(zipped.map(\.id))
+            bucketIndex = index + 1
+            upperBucketIndex = index - 1
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+        isLoading = false
+    }
+
+    /// Loads the bucket immediately NEWER than the current top (used when the
+    /// user scrolls up after a jump). Prepends so the timeline stays sorted
+    /// newest-first.
+    @MainActor
+    func loadNewer() async {
+        guard !isLoading, upperBucketIndex >= 0 else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let columnar = try await client.getTimeBucket(timeBucket: buckets[upperBucketIndex].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            let zipped = AssetReactItem.zip(columnar)
+            let newItems = zipped.filter { !loadedIds.contains($0.id) }
+            items.insert(contentsOf: newItems, at: 0)
+            loadedIds.formUnion(newItems.map(\.id))
+            upperBucketIndex -= 1
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
     }
 
     @MainActor

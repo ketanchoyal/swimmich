@@ -17,6 +17,11 @@ struct SystemBackupEnvironment: BackupEnvironment, @unchecked Sendable {
 
     init() {
         Self.ensureMonitor()
+        // Battery state is `.unknown` (→ isCharging false) unless monitoring
+        // is explicitly enabled; do it once so the charging gate is accurate.
+        DispatchQueue.main.async {
+            UIDevice.current.isBatteryMonitoringEnabled = true
+        }
     }
 
     /// Starts the NWPathMonitor once (process-wide) and caches the WiFi flag.

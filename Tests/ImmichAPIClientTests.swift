@@ -83,8 +83,12 @@ final class ImmichAPIClientTests: XCTestCase {
         CapturingURLProtocol.nextHeaders = ["Content-Type": "application/json"]
 
         let payload = Data(repeating: 0xAB, count: 1024) // 1KB
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("upload-test-\(UUID().uuidString).bin")
+        try payload.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
         _ = try await client.uploadAsset(
-            data: payload,
+            fileURL: tmp,
             fileCreatedAt: "2024-07-01T00:00:00.000Z",
             fileModifiedAt: "2024-07-01T00:00:00.000Z",
             filename: "photo.jpg",

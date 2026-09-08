@@ -34,5 +34,9 @@ protocol BackupAssetSource: Sendable {
     func fetchAlbums() -> [BackupAlbum]
     /// Candidates sorted by creation date DESC. Empty `albumIDs` = whole library.
     func fetchCandidates(in albumIDs: Set<String>) -> [BackupCandidate]
-    func loadData(for candidate: BackupCandidate) async throws -> Data
+    /// Streams the candidate's full-resolution original to a temporary file on
+    /// disk and returns its URL — never materializes the whole asset in memory
+    /// (mirrors the upstream Flutter client, which uploads straight from a
+    /// file). The caller owns the returned file and MUST delete it after use.
+    func exportOriginal(for candidate: BackupCandidate) async throws -> URL
 }

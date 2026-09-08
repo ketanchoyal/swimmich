@@ -32,6 +32,8 @@ struct AlbumDetailView: View {
     @State private var pendingDeleteSelected = false
     @State private var presentAlbumPicker = false // Add selected assets to another album
     @State private var activityFeedItem: ActivityFeedSheetItem?
+    @State private var roadTripVM: RoadTripViewModel?
+    @State private var presentingRoadTrip = false
     @State private var lastRemoveTick = 0
     @State private var lastDeleteTick = 0
     @State private var lastFavoriteTick = 0
@@ -127,6 +129,14 @@ struct AlbumDetailView: View {
                             .labelStyle(.iconOnly)
                     }
                     .disabled(vm.selectedIds.count != 1)
+
+                    Button {
+                        presentRoadTrip(assets: vm.assets.filter { vm.selectedIds.contains($0.id) })
+                    } label: {
+                        Label("Road Trip", systemImage: "car.fill")
+                            .labelStyle(.iconOnly)
+                    }
+                    .disabled(vm.selectedIds.isEmpty)
                 }
                 // Native trailing ellipsis menu — Photos-parity bulk actions.
                 ToolbarItem(placement: .topBarTrailing) {
@@ -206,6 +216,13 @@ struct AlbumDetailView: View {
                             )
                         } label: {
                             Label("Activity", systemImage: "bubble.left.and.bubble.right")
+                                .foregroundStyle(Color.primary)
+                        }
+                        .tint(Color.primary)
+                        Button {
+                            presentRoadTrip(assets: vm.assets)
+                        } label: {
+                            Label("Road Trip", systemImage: "car.fill")
                                 .foregroundStyle(Color.primary)
                         }
                         .tint(Color.primary)
@@ -332,6 +349,25 @@ struct AlbumDetailView: View {
                 Task { await vm.load() }
             }
         )
+        .fullScreenCover(isPresented: $presentingRoadTrip) {
+            if let roadTripVM {
+                RoadTripView(vm: roadTripVM)
+            }
+        }
+    }
+
+    /// Builds the road-trip VM for the given assets and presents it full-screen.
+    private func presentRoadTrip(assets: [AssetReactItem]) {
+        guard !assets.isEmpty else { return }
+        let baseURL = auth.baseURL ?? URL(string: "https://example.com")!
+        roadTripVM = DependencyContainer.shared.makeRoadTripViewModel(
+            albumId: vm.albumId,
+            selectedAssetIds: Set(assets.map(\.id)),
+            albumTitle: vm.album?.albumName ?? initialAlbum.albumName,
+            baseURL: baseURL,
+            token: auth.accessToken
+        )
+        presentingRoadTrip = true
     }
 
     private var errorState: some View {

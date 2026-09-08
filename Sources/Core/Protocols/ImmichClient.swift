@@ -156,10 +156,11 @@ protocol ImmichClient: AnyObject, Sendable {
     // MARK: - Users (photo share — shared-album user picker)
     func getUsers() async throws -> [UserResponseDto]
 
-    /// Uploads an asset via multipart/form-data.
+    /// Uploads an asset via streamed multipart/form-data — the body is
+    /// assembled from `fileURL` on disk, never held in memory.
     /// `checksum` is base64-encoded SHA1 (also sent as `x-immich-checksum` header).
     func uploadAsset(
-        data: Data,
+        fileURL: URL,
         fileCreatedAt: String,
         fileModifiedAt: String,
         filename: String,

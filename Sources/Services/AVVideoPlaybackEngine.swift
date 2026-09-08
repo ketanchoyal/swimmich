@@ -83,6 +83,7 @@ final class AVVideoPlaybackEngine: NSObject, VideoPlaybackEngine, @unchecked Sen
     }
 
     deinit {
+        player.pause()
         invalidateObservers()
     }
 

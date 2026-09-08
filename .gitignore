@@ -19,3 +19,6 @@ Pods/
 # Agent tooling artifacts + backups
 .zcode/
 *.pbxproj.bak
+
+# Secrets
+.env

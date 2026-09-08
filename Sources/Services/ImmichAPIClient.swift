@@ -465,7 +465,7 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     // MARK: - Upload
 
     func uploadAsset(
-        data: Data,
+        fileURL: URL,
         fileCreatedAt: String,
         fileModifiedAt: String,
         filename: String,
@@ -477,31 +477,42 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     ) async throws -> AssetMediaResponseDto {
         guard let url = resolvedURL(path: ImmichAPI.assets.path("")) else { throw APIError.invalidURL }
 
-        var multipart = MultipartBody()
-        multipart.append(name: "assetData", filename: filename, contentType: "application/octet-stream", data: data)
-        multipart.append(name: "fileCreatedAt", value: fileCreatedAt)
-        multipart.append(name: "fileModifiedAt", value: fileModifiedAt)
+        var fields: [(name: String, value: String)] = [
+            ("fileCreatedAt", fileCreatedAt),
+            ("fileModifiedAt", fileModifiedAt),
+        ]
         if let duration {
-            multipart.append(name: "duration", value: String(duration))
+            fields.append(("duration", String(duration)))
         }
-        multipart.append(name: "isFavorite", value: isFavorite ? "true" : "false")
-        multipart.append(name: "visibility", value: visibility.rawValue)
+        fields.append(("isFavorite", isFavorite ? "true" : "false"))
+        fields.append(("visibility", visibility.rawValue))
         if let livePhotoVideoId {
-            multipart.append(name: "livePhotoVideoId", value: livePhotoVideoId)
+            fields.append(("livePhotoVideoId", livePhotoVideoId))
         }
-        let body = multipart.encoded()
+
+        // Assemble the multipart body on disk (asset bytes streamed from the
+        // file, never held in memory), then hand the body file to URLSession
+        // — mirrors the Flutter client's file-based upload.
+        let multipart = MultipartBody()
+        let bodyURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("immich-upload-\(UUID().uuidString).multipart")
+        try multipart.writeStreamed(
+            fileField: ("assetData", filename, "application/octet-stream", fileURL),
+            fields: fields,
+            to: bodyURL
+        )
+        defer { try? FileManager.default.removeItem(at: bodyURL) }
 
         var request = URLRequest(url: url)
         request.httpMethod = HTTPMethod.POST.rawValue
-        request.setValue(MultipartBody.contentType(forBoundary: multipart.boundary), forHTTPHeaderField: ImmichHeader.contentType)
+        request.setValue(multipart.contentType, forHTTPHeaderField: ImmichHeader.contentType)
         request.setValue(ImmichAPI.acceptJSON, forHTTPHeaderField: ImmichHeader.accept)
         request.setValue(checksum, forHTTPHeaderField: ImmichHeader.checksum)
         if let token = token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: ImmichHeader.authorization)
         }
-        request.httpBody = body
 
-        let (responseData, response) = try await dispatch(request)
+        let (responseData, response) = try await dispatchUpload(request, fromFile: bodyURL)
         try validate(response: response, data: responseData)
         return try Self.decode(AssetMediaResponseDto.self, from: responseData)
     }
@@ -549,6 +560,20 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         bumpRequestCount()
         do {
             return try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw APIError.network(urlError)
+        } catch {
+            throw APIError.from(error)
+        }
+    }
+
+    /// Like `dispatch`, but streams the request body from a file on disk
+    /// (`URLSession.upload(fromFile:)`) so large asset uploads never load the
+    /// body into memory.
+    private func dispatchUpload(_ request: URLRequest, fromFile fileURL: URL) async throws -> (Data, URLResponse) {
+        bumpRequestCount()
+        do {
+            return try await session.upload(for: request, fromFile: fileURL)
         } catch let urlError as URLError {
             throw APIError.network(urlError)
         } catch {

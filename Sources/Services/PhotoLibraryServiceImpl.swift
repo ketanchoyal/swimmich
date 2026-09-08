@@ -25,31 +25,77 @@ final class PhotoLibraryServiceImpl: PhotoLibraryService, @unchecked Sendable {
     }
 
     func loadData(for asset: PHAsset) async throws -> Data {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
-            let options = PHImageRequestOptions()
-            options.isNetworkAccessAllowed = true
-            options.isSynchronous = false
-            options.deliveryMode = .highQualityFormat
-            options.version = .current
+        try await timeoutLoadData(for: asset)
+    }
 
-            // PHImageManager may invoke the handler more than once (progressive
-            // delivery). Guard against double-resume (which would crash).
-            let resumeGate = OSAllocatedUnfairLock(initialState: false)
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
-                let alreadyResumed = resumeGate.withLock { locked -> Bool in
-                    if locked { return true }
-                    locked = true
-                    return false
-                }
-                guard !alreadyResumed else { return }
+    /// Hard deadline for the original-data request. The PHImageManager
+    /// callback can never arrive for an iCloud-only asset whose download
+    /// hangs — an unresumed continuation leaves the backup engine parked in
+    /// "Checking library…" forever (infinite UI, unresponsive Cancel).
+    /// Whichever wins the race resumes: the data handler, task
+    /// cancellation, or this deadline (which also cancels the PH request).
+    private func timeoutLoadData(for asset: PHAsset) async throws -> Data {
+        let loader = PHImageManager.default()
+        let gate = LoadGate()
+        let request = loader.requestImageDataAndOrientation(for: asset, options: makeLoadOptions()) { data, _, _, info in
+            if let data {
+                gate.finish(with: .success(data))
+            } else {
+                let underlying = info?[PHImageErrorKey] as? Error
+                gate.finish(with: .failure(underlying ?? APIError.decoding("Unable to load PHAsset data")))
+            }
+        }
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + Self.loadTimeoutSeconds) {
+            loader.cancelImageRequest(request)
+            gate.finish(with: .failure(APIError.decoding("Asset download timed out — it will be retried on the next run")))
+        }
+        return try await withTaskCancellationHandler {
+            try await gate.value
+        } onCancel: {
+            loader.cancelImageRequest(request)
+            gate.finish(with: .failure(APIError.decoding("Asset download cancelled — it will be retried on the next run")))
+        }
+    }
 
-                if let data {
-                    continuation.resume(returning: data)
-                } else {
-                    continuation.resume(throwing: APIError.decoding("Unable to load PHAsset data"))
+    /// Single-delivery resume token — the data handler, the deadline timer
+    /// and task cancellation race to finish the load; the first wins, the
+    /// rest no-op.
+    private final class LoadGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Data, Error>?
+
+        var value: Data {
+            get async throws {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+                    lock.lock()
+                    self.continuation = continuation
+                    lock.unlock()
                 }
             }
         }
+
+        func finish(with result: Result<Data, Error>) {
+            lock.lock()
+            let cont = continuation
+            continuation = nil
+            lock.unlock()
+            if let cont { cont.resume(with: result) }
+        }
+    }
+
+    /// Max wait for one asset's original data (iCloud download). A
+    /// candidate that misses the window counts as failed and is retried on
+    /// the next run — bounds "Checking library…" to at worst library ×
+    /// interval instead of potentially infinite.
+    private static let loadTimeoutSeconds: TimeInterval = 90
+
+    private func makeLoadOptions() -> PHImageRequestOptions {
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.isSynchronous = false
+        options.deliveryMode = .highQualityFormat
+        options.version = .current
+        return options
     }
 
     func checksum(for asset: PHAsset) async throws -> String {
@@ -153,11 +199,69 @@ extension PhotoLibraryServiceImpl: BackupAssetSource {
         return samplers.compactMap(makeCandidate)
     }
 
-    func loadData(for candidate: BackupCandidate) async throws -> Data {
+    /// Streams the asset's original resource to a temp file on disk (never a
+    /// full `Data` in memory). `isNetworkAccessAllowed` lets iCloud-only
+    /// originals download; a deadline guards against a hung download, matching
+    /// `loadData`'s timeout policy.
+    func exportOriginal(for candidate: BackupCandidate) async throws -> URL {
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [candidate.id], options: nil).firstObject else {
             throw APIError.decoding("PHAsset not found for \(candidate.id)")
         }
-        return try await loadData(for: asset)
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let resource = resources.first(where: { $0.type == .photo || $0.type == .video })
+            ?? resources.first(where: { $0.type == .fullSizePhoto || $0.type == .fullSizeVideo })
+            ?? resources.first else {
+            throw APIError.decoding("No original resource for \(candidate.id)")
+        }
+
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("immich-backup", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dest = dir.appendingPathComponent("\(UUID().uuidString)-\(candidate.fileName)")
+
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+
+        let gate = WriteGate()
+        PHAssetResourceManager.default().writeData(for: resource, toFile: dest, options: options) { error in
+            gate.finish(error)
+        }
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + Self.loadTimeoutSeconds) {
+            gate.finish(APIError.decoding("Asset export timed out — it will be retried on the next run"))
+        }
+        do {
+            try await gate.value
+        } catch {
+            try? FileManager.default.removeItem(at: dest)
+            throw error
+        }
+        return dest
+    }
+
+    /// Single-delivery Void resume token — the write completion and the
+    /// deadline race; the first wins, the rest no-op.
+    private final class WriteGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Void, Error>?
+
+        var value: Void {
+            get async throws {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    lock.lock()
+                    self.continuation = continuation
+                    lock.unlock()
+                }
+            }
+        }
+
+        func finish(_ error: Error?) {
+            lock.lock()
+            let cont = continuation
+            continuation = nil
+            lock.unlock()
+            guard let cont else { return }
+            if let error { cont.resume(throwing: error) } else { cont.resume() }
+        }
     }
 
     /// Maps a PHAsset to its value-typed candidate. Local albums are resolved

@@ -12,7 +12,10 @@ import SwiftUI
 /// - Spring-animated selection mode w/ pro cell treatment (scale, tint, symbol morph).
 /// - Pull-to-refresh, scroll-to-top, pinned headers, sensoryFeedback.
 struct TimelineView: View {
+    @Environment(UploadViewModel.self) private var upload
     @State private var vm: TimelineViewModel
+    @Binding var scrollTargetID: String?
+    @Binding var scrollTargetDay: String?
     @Environment(AuthViewModel.self) private var auth
     @Environment(\.openProfile) private var openProfile
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,9 +45,16 @@ struct TimelineView: View {
     @State private var pendingDeleteSingleID: String?
     @State private var presentAlbumPicker = false // AC-515 — Add to Album sheet
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
+    @State private var scrollPosition = ScrollPosition()
 
-    init(vm: TimelineViewModel) {
+    init(
+        vm: TimelineViewModel,
+        scrollTargetID: Binding<String?> = .constant(nil),
+        scrollTargetDay: Binding<String?> = .constant(nil)
+    ) {
         _vm = State(initialValue: vm)
+        _scrollTargetID = scrollTargetID
+        _scrollTargetDay = scrollTargetDay
     }
 
     var body: some View {
@@ -61,6 +71,7 @@ struct TimelineView: View {
 
                     content
                 }
+                .scrollPosition($scrollPosition)
                 .coordinateSpace(name: Self.scrollSpaceName)
                 .onPreferenceChange(PinnedDayPreferenceKey.self) { frames in
                     pinnedDay = PinnedHeaderResolver.currentDay(from: frames)
@@ -120,6 +131,22 @@ struct TimelineView: View {
                     }
                 }
                 .refreshable { await vm.refresh() }
+                // Cross-tab "view in timeline" teleport: jump to the target
+                // day when the asset isn't already loaded, then scroll to it.
+                .onChange(of: scrollTargetID) { _, newID in
+                    guard let newID else { return }
+                    if vm.items.contains(where: { $0.id == newID }) {
+                        attemptTimelineScroll(proxy: proxy)
+                    } else {
+                        Task {
+                            await vm.jump(toDay: scrollTargetDay ?? "")
+                            attemptTimelineScroll(proxy: proxy)
+                        }
+                    }
+                }
+                .onChange(of: vm.items.count) { _, _ in
+                    if scrollTargetID != nil { attemptTimelineScroll(proxy: proxy) }
+                }
                 .scrollDismissesKeyboard(.immediately)
                 // D7: Photos-style pinch-to-zoom grid. Simultaneous so it never
                 // blocks tap/long-press/scroll. `gridScale` commits on end, so
@@ -175,6 +202,7 @@ struct TimelineView: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
+                .overlay(alignment: .top) { uploadBanner }
                 .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : "")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -260,6 +288,24 @@ struct TimelineView: View {
         )
     }
 
+    // MARK: - Upload progress banner (AC-BK05/BK06)
+
+    @ViewBuilder
+    private var uploadBanner: some View {
+        if upload.engine.phase == .checking || upload.engine.phase == .uploading {
+            UploadProgressBanner(
+                uploaded: upload.engine.uploadedCount,
+                total: upload.engine.total,
+                phase: upload.engine.phase,
+                lastError: upload.engine.lastError,
+                onRetry: { Task { await upload.runBackup(manual: true) } }
+            )
+            .padding(.horizontal, PVSpacing.s16)
+            .padding(.top, PVSpacing.s8)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
     // MARK: - Content (skeleton / empty / grid)
 
     @ViewBuilder
@@ -305,12 +351,23 @@ struct TimelineView: View {
                         case .dayGroup(let group):
                             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
                                 cellView(for: item)
+                                    .id(item.id)
                                     .task {
                                         // Global last-item trigger — stays correct
                                         // under section restructure because the
                                         // id compared is the VM's flat last id.
                                         if item.id == vm.items.last?.id {
                                             await vm.loadMore()
+                                        }
+                                        // First-item trigger — loads the NEWER
+                                        // bucket when scrolling up after a jump,
+                                        // re-anchoring so the view doesn't jump.
+                                        if item.id == vm.items.first?.id {
+                                            let previousFirst = vm.items.first?.id
+                                            await vm.loadNewer()
+                                            if let previousFirst {
+                                                scrollPosition.scrollTo(id: previousFirst, anchor: .top)
+                                            }
                                         }
                                     }
                                     // First cell of each day reports the day's
@@ -411,6 +468,18 @@ struct TimelineView: View {
     private func openViewer(for item: AssetReactItem) {
         guard let idx = vm.items.firstIndex(where: { $0.id == item.id }) else { return }
         viewerItem = PhotoViewerItem(assets: vm.items, index: idx)
+    }
+
+    /// Scrolls the timeline to `scrollTargetID` once that asset is loaded, then
+    /// clears the target. Best-effort: only instantiated lazy cells respond to
+    /// `scrollTo`, so a target far outside the loaded window stays a no-op.
+    private func attemptTimelineScroll(proxy: ScrollViewProxy) {
+        guard let target = scrollTargetID,
+              vm.items.contains(where: { $0.id == target }) else { return }
+        withAnimation(PVMotion.adaptive(PVMotion.gentle, reduceMotion: reduceMotion)) {
+            proxy.scrollTo(target, anchor: .top)
+        }
+        scrollTargetID = nil
     }
 
     // MARK: - Toolbar — swaps between normal + selection modes (SF Symbols, V03)
