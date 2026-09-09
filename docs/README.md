@@ -1,32 +1,35 @@
 # immich_swiftui — documentation index
 
-Start here. This is an Apple-native (not ported) SwiftUI client for [Immich](https://github.com/immich-app/immich),
-targeting iOS 26 / Liquid Glass, structured as a single-module MVVM app with `@Observable` view models.
+Le point d'entrée est le [README](../README.md) à la racine : présentation du projet, motivations, architecture, fonctionnement, démarrage et contribution.
 
-## Project knowledge
+## Documents
 
-| Doc | What it is |
+| Doc | Contenu |
 | --- | --- |
-| [`audit-2026-08.md`](audit-2026-08.md) | Consolidated read-only audit: research/docs, runtime performance, iOS 26 design/HIG. Every finding cites `file:line`. |
-| [`../immich-swiftui-prd-design-system.md`](../immich-swiftui-prd-design-system.md) | Primary PRD + design-system spec (vision, scope, IA, colors, onboarding). v0.1 Draft. |
-| [`../PhotoVault-DesignSystem.md`](../PhotoVault-DesignSystem.md) | Single source of truth for the PhotoVault visual language (color/font/spacing/radius/motion tokens). |
-| [`../.opencode/memory.md`](../.opencode/memory.md) | The de-facto onboarding doc for new contributors: architecture decisions, Immich API gotchas, per-feature decision logs, acceptance-contract methodology. Read this first. |
-| [`../.opencode/AGENTS.pipeline.md`](../.opencode/AGENTS.pipeline.md) | Multi-agent pipeline methodology (Phase 0a-0d, AC-NNN template, Phase 1-4). |
-| [`../.opencode/scratch/*.acceptance.md`](../.opencode/scratch) | Executable acceptance contracts (one per feature). Each now carries a `Status:` line (shipped / wip / backlog). |
-| [`../project.yml`](../project.yml) | xcodegen project spec (bundle id, team, targets, sources). |
+| [`../README.md`](../README.md) | Entrée canonique : projet, architecture, build, tests, contribution |
+| [`immich-swiftui-feature-audit.md`](immich-swiftui-feature-audit.md) | Audit consolidé des surfaces de features de l'app |
+| [`mobile-features-vs-flutter.md`](mobile-features-vs-flutter.md) | Référence du client Flutter upstream — objectif de parité |
+| [`feature-parity-plan.md`](feature-parity-plan.md) | Plan de parité Flutter |
+| [`feature-audit-vs-flutter.md`](feature-audit-vs-flutter.md) | Audit comparatif des features vs Flutter |
+| [`audit-2026-08.md`](audit-2026-08.md) | Audit consolidé 2026-08 : recherche, performance runtime, design iOS 26 / HIG |
+| [`../.omp/backlog/ImmichSwiftUI-backlog.md`](../.omp/backlog/ImmichSwiftUI-backlog.md) | Backlog : phases P0–P5, cartes AC, endpoints manquants |
+| [`../.omp/<feature>/`](../.omp/) | Specs (`*.specs.md`) et briefs UI (`*.ui.md`) par feature |
 
-## Code map
+## Code map (résumé)
 
-- `Sources/DesignSystem/` — tokens (`Tokens/`) + components (`Components/`). The canonical brand colors live in `Tokens/ImmichColors.swift` (`Color.immich*`).
-- `Sources/Core/` — `Types/` (DTOs), `Protocols/` (`ImmichClient`, `KeychainStore`, …), `Utilities/`.
-- `Sources/Services/` — `ImmichAPIClient`, `AuthenticatedAsyncImage` (3-tier image pipeline), `ImageCache` (actor-isolated `NSCache`).
-- `Sources/Features/` — one folder per feature: `Timeline`, `Search` (Results/Explore/Map), `PhotoViewer`, `Albums`, `Editor`, `Auth` (onboarding), `Profile`, `Trash`, `SharedLinks`, `Upload`, `AssetDetail`.
-- `Sources/ImmichSwiftUIApp.swift` + `RootView.swift` + `DependencyContainer.swift` — app entry, auth-gated 5-tab router, composition root.
+- `Sources/DesignSystem/` — tokens (`Tokens/`, couleurs canoniques dans `Tokens/ImmichColors.swift`) + composants (`Components/`).
+- `Sources/Core/` — `Types/` (DTOs), `Protocols/` (contrats d'injection), `Utilities/`.
+- `Sources/Services/` — `ImmichAPIClient`, `BackupEngine`, `ImageCache`, `AuthenticatedAsyncImage`, `RealtimeService`, …
+- `Sources/Features/` — un dossier par feature, MVVM (`*ViewModel.swift` + `*View.swift`).
+- `Sources/ImmichSharedKit/` + `ImmichWidgets/` — framework partagé et extension widget (Live Activity).
+- `Sources/RootView.swift` + `Sources/DependencyContainer.swift` — routeur auth-gated et composition root.
+
+Détails dans le [README](../README.md#architecture).
 
 ## Quick start
 
 ```bash
-xcodegen generate        # regenerates ImmichSwiftUI.xcodeproj from project.yml
+xcodegen generate        # régénère ImmichSwiftUI.xcodeproj depuis project.yml
 open ImmichSwiftUI.xcodeproj
-# pick a simulator, ⌘R
+# choisir un simulateur, ⌘R
 ```
