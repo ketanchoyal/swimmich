@@ -10,7 +10,7 @@
 - `AuthViewModel` gère le login email/password — on ajoute OAuth comme alternative.
 - `OnboardingFlowView` — le onboarding 3-step (welcome → serverURL → login) — on ajoute OAuth au login step.
 - iOS Safari pour l'OIDC flow (ASWebAuthenticationSession).
-- `redirectURI` format : `immich://oauth-callback` (custom URL scheme).
+- `redirectURI` format : `app.immich://oauth-callback` (custom URL scheme).
 - `LoginScreen.swift` existe — on ajoute un bouton "Sign in with provider" en dessous du login form.
 
 **Approche retenue** : A — `ASWebAuthenticationSession` pour le OAuth flow, bouton dans LoginScreen, result injecté dans AuthViewModel.
@@ -26,7 +26,7 @@
    - `func handleOAuthCallback(url: URL)` — parse le callback URL + exchange code.
 2. **OAuth flow integration** :
    - `ASWebAuthenticationSession` pour ouvrir l'OIDC provider.
-   - `redirectURI` = `immich://oauth-callback` (custom URL scheme).
+   - `redirectURI` = `app.immich://oauth-callback` (custom URL scheme).
    - `onDidFinish` → parse URL → `handleOAuthCallback(url:)` → call `exchangeOAuthCode` → set result.
    - `getOAuthMobileURL` → obtenir `authorizationUrl` + `redirectURI` → passer à ASWebAuthenticationSession.
 3. **LoginScreen** — Ajouter :
@@ -61,7 +61,7 @@ Post-state attendu: PASS
 
 ```
 ### AC-OA02 [type: new]
-Assertion: LoginScreen intègre un bouton OAuth (ASWebAuthenticationSession, immich://oauth-callback).
+Assertion: LoginScreen intègre un bouton OAuth (ASWebAuthenticationSession, app.immich://oauth-callback).
 Check post-impl: sh -c 'f=Sources/Features/Auth/LoginScreen.swift; grep -q "ASWebAuthenticationSession\|oauth\|OAuth" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
@@ -69,7 +69,7 @@ Post-state attendu: PASS
 
 ```
 ### AC-OA03 [type: new]
-Assertion: ImmichSwiftUIApp intègre .onOpenURL handler pour immich://oauth-callback.
+Assertion: ImmichSwiftUIApp intègre .onOpenURL handler pour app.immich://oauth-callback.
 Check post-impl: sh -c 'grep -q "onOpenURL" Sources/ImmichSwiftUIApp.swift && grep -q "oauth" Sources/ImmichSwiftUIApp.swift && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS

@@ -20,9 +20,9 @@ Status: plan
 
 **Étapes**:
 1. EDIT `AuthViewModel.swift` — Ajouter `oauthResult: OAuthResult?`, `func startOAuthFlow()`, `func handleOAuthCallback(url:)`.
-2. `AuthViewModel.startOAuthFlow()` — `getOAuthMobileURL(redirectURI: "immich://oauth-callback")` → `ASWebAuthenticationSession(url:redirectURI:)` → `onDidFinish` parse URL → `handleOAuthCallback` → `exchangeOAuthCode` → set `activeAccountID`.
+2. `AuthViewModel.startOAuthFlow()` — `getOAuthMobileURL(redirectURI: "app.immich://oauth-callback")` → `ASWebAuthenticationSession(url:redirectURI:)` → `onDidFinish` parse URL → `handleOAuthCallback` → `exchangeOAuthCode` → set `activeAccountID`.
 3. EDIT `LoginScreen.swift` — Ajouter bouton OAuth avec `ASWebAuthenticationSession`, `OR` divider, `showOAuthSession` state.
-4. EDIT `ImmichSwiftUIApp.swift` — Ajouter `.onOpenURL` handler pour `immich://oauth-callback` → `auth.handleOAuthCallback(url:)`.
+4. EDIT `ImmichSwiftUIApp.swift` — Ajouter `.onOpenURL` handler pour `app.immich://oauth-callback` → `auth.handleOAuthCallback(url:)`.
 5. NEW `OAuthLoadingView.swift` — Sheet showing loading state during ASWebAuthenticationSession.
 6. Tests — `AuthViewModelTests` +4 (startOAuth, handleCallback, exchangeCode, ASWeb params).
 7. Build + suite complète → /tmp/immich_oauth_test_summary.txt.
@@ -49,15 +49,15 @@ Post-state attendu: PASS
 
 ```
 ### AC-3001 [type: new]
-Assertion: AuthViewModel.startOAuthFlow() appelle getOAuthMobileURL(redirectURI: "immich://oauth-callback"), ouvre ASWebAuthenticationSession, configure onDidFinish pour appeler handleOAuthCallback(url:).
-Check post-impl: sh -c 'f=Sources/Features/Auth/AuthViewModel.swift; grep -qE "getOAuthMobileURL" "$f" && grep -qE "immich://oauth-callback" "$f" && grep -qE "ASWebAuthenticationSession" "$f" && grep -qE "handleOAuthCallback" "$f" && echo PASS || echo FAIL'
+Assertion: AuthViewModel.startOAuthFlow() appelle getOAuthMobileURL(redirectURI: "app.immich://oauth-callback"), ouvre ASWebAuthenticationSession, configure onDidFinish pour appeler handleOAuthCallback(url:).
+Check post-impl: sh -c 'f=Sources/Features/Auth/AuthViewModel.swift; grep -qE "getOAuthMobileURL" "$f" && grep -qE "app.immich://oauth-callback" "$f" && grep -qE "ASWebAuthenticationSession" "$f" && grep -qE "handleOAuthCallback" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3002 [type: new]
-Assertion: AuthViewModel.handleOAuthCallback(url:) parse immich://oauth-callback avec query params code + state, appelle exchangeOAuthCode(code:redirectURI:), set activeAccountID, dismiss sheet, haptic success.
+Assertion: AuthViewModel.handleOAuthCallback(url:) parse app.immich://oauth-callback avec query params code + state, appelle exchangeOAuthCode(code:redirectURI:), set activeAccountID, dismiss sheet, haptic success.
 Check post-impl: sh -c 'f=Sources/Features/Auth/AuthViewModel.swift; grep -qE "URLQueryItem" "$f" && grep -qE "exchangeOAuthCode" "$f" && grep -qE "activeAccountID" "$f" && grep -qE "dismiss\(\)" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS

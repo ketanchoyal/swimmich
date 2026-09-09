@@ -195,10 +195,10 @@ struct OAuthLoadingView: View {
 ### "Sign in with Provider" button
 1. Tap → glass shimmer on button + haptic `.selection`
 2. Shows OAuthLoadingView (glass morph from button via `glassEffectID`)
-3. Calls `getOAuthMobileURL(redirectURI: "immich://oauth-callback")`
+3. Calls `getOAuthMobileURL(redirectURI: "app.immich://oauth-callback")`
 4. Opens ASWebAuthenticationSession
 5. User signs in on provider's page
-6. Provider redirects to `immich://oauth-callback`
+6. Provider redirects to `app.immich://oauth-callback`
 7. ImmichSwiftUIApp catches URL → calls `exchangeOAuthCode`
 8. Token received → AuthViewModel sets activeAccountID
 9. OAuthLoadingView dismisses → user sees Timeline
@@ -255,6 +255,6 @@ struct OAuthLoadingView: View {
 
 - `Sources/Features/Auth/LoginScreen.swift` — Glass form + OAuth button + glass morph
 - `Sources/Features/Auth/AuthViewModel.swift` — startOAuthFlow(), handleOAuthCallback(url:)
-- `Sources/ImmichSwiftUIApp.swift` — onOpenURL handler for immich://oauth-callback
+- `Sources/ImmichSwiftUIApp.swift` — onOpenURL handler for app.immich://oauth-callback
 - `Sources/Features/Auth/OAuthLoadingView.swift` — NEW: glass loading sheet
 - `Sources/Core/Protocols/ImmichClient.swift` — already has getOAuthMobileURL + exchangeOAuthCode

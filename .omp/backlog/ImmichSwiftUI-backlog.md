@@ -107,7 +107,7 @@ Ajouter le bouton OAuth2 dans LoginScreen pour connexion OIDC (SSO). Les DTOs et
 - `AuthViewModel` — `startOAuthFlow()`, `handleOAuthCallback(url:)`, `oauthResult: OAuthResult?`, `oauthAuthorizationURL: URL?`
 - `LoginScreen` — Bouton "Sign in with Provider" (globe SF symbol) + OR divider
 - `OAuthLoadingView` — Sheet avec ProgressView pendant ASWebAuthenticationSession
-- `ImmichSwiftUIApp` — `.onOpenURL` pour `immich://oauth-callback`
+- `ImmichSwiftUIApp` — `.onOpenURL` pour `app.immich://oauth-callback`
 
 #### Endpoint API
 - `GET /api/auth/oauth2/mobile` — existant (`getOAuthMobileURL`)
@@ -115,7 +115,7 @@ Ajouter le bouton OAuth2 dans LoginScreen pour connexion OIDC (SSO). Les DTOs et
 
 #### Étapes d'implémentation
 1. Ajouter `startOAuthFlow()`, `handleOAuthCallback(url:)` dans `AuthViewModel`
-2. `ASWebAuthenticationSession` avec `immich://oauth-callback` dans `startOAuthFlow()`
+2. `ASWebAuthenticationSession` avec `app.immich://oauth-callback` dans `startOAuthFlow()`
 3. Ajouter bouton OAuth + OR divider dans `LoginScreen`
 4. Créer `OAuthLoadingView` dans `Sources/Features/Auth/`
 5. Ajouter `.onOpenURL` handler dans `ImmichSwiftUIApp.swift`

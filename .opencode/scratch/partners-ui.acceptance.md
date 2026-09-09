@@ -75,7 +75,7 @@ Post-state attendu: PASS
 
 ```
 ### AC-3104 [type: new]
-Assertion: InvitePartnerSheet expose TextField email + UserSearchView link + CTA Invite disabled si email vide + ImmichSwiftUIApp onOpenURL handler immich://oauth-callback.
+Assertion: InvitePartnerSheet expose TextField email + UserSearchView link + CTA Invite disabled si email vide + ImmichSwiftUIApp onOpenURL handler app.immich://oauth-callback.
 Check post-impl: sh -c 'f=Sources/Features/SharedLinks/InvitePartnerSheet.swift; test -f "$f" && grep -qE "TextField" "$f" && grep -qE "email" "$f" && grep -qE "UserSearchView" "$f" && grep -qE "Invite" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
