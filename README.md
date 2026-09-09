@@ -1,69 +1,69 @@
 # ImmichSwiftUI
 
-> Client iOS **natif** (SwiftUI) pour [Immich](https://github.com/immich-app/immich), la plateforme photo/vidéo auto-hébergée. Conçu pour **iOS 26** et son langage visuel Liquid Glass — ce n'est pas un port du client Flutter upstream.
+> A **native** iOS (SwiftUI) client for [Immich](https://github.com/immich-app/immich), the self-hosted photo and video platform. Designed for **iOS 26** and its Liquid Glass visual language — this is not a port of the upstream Flutter client.
 
-ImmichSwiftUI s'appuie sur la même API serveur (`/api`) que le client officiel, avec la même ambition de parité fonctionnelle, mais réécrit pour une expérience 100 % Apple : SwiftUI, intégrations système profondes (Live Activities, Dynamic Island, widgets, App Intents, tâches d'arrière-plan) et une sauvegarde conçue pour de vraies photothèques (streaming disque, RAM bornée).
+ImmichSwiftUI uses the same server API (`/api`) as the official client, with the same ambition of feature parity, but rewritten for a 100% Apple experience: SwiftUI, deep system integrations (Live Activities, Dynamic Island, widgets, App Intents, background tasks), and a backup engine built for real photo libraries (disk streaming, bounded RAM).
 
 ---
 
-## Sommaire
+## Table of Contents
 
-- [Pourquoi une app native ?](#pourquoi-une-app-native-)
-- [Fonctionnalités](#fonctionnalités)
+- [Why a native app?](#why-a-native-app)
+- [Features](#features)
 - [Architecture](#architecture)
-- [Comment l'app fonctionne](#comment-lapp-fonctionne)
-- [Démarrage rapide](#démarrage-rapide)
+- [How the app works](#how-the-app-works)
+- [Quick Start](#quick-start)
 - [Tests](#tests)
-- [Contribuer](#contribuer)
+- [Contributing](#contributing)
 
 ---
 
-## Pourquoi une app native ?
+## Why a native app?
 
-1. **Expérience native.** Le client upstream est en Flutter : excellente parité multiplateforme, mais pas de langage visuel iOS. ImmichSwiftUI suit les HIG et le Liquid Glass d'iOS 26, avec `NavigationStack`, tab bar et sheets natifs.
-2. **Intégrations système.** Une Live Activity affiche la progression du backup dans la Dynamic Island et sur l'écran verrouillé ; BGTaskScheduler entretient une chaîne de sauvegardes en arrière-plan ; un App Intent expose « Back up now » à Siri/Shortcuts ; un widget d'accueil lance un backup en un tap.
-3. **Performance face aux vraies photothèques.** Le backup est entièrement streamé disque→réseau : hash SHA-1 par blocs, multipart écrit sur disque, upload par fichier. La RAM reste bornée quelle que soit la taille de l'asset — les grosses vidéos iCloud ne tuent pas l'app.
-4. **Souveraineté.** Self-hosted, zéro cloud intermédiaire : l'app ne parle qu'à ton serveur Immich.
+1. **Native experience.** The upstream client is built with Flutter: excellent cross-platform parity, but no iOS visual language. ImmichSwiftUI follows the HIG and iOS 26's Liquid Glass, using `NavigationStack`, native tab bars, and sheets.
+2. **System integrations.** A Live Activity displays backup progress in the Dynamic Island and on the lock screen; BGTaskScheduler maintains a chain of background backups; an App Intent exposes "Back up now" to Siri/Shortcuts; a home screen widget triggers a backup with one tap.
+3. **Performance against real photo libraries.** Backup is fully streamed disk→network: SHA-1 hashed in 1 MB blocks, multipart written to disk, uploaded via `URLSession.upload(fromFile:)`. RAM stays bounded regardless of asset size — large iCloud videos don't crash the app.
+4. **Sovereignty.** Self-hosted, zero intermediate cloud: the app communicates only with your Immich server.
 
-La parité avec le client Flutter est suivie dans [`docs/mobile-features-vs-flutter.md`](docs/mobile-features-vs-flutter.md).
+Feature parity with the Flutter client is tracked in [`docs/mobile-features-vs-flutter.md`](docs/mobile-features-vs-flutter.md).
 
-## Fonctionnalités
+## Features
 
-| Domaine | Contenu | Code |
+| Domain | Content | Code |
 |---|---|---|
-| **Timeline** | buckets par jour, zoom de grille, vignettes | `Sources/Features/Timeline/` |
-| **Visionneuse** | plein écran, zoom, filmstrip, vidéo, diaporama, panneau EXIF, stacks, visages | `Sources/Features/PhotoViewer/` |
-| **Recherche** | sémantique (CLIP), visages, lieux (carte), tags, filtres avancés | `Sources/Features/Search/` |
-| **Albums** | CRUD, partage, flux d'activité | `Sources/Features/Albums/` |
-| **Personnes, tags, doublons, corbeille** | gestion des visages, tags, détection de doublons, restauration | `Sources/Features/People/`, `Tags/`, `Duplicates/`, `Trash/` |
-| **Liens partagés** | CRUD, mot de passe, expiration | `Sources/Features/SharedLinks/` |
-| **Souvenirs** | « Ce jour-là », visionneuse de moments | `Sources/Features/Memories/` |
-| **Éditeur photo** | recadrage, rotation, édition non destructive | `Sources/Features/Editor/` |
-| **RoadTrip** | lecteur + export d'un film de voyage (ouverture → diaporama → trajet carte) généré depuis un album | `Sources/Features/RoadTrip/` |
-| **Auto-backup** | streaming, dédup serveur, Live Activity, arrière-plan, reprise | `Sources/Features/Upload/` + `Sources/Services/BackupEngine.swift` |
-| **Admin** | panneau d'administration serveur | `Sources/Features/Admin/` |
-| **Profil** | stockage, verrouillage de l'app (Face ID) | `Sources/Features/Profile/` |
+| **Timeline** | daily buckets, grid zoom, thumbnails | `Sources/Features/Timeline/` |
+| **Viewer** | full-screen pager, zoom, filmstrip, video, slideshow, EXIF panel, stacks, faces | `Sources/Features/PhotoViewer/` |
+| **Search** | semantic (CLIP), faces, locations (map), tags, advanced filters | `Sources/Features/Search/` |
+| **Albums** | CRUD, sharing, activity feed | `Sources/Features/Albums/` |
+| **People, Tags, Duplicates, Trash** | face management, tags, duplicate detection, restore | `Sources/Features/People/`, `Tags/`, `Duplicates/`, `Trash/` |
+| **Shared Links** | CRUD, password, expiration | `Sources/Features/SharedLinks/` |
+| **Memories** | "On this day", moments viewer | `Sources/Features/Memories/` |
+| **Photo Editor** | crop, rotate, non-destructive editing | `Sources/Features/Editor/` |
+| **RoadTrip** | reader + export of a travel film (opening → slideshow → map route) generated from an album | `Sources/Features/RoadTrip/` |
+| **Auto-Backup** | streaming, server dedup, Live Activity, background, resume | `Sources/Features/Upload/` + `Sources/Services/BackupEngine.swift` |
+| **Admin** | server admin panel | `Sources/Features/Admin/` |
+| **Profile** | storage indicator, app lock (Face ID) | `Sources/Features/Profile/` |
 
-Extensions : widget d'accueil « Back up now » (`ImmichWidgets/`), Live Activity de backup (Dynamic Island), App Intent `BackupNowAppIntent` (Siri/Shortcuts).
+Extensions: home screen widget ("Back up now" tile, `ImmichWidgets/`), backup Live Activity (Dynamic Island), App Intent `BackupNowAppIntent` (Siri/Shortcuts).
 
 ## Architecture
 
-MVVM strict en 4 couches. Les protocoles de `Core/Protocols/` sont **immuables** et constituent le seul point d'injection ; tout le reste est implémentation ou présentation.
+Strict MVVM in 4 layers. Protocols in `Core/Protocols/` are **immutable** and form the sole injection point; everything else is implementation or presentation.
 
-| Couche | Rôle | Contenu |
+| Layer | Role | Content |
 |---|---|---|
-| `Sources/Core/Types/` | DTOs de l'API | `DTOs*.swift`, `SearchDTOs.swift`, `APIError.swift`, … |
-| `Sources/Core/Protocols/` | Contrats (seul point d'injection) | `ImmichClient`, `PhotoLibraryService`, `BackupAssetSource`, `BackupLedgerStoring`, `KeychainStore`, `TrustedServerStore`, `AppLockService`, `VideoPlaybackEngine` |
-| `Sources/Services/` | Implémentations | `ImmichAPIClient`, `PhotoLibraryServiceImpl`, `BackupEngine`, `BackupLedger`, `MultipartBody`, `ImageCache`, `AuthenticatedAsyncImage`, `RealtimeService` (Socket.IO), `KeychainStoreImpl`, … |
-| `Sources/Features/<Feature>/` | MVVM par feature | `<Feature>ViewModel.swift` (`@Observable`, `@MainActor`) + `<Feature>View.swift` (stateless) |
+| `Sources/Core/Types/` | API DTOs | `DTOs*.swift`, `SearchDTOs.swift`, `APIError.swift`, … |
+| `Sources/Core/Protocols/` | Contracts (sole injection point) | `ImmichClient`, `PhotoLibraryService`, `BackupAssetSource`, `BackupLedgerStoring`, `KeychainStore`, `TrustedServerStore`, `AppLockService`, `VideoPlaybackEngine` |
+| `Sources/Services/` | Implementations | `ImmichAPIClient`, `PhotoLibraryServiceImpl`, `BackupEngine`, `BackupLedger`, `MultipartBody`, `ImageCache`, `AuthenticatedAsyncImage`, `RealtimeService` (Socket.IO), `KeychainStoreImpl`, … |
+| `Sources/Features/<Feature>/` | Per-feature MVVM | `<Feature>ViewModel.swift` (`@Observable`, `@MainActor`) + `<Feature>View.swift` (stateless) |
 
-Points de composition :
+Composition points:
 
-- **`Sources/DependencyContainer.swift`** — composition root : singleton `@MainActor`, méthodes `make*ViewModel()` qui injectent les protocoles via `init(client:)`. Aucun view model partagé.
-- **`Sources/RootView.swift`** — routeur auth-gated : onboarding → `AuthenticatedRoot` (TabView). Un changement de compte détruit le sous-arbre complet (`.id(activeAccountID)`), zéro état résiduel.
-- **`Sources/DesignSystem/`** — `Tokens/` (`Color.immich*`, `bgPrimary`/`bgSecondary`, spacing, motion, fonts) + `Components/` (barre d'app, boutons, badges, squelettes). Aucune couleur en dur dans les vues.
-- **`Sources/ImmichSharedKit/`** — framework partagé app ⇄ extension widget : attributs et vues ActivityKit de la Live Activity.
-- **`ImmichWidgets/`** — extension widget (tuile d'accueil + Live Activity).
+- **`Sources/DependencyContainer.swift`** — composition root: singleton `@MainActor`, `make*ViewModel()` methods injecting protocols via `init(client:)`. No shared view models.
+- **`Sources/RootView.swift`** — auth-gated router: onboarding → `AuthenticatedRoot` (TabView). Account switch destroys the full subtree (`.id(activeAccountID)`), no residual state.
+- **`Sources/DesignSystem/`** — `Tokens/` (`Color.immich*`, `bgPrimary`/`bgSecondary`, spacing, motion, fonts) + `Components/` (app bar, buttons, badges, skeletons). No hardcoded colors in views.
+- **`Sources/ImmichSharedKit/`** — shared framework app ⇄ widget extension: ActivityKit attributes and views for the Live Activity.
+- **`ImmichWidgets/`** — widget extension (home screen tile + Live Activity).
 
 ```mermaid
 flowchart TD
@@ -71,73 +71,73 @@ flowchart TD
         V["*View.swift<br/>(stateless)"]
         VM["*ViewModel.swift<br/>@Observable · @MainActor"]
     end
-    P["Core/Protocols<br/>contrats immuables"]
+    P["Core/Protocols<br/>immutable contracts"]
     S["Core/Services<br/>implementations"]
     DTO["Core/Types<br/>DTOs"]
     DS["DesignSystem<br/>Tokens + Components"]
 
     V --> VM
     VM -->|"init(client:)"| P
-    S -->|conforme a| P
+    S -->|conforms to| P
     S --> DTO
     V --> DS
 
-    S -->|"/api"| SRV[("Serveur Immich")]
-    S -->|PhotosKit| PH[("Phototheque")]
+    S -->|"/api"| SRV[("Immich Server")]
+    S -->|PhotosKit| PH[("Photo Library")]
 ```
 
-## Comment l'app fonctionne
+## How the app works
 
-### Authentification
+### Authentication
 
-1. Onboarding : URL du serveur (saisie ou scan de QR code) → ping `/api/server/ping` + configuration serveur.
-2. Connexion email/mot de passe (`/api/auth/login`) ou OAuth2/OIDC (`ASWebAuthenticationSession`, callback `app.immich://oauth-callback`).
-3. Token stocké dans le Keychain ; à chaque lancement, `restoreSession()` revalide le token et reconstruit la session.
-4. App Lock (Face ID) : verrouillage au passage en arrière-plan, overlay `LockView`.
+1. **Onboarding:** server URL (typed or QR code scan) → ping `/api/server/ping` + server configuration.
+2. **Login:** email/password (`/api/auth/login`) or OAuth2/OIDC (`ASWebAuthenticationSession`, callback `app.immich://oauth-callback`).
+3. **Token storage:** stored in Keychain; on every launch, `restoreSession()` re-validates the token and rebuilds the session.
+4. **App Lock (Face ID):** locks when the app goes to background, overlay `LockView`.
 
-### Données et images
+### Data and Images
 
-- **`ImmichAPIClient`** : toutes les URLs passent par `ImmichAPI.SubPath` ; token en en-tête ; client thread-safe ; erreurs typées `APIError`.
-- **Images** : `AuthenticatedAsyncImage`, pipeline à 3 niveaux (cache mémoire actor-isolé `NSCache`, cache disque, réseau avec en-têtes d'authentification).
-- **Temps réel** : `RealtimeService` (Socket.IO) pour les événements serveur.
+- **`ImmichAPIClient`**: all URLs pass through `ImmichAPI.SubPath`; token in header; thread-safe client; typed errors `APIError`.
+- **Images:** `AuthenticatedAsyncImage`, 3-level pipeline (actor-isolated memory cache `NSCache`, disk cache, network with auth headers).
+- **Real-time:** `RealtimeService` (Socket.IO) for server events.
 
-### Sauvegarde automatique — la pièce maîtresse
+### Auto-Backup — the crown jewel
 
-`BackupEngine` est une machine à phases : `checking → uploading → done / cancelled`.
+`BackupEngine` is a phase machine: `checking → uploading → done / cancelled`.
 
-1. **Scan** de la photothèque (PhotosKit) avec filtres (screenshots, Camera Roll, WhatsApp).
-2. **Passe 1 — hash** : SHA-1 streamé par blocs de 1 Mo ; jamais l'asset entier en RAM.
-3. **Déduplication serveur** : `/api/assets/bulk-upload-check`.
-4. **Passe 2 — upload** : ré-export sur disque → multipart écrit sur disque → `URLSession.upload(fromFile:)`. RAM bornée, les grosses vidéos sont sauvegardées au lieu d'être écartées.
-5. **`BackupLedger`** : les assets déjà sauvegardés ne sont pas ré-exportés — évite de re-télécharger toute la photothèque iCloud « Optimiser le stockage » à chaque run.
-6. **Assets iCloud** : états dédiés (téléchargement en cours, retry) avec messages de statut dans l'UI.
+1. **Scan** the photo library (PhotosKit) with filters (screenshots, Camera Roll, WhatsApp).
+2. **Pass 1 — hash:** SHA-1 streamed in 1 MB blocks; never the entire asset in RAM.
+3. **Server deduplication:** `/api/assets/bulk-upload-check`.
+4. **Pass 2 — upload:** re-export to disk → multipart written to disk → `URLSession.upload(fromFile:)`. Bounded RAM, large videos are backed up instead of skipped.
+5. **`BackupLedger`:** already-backuped assets are not re-exported — avoids re-downloading the entire "Optimize Storage" iCloud library on every run.
+6. **iCloud assets:** dedicated states (downloading, retry) with status messages in the UI.
 
-Progression fiable : total fixé après filtrage, barre = `processed / total` (chaque asset compte : uploadé, dédupliqué ou échoué).
+Reliable progress: total fixed after filtering, bar = `processed / total` (each asset counts: uploaded, deduplicated, or failed).
 
-Surfaces système :
+System surfaces:
 
-- **Live Activity** (`BackupLiveActivityService`) — progression dans la Dynamic Island et l'écran verrouillé.
-- **BGTaskScheduler** — chaîne auto-entretenue de backups en arrière-plan (`app.immich.background-backup`).
-- **App Intent** — « Back up now » depuis Siri/Shortcuts ; le widget d'accueil le déclenche via le deep link `app.immich://backup`.
+- **Live Activity** (`BackupLiveActivityService`) — progress in the Dynamic Island and lock screen.
+- **BGTaskScheduler** — self-sustaining chain of background backups (`app.immich.background-backup`).
+- **App Intent** — "Back up now" from Siri/Shortcuts; the home screen widget triggers it via deep link `app.immich://backup`.
 
 ### Navigation
 
-`AuthenticatedRoot` : TabView (Photos, Memories, Albums, Shared) + onglet Recherche natif iOS 26 (`role: .search`, bulle Liquid Glass alignée par le système). Le profil (« Me ») est présenté en sheet depuis l'avatar de chaque onglet.
+`AuthenticatedRoot`: TabView (Photos, Memories, Albums, Shared) + native iOS 26 Search tab (`role: .search`, Liquid Glass bubble aligned by the system). Profile ("Me") is presented as a sheet from the avatar on each tab.
 
-## Démarrage rapide
+## Quick Start
 
-### Prérequis
+### Prerequisites
 
-- Xcode avec SDK iOS 26
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `project.yml` est la source de vérité du projet ; `ImmichSwiftUI.xcodeproj` est **généré**.
+- Xcode with iOS 26 SDK
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `project.yml` is the project source of truth; `ImmichSwiftUI.xcodeproj` is **generated**.
 
 ```bash
 xcodegen generate
 open ImmichSwiftUI.xcodeproj
-# choisir un simulateur (iPhone 17, iOS 26), puis ⌘R
+# select a simulator (iPhone 17, iOS 26), then ⌘R
 ```
 
-Au premier lancement : URL de ton instance Immich (ou scan du QR code), puis connexion. N'importe quel serveur Immich récent convient.
+On first launch: URL of your Immich instance (or QR code scan), then login. Any recent Immich server works.
 
 ## Tests
 
@@ -145,34 +145,34 @@ Au premier lancement : URL de ton instance Immich (ou scan du QR code), puis con
 xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-- ~640 tests dans `Tests/` ; chaque view model est testé avec un `MockImmichClient` injecté via `init(client:)`.
-- **Piège** : le target de test source le dossier `Tests/` en entier — un nouveau fichier `Tests/*.swift` n'est compilé qu'après `xcodegen generate`. Sans regénération, les tests passent « verts » par omission.
+- ~640 tests in `Tests/`; each view model is tested with a `MockImmichClient` injected via `init(client:)`.
+- **Trap:** the test target sources the entire `Tests/` folder — a new `Tests/*.swift` file is only compiled after `xcodegen generate`. Without regeneration, tests pass "green" by omission.
 
-## Contribuer
+## Contributing
 
-Le développement suit une méthodologie par **cartes d'acceptance** (AC). Backlog : [`.omp/backlog/ImmichSwiftUI-backlog.md`](.omp/backlog/ImmichSwiftUI-backlog.md).
+Development follows an **acceptance card** (AC) methodology. Backlog: [`.omp/backlog/ImmichSwiftUI-backlog.md`](.omp/backlog/ImmichSwiftUI-backlog.md).
 
-1. **Choisir une feature** dans le backlog (tableau de suivi, phases P0–P5, endpoints manquants).
-2. **Lire les specs** : `.omp/<feature>/<feature>.specs.md` (exigences) et `<feature>.ui.md` (brief UI : navigation, tokens, comportements).
-3. **Implémenter dans l'ordre** : protocole (`Core/Protocols/`) → service (`Services/`) → view model + vue (`Features/`) → design uniquement via les tokens `DesignSystem/`.
-4. **Tester** avec un mock injecté, puis `xcodegen generate` et la suite complète.
-5. **PR** : une feature = ses cartes AC cochées, ses specs mises à jour.
+1. **Pick a feature** from the backlog (tracking table, P0–P5 phases, missing endpoints).
+2. **Read the specs:** `.omp/<feature>/<feature>.specs.md` (requirements) and `<feature>.ui.md` (UI brief: navigation, tokens, behaviors).
+3. **Implement in order:** protocol (`Core/Protocols/`) → service (`Services/`) → view model + view (`Features/`) → design only through `DesignSystem/` tokens.
+4. **Test** with a mocked injection, then `xcodegen generate` and the full suite.
+5. **PR:** one feature = its AC cards checked, its specs updated.
 
-Conventions à respecter :
+Conventions to follow:
 
-- **MVVM strict** : protocoles immuables, injection unique via `DependencyContainer`, view models `@Observable @MainActor` jamais partagés, vues stateless.
-- **Navigation** : `NavigationStack` partout pour les écrans navigables.
-- **Design** : tokens `DesignSystem` uniquement (`Color.immich*`, `bgPrimary`/`bgSecondary`) ; langage Liquid Glass iOS 26.
-- **Tests** : un test défend un comportement observable (jamais l'implémentation, les valeurs par défaut ou le texte des mocks).
-- **Mémoire projet** : voir `AGENTS.md` (mem0) — consulte la mémoire avant de débugger ou de trancher une convention.
+- **Strict MVVM:** immutable protocols, single injection via `DependencyContainer`, view models `@Observable @MainActor` never shared, stateless views.
+- **Navigation:** `NavigationStack` everywhere for navigable screens.
+- **Design:** `DesignSystem` tokens only (`Color.immich*`, `bgPrimary`/`bgSecondary`); iOS 26 Liquid Glass language.
+- **Tests:** one test defends observable behavior (never implementation, default values, or mock text).
+- **Project memory:** see `AGENTS.md` (mem0) — consult memory before debugging or settling conventions.
 
 ### Documentation
 
-| Doc | Contenu |
+| Doc | Content |
 |---|---|
-| `docs/immich-swiftui-feature-audit.md` | Audit consolidé des surfaces de features de l'app |
-| `docs/mobile-features-vs-flutter.md` | Référence du client Flutter upstream (objectif de parité) |
-| `docs/feature-parity-plan.md`, `docs/feature-audit-vs-flutter.md` | Plans de parité Flutter |
-| `docs/audit-2026-08.md` | Audit 2026-08 (performance, design, HIG) |
-| `.omp/backlog/ImmichSwiftUI-backlog.md` | Backlog : phases, cartes AC, endpoints manquants |
-| `.omp/<feature>/` | Specs + briefs UI par feature |
+| `docs/immich-swiftui-feature-audit.md` | Consolidated audit of the app's feature surfaces |
+| `docs/mobile-features-vs-flutter.md` | Upstream Flutter client reference (parity target) |
+| `docs/feature-parity-plan.md`, `docs/feature-audit-vs-flutter.md` | Flutter parity plans |
+| `docs/audit-2026-08.md` | 2026-08 audit (performance, design, HIG) |
+| `.omp/backlog/ImmichSwiftUI-backlog.md` | Backlog: phases, AC cards, missing endpoints |
+| `.omp/<feature>/` | Specs + UI briefs per feature |
