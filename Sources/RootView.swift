@@ -98,7 +98,7 @@ private struct AuthenticatedRoot: View {
         _albums = State(initialValue: container.makeAlbumsViewModel())
         _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
         _storage = State(initialValue: container.makeStorageStatsViewModel())
-        _upload = State(initialValue: container.makeUploadViewModel())
+        _upload = State(initialValue: container.upload)
         _people = State(initialValue: container.makePeopleViewModel())
         _memories = State(initialValue: container.makeMemoriesViewModel())
         _duplicates = State(initialValue: container.makeDuplicatesViewModel())

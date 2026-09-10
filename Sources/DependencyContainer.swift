@@ -16,6 +16,27 @@ final class DependencyContainer {
     /// `submit()` cancels then re-submits, so concurrent independent
     /// instances can't step on each other.
     let backupScheduler: any BackgroundBackupScheduling
+    /// Process-wide ledger so the BG handler, the foreground kick and the
+    /// backup screen all share one loaded copy of the already-backed-up set.
+    let backupLedger: any BackupLedgerStoring
+    /// Process-wide Live Activity driver: the BG handler, the scene-phase
+    /// kick and the backup screen must all drive ONE activity — separate
+    /// instances each `Activity.request` their own, pile up concurrent
+    /// same-app activities, and the island renders them unreliably (the
+    /// "no island while the app is open" symptom).
+    let backupLiveActivity: any BackupLiveActivityServicing
+    /// Process-wide backup view model — and therefore ONE `BackupEngine`.
+    /// Separate instances have separate engines, so their `!running` guards
+    /// can't see each other: the scene-phase kick, the BG handler, the
+    /// AppIntent and the backup screen would run concurrent passes over the
+    /// same library (double iCloud downloads) while fighting over the single
+    /// Live Activity — the first one to finish dismisses the island out from
+    /// under the other. One VM, one run, one island.
+    let upload: UploadViewModel
+    /// Watches Photos for inserted assets while the app is in the foreground,
+    /// so "Back up new photos automatically" reacts to a photo taken now rather
+    /// than only at the next scene activation.
+    let libraryMonitor: any PhotoLibraryChangeMonitoring
 
     init() {
         self.keychain = KeychainStoreImpl()
@@ -26,6 +47,17 @@ final class DependencyContainer {
         self.appLock = AppLockViewModel()
         self.realtime = RealtimeService()
         self.backupScheduler = BGTaskBackupScheduler()
+        self.backupLedger = BackupLedger.persistent()
+        self.backupLiveActivity = LiveActivityBackupService()
+        self.libraryMonitor = PhotoLibraryChangeMonitor()
+        self.upload = UploadViewModel(
+            client: client as any ImmichClient, photos: photos,
+            ledger: backupLedger, scheduler: backupScheduler,
+            activityService: backupLiveActivity
+        )
+        self.libraryMonitor.onAssetsInserted = { [weak self] in
+            self?.kickOffAutoBackup()
+        }
     }
 
     func makeAuthViewModel() -> AuthViewModel {
@@ -63,10 +95,6 @@ final class DependencyContainer {
     func makeStorageStatsViewModel() -> StorageStatsViewModel {
         StorageStatsViewModel(client: client as any ImmichClient)
     }
-    func makeUploadViewModel() -> UploadViewModel {
-        UploadViewModel(client: client as any ImmichClient, photos: photos, scheduler: backupScheduler)
-    }
-
     /// Reads the persisted auto-backup toggle directly — no live VM needed
     /// (the scene-phase code runs outside the tab tree's VMs).
     func isAutoBackupEnabled() -> Bool {
@@ -76,9 +104,17 @@ final class DependencyContainer {
     /// Kicks the gated backup engine when auto-backup is configured and
     /// nothing is running (foreground "upload at launch / on return").
     func kickOffAutoBackup() {
-        Task {
-            let upload = makeUploadViewModel()
-            await upload.kickOffAutoBackupIfConfigured()
+        Task { await upload.kickOffAutoBackupIfConfigured() }
+    }
+
+    /// Aligns the Photos observer with the current settings: observing only
+    /// makes sense when both auto-backup and new-photo detection are on, and it
+    /// must never be left running otherwise.
+    func syncLibraryMonitor() {
+        if BackupSettingsStore().snapshot().shouldObserveLibraryChanges {
+            libraryMonitor.start()
+        } else {
+            libraryMonitor.stop()
         }
     }
 

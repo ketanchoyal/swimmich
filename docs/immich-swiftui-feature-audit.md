@@ -379,15 +379,16 @@
 
 | Feature | SwiftUI | Flutter |
 |---|---|---|
-| Auto-detect new photos | Partial (PHPhotoLibrary listener) | ✅ |
-| Exclude screenshots / camera roll | Partial | ✅ |
-| Wi-Fi / cellular / charging toggles | Partial (in BackupSettingsView) | ✅ |
+| Auto-detect new photos | ✅ (PHPhotoLibraryChangeObserver + BGTask) | ✅ |
+| Exclude screenshots / camera roll | ✅ (smart albums + mode tri-état, remplace les heuristiques par nom de fichier) | ✅ |
+| Wi-Fi / cellular / charging toggles | ✅ (politique par type de média + gate hors-ligne) | ✅ |
 | Upload queue with per-asset status | ✅ (BackupEngine) | ✅ |
 | Per-asset progress | ✅ (Live Activity) | ✅ |
-| Upload progress banner | Pending | ✅ |
-| Resume from interruption | TBD | ✅ |
-| Backfill reorganize | Pending | ✅ |
-| Dedup by checksum | ✅ (bulkUploadCheck wired) | ✅ |
+| Upload progress banner | ➖ remplacé par l'anneau autour de l'avatar | ✅ |
+| Resume from interruption | ✅ (`resumeUpload`) | ✅ |
+| Backfill reorganize | ➖ retiré 2026-09-10 (doublon du scoping d'albums + « Run now ») | ✅ |
+| Dedup by checksum | ✅ (bulkUploadCheck + ledger réconcilié) | ✅ |
+| Live Photos (vidéo appairée) | ✅ (upload `.hidden` + `updateAsset`) | ✅ |
 
 ### Server-backed modules (partial)
 

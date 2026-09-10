@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline ~214 tests minimum.
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **691 tests** (mesurée le 2026-09-10, TEST SUCCEEDED).
 
 ---
 
@@ -22,7 +22,7 @@
 
 | # | Feature | Phase | AC Cards | Spéc | Prompt | Status | Endpoints manquants | Tests | Progression |
 |---|---------|-------|----------|------|--------|--------|---------------------|-------|-------------|
-| 1 | **Backup Auto** | P2 | AC-BK01–BK09 | .omp/backup-auto/ | Voir §2.1 | 🔴 Pending | — (existants) | 10% (engine OK, UI manquante) | 12/9 AC |
+| 1 | **Backup Auto** | P2 | AC-BK01–BK10 | .omp/backup-auto/ | Voir §2.1 | ✅ Terminé | — | suite 691 verte | 7/10 AC (BK05, BK06, BK08 obsolètes) |
 | 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | 🟡 Plan | — (wire) | 50% (5 tests existants) | 6/8 AC |
 | 3 | **Partners UI** | P3 | AC-3100–3109 | .omp/partners-ui/ | Voir §2.3 | 🟡 Plan | createPartner, getPartners(dir) | 0/6 | 0/10 AC |
 | 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | 🟡 Plan | 7 (CRUD + stats) | 0/8 | 0/9 AC |
@@ -32,6 +32,11 @@
 | 8 | **Widgets Home Screen** | P5 | AC-3600–3608 | .omp/widgets-homescreen/ | Voir §2.8 | 🟡 Plan | — (WidgetKit) | 0/4 | 0/9 AC |
 | 9 | **Stacks UI** | P3 | AC-3700–3708 | .omp/stacks-ui/ | Voir §2.9 | 🟡 Plan | — (100% wire) | 0/6 | 0/9 AC |
 | 10 | **i18n Completing** | P5 | AC-3800–3807 | .omp/i18n/ | Voir §2.10 | 🟡 Plan | — (localisation) | 0/3 | 0/8 AC |
+| 11 | **Backup — Live Photos** | P2 | AC-LP01–LP07 | .omp/backup-auto/backup-live-photos.specs.md | Voir §2.11 | ✅ Terminé | — (updateAsset wire) | 11 | 7/7 AC |
+| 12 | **Backup — Album Scoping** | P2 | AC-AS01–AS08 | .omp/backup-auto/backup-album-scoping.specs.md | Voir §2.12 | ✅ Terminé | — | 5 + 3 | 8/8 AC |
+| 13 | **Backup — Ledger Reconciliation** | P2 | AC-LR01–LR08 | .omp/backup-auto/backup-ledger-reconciliation.specs.md | Voir §2.13 | ✅ Terminé | — (bulk-upload-check wire) | 13 | 8/8 AC |
+| 14 | **Backup — Network Policy** | P2 | AC-NP01–NP07 | .omp/backup-auto/backup-network-policy.specs.md | Voir §2.14 | ✅ Terminé | — | 7 | 7/7 AC |
+| 15 | **Backup — Library Observer** | P2 | AC-LO01–LO08 | .omp/backup-auto/backup-library-observer.specs.md | Voir §2.15 | ✅ Terminé | — (PhotosKit) | 6 | 7/8 AC (LO08 manuel) |
 
 **Legend** :
 - 🔴 **Pending** — Spéc existante, pas de card AC générée
@@ -56,39 +61,36 @@ P5 ━━━━━━━━━━━━━━━━━━━━━━━━━�
 
 ## Fiches features détaillées
 
-### 2.1. Backup Auto (P2)
+### 2.1. Backup Auto (P2) — ✅ Terminé (2026-09-09, clôturé le 2026-09-10)
 
-**Fichier spec** : `.omp/backup-auto/backup-auto.specs.md`
+**Fichier spec** : `.omp/backup-auto/backup-auto.specs.md` (section « État au 2026-09-09 »)
 **Card AC** : `.opencode/scratch/backup-auto.acceptance.md`
 **UI brief** : `.omp/backup-auto/backup-auto.ui.md`
-**AC Cards** : AC-BK01 – AC-BK09
+**AC Cards** : AC-BK01 – AC-BK10
 **Phase** : P2 — Backup
 
-#### Objectif
-Porter le backup automatique complet du client Flutter : contrôles d'exclusion (caméra externe, WhatsApp), détection auto de nouvelles photos, backfill reorganize, gestion resume, et banner de progression flottant.
+#### Résultat
+AC-BK01, BK02, BK03, BK04, BK07, BK10 **PASS**. Suite complète **691 tests, TEST SUCCEEDED** (iPhone 17, 2026-09-10). Les 5 suites P2 (§2.11 – §2.15) et les cards `backup-engine` / `backup-live-activity` sont vertes sur leurs checks grep — révision du 2026-09-10 de 8 checks périmés (signatures de protocole et surfaces évoluées entre-temps, un check `grep -qA3 | grep` structurellement inopérant, trois summaries /tmp orphelins).
 
-#### Points d'entrée
-- `BackupSettingsStore` — Ajouter `excludeCameraRoll`, `excludeWhatsApp`, `autoDetectNewPhotos` (UserDefaults clé `photoBackup*`)
-- `UploadViewModel` — `runBackfill(albumId:)`, `showBackfillSheet`, `uploadHistory: [UploadHistoryEntry]`
-- `UploadProgressBanner` — Floating glass bar dans Timeline pendant upload actif
-- `BackfillSheet` — Sélection album + bouton reorganize, morph glass transition
+**AC-BK05 et AC-BK06 sont OBSOLÈTES** : `UploadProgressBanner` a été supprimé volontairement et remplacé par l'anneau de progression autour de l'avatar (`TimelineView.avatarBackupRing`). Les critères pinnent une surface UI abandonnée — ne pas les « réparer ».
 
-#### Endpoint API
-- `POST /api/assets` (multipart upload) — existant
-- `POST /api/assets/bulk-upload-check` — existant
+**AC-BK08 est OBSOLÈTE depuis le 2026-09-10** : la sheet Backfill (glass morphing) a été retirée — doublon du scoping d'albums + « Run now ». AC-BK03/BK04/BK07 ont été révisés en conséquence, et AC-BK10 couvre le remplacement (mode d'albums tri-état).
 
-#### Étapes d'implémentation
-1. Étendre `BackupSettingsStore` + `BackupSettings` avec 3 nouveaux booléens
-2. Ajouter `runBackfill(albumId:)`, `uploadHistory`, `showBackfillSheet` dans `UploadViewModel`
-3. Filtrer `excludeCameraRoll` + `excludeWhatsApp` dans `BackupEngine.run`
-4. Créer `UploadProgressBanner` avec `.scrollEdgeEffectStyle(.floating)`
-5. Créer `BackfillSheet` avec `@Namespace` / `glassEffectID` morphing
-6. Intégrer dans `TimelineView` pendant upload actif
-7. Créer `Tests/UploadViewModelTests.swift` ≥6 tests
+**Le toggle « Require Face ID » a quitté l'écran Backup le 2026-09-10** pour ProfileView (« Me » → Security) : l'app lock garde l'application entière, pas la sauvegarde (AC-114 suit la surface).
 
-#### Tests attendus
-- `Tests/UploadViewModelTests.swift` ≥6 tests : resume, backfill settings, exclude filters, snapshot persistence
-- Regression : suite ≥ baseline (~214 tests)
+#### Livré
+- `BackupSettingsStore` : `isEnabled`, `onlyOnWiFi`, `onlyWhenCharging`, `allowCellularForPhotos`, `allowCellularForVideos`, `autoDetectNewPhotos`, mode d'albums tri-état + les deux ensembles d'albums, persistés clés `photoBackup*` (`UploadViewModel.swift:24-160`) — ⚠ `excludeCameraRoll`/`excludeWhatsApp` ont été SUPPRIMÉS par §2.12 (heuristiques nom-de-fichier fausses sur iOS)
+- `UploadViewModel` : `resumeUpload()`, `uploadHistory`, `kickOffAutoBackupIfConfigured()` — ⚠ le backfill (`runBackfill`/`BackfillSheet`) a été **retiré le 2026-09-10** : doublon du scoping d'albums + « Run now », et le libellé « Reorganize » mentait (aucune réorganisation côté serveur)
+- `BackupSettingsView` (Auto backup + Albums + Progress + Backup tracking/Server check/Reset), `AlbumPickerView`, `BackupFailuresSheet`, `BackupThumbnailView`
+- Pipeline durci : export→SHA1 streamé→upload séquentiel (mémoire bornée par `maxBatchBytes`), `ContinuationGate`, `BackupLedger` anti-re-download, bucket `deferredCount` pour l'iCloud pas encore local
+- Chaîne BGTask auto-resoumise en tête de handler (`ImmichSwiftUIApp.swift:44-63`), assertion background UIKit, Live Activity + Dynamic Island, anneau in-app
+- Tests : `BackupEngineTests` (55 tests), `UploadViewModelTests` + `UploadViewModelLiveActivityTests`, `BackupLedgerReconciliationTests`, `PhotoLibraryChangeMonitorTests`
+
+#### Suites (écarts réels restants vs Flutter)
+Cinq items séparés, tous en P2 et **livrés** : §2.11 Live Photos, §2.12 Album Scoping, §2.13 Ledger Reconciliation, §2.14 Network Policy, §2.15 Library Observer.
+
+#### Résidu connu (hors périmètre backup)
+15 chaînes d'UI neuves de l'écran Backup (dont « Run now », « Retry failed », « Use cellular for photos/videos », « Last server check », « Tracked photos », « Albums to back up/skip ») **n'ont pas d'entrée dans `Resources/Localizable.xcstrings`** — elles s'affichent en anglais, comme les 126 autres littéraux de `Sources/` déjà sans clé. Couvert par la card §2.10 i18n (Status: plan), pas par cette feature.
 
 ---
 
@@ -439,6 +441,192 @@ Internationalisation complète : externaliser TOUS les textes hardcodés dans `L
 
 ---
 
+### 2.11. Backup — Live Photos (P2)
+
+#### Résultat (2026-09-10)
+AC-LP01 – AC-LP07 **PASS**. `LivePhotoBackupTests` (11 tests) : ordre vidéo→photo, id renvoyé porté par la photo, rattachement rétroactif via `Result.assetId` + `updateAsset`, skip si `isTrashed`, defer du pair = defer de l'asset, échec dur du pair = échec sans upload, nettoyage des temps (fin de run + annulation), non-régression image simple.
+
+**Fichier spec** : `.omp/backup-auto/backup-live-photos.specs.md`
+**Card AC** : `.opencode/scratch/backup-live-photos.acceptance.md`
+**AC Cards** : AC-LP01 – AC-LP07
+**Phase** : P2 — Backup
+
+#### Objectif
+Sauvegarder les Live Photos **comme des Live Photos**. `BackupEngine.processBatch` upload aujourd'hui avec `livePhotoVideoId: nil` en dur (`BackupEngine.swift:410`) et n'exporte jamais la ressource `.pairedVideo` : le serveur reçoit une image morte et le `.MOV` n'existe nulle part ailleurs que sur l'appareil.
+
+#### Points d'entrée
+- `BackupCandidate` — ajouter `isLivePhoto` (défaut `false`, dernière position, init memberwise préservé)
+- `BackupAssetSource` — `exportPairedVideo(for:onState:) -> URL?`
+- `PhotoLibraryServiceImpl` — `mediaSubtypes.contains(.photoLive)`, ressource `.pairedVideo`, extraction de `writeResource` (la boucle de retry iCloud 1005 + `StallWatchdog` NE DOIT PAS être dupliquée)
+- `BackupEngine` — staging à 4 champs, upload vidéo `visibility: .hidden` avant la photo, helper unique `removeStaged` pour le nettoyage des temps
+
+#### Endpoint API
+- `POST /api/assets` — existant (`visibility`, `livePhotoVideoId` déjà supportés)
+- `PATCH /api/assets/:id` — existant (`updateAsset` + `UpdateAssetDto.livePhotoVideoId`)
+
+#### Étapes d'implémentation
+1. `BackupCandidate.isLivePhoto` + `exportPairedVideo` au protocole
+2. `PhotoLibraryServiceImpl` : `writeResource` partagé, sélection `.pairedVideo` / `.fullSizePairedVideo`
+3. `BackupEngine` : export + hash du pair au staging, `batchBytes` cumule les deux tailles
+4. Chemin `accept` : vidéo `.hidden` → `response.id` → photo avec `livePhotoVideoId`
+5. Chemin `reject` : `Result.assetId` (présent sur les rejects) → vidéo + `updateAsset(livePhotoVideoId:)` — **seul moyen de réparer les Live Photos déjà montées en images mortes**
+6. Mocks (ordre des uploads, `visibility`, `updateAsset`) + tests
+
+#### Tests attendus
+- `Tests/BackupEngineTests.swift` → `LivePhotoBackupTests` ≥7 tests : ordre d'upload, id renvoyé, rattachement rétroactif, defer du pair, unité de progression unique, nettoyage temp à l'annulation, non-régression image simple
+- Regression : suite ≥ 645
+
+---
+
+### 2.12. Backup — Album Scoping (P2)
+
+#### Résultat (2026-09-10)
+AC-AS01 – AC-AS08 **PASS**. `BackupEngineExclusionTests` (5 tests) + migration/persistance dans `BackupSettingsStoreTests` (3) : la source résout l'exclusion par soustraction d'identifiants (un `PHAsset.fetchAssets` par album exclu au lieu d'un `fetchAssetCollectionsContaining` par asset), smart albums exposés avec des ids stables (`BackupAlbum.SmartID`), anciennes clés supprimées après migration one-shot de `excludeScreenshots`.
+
+**Fichier spec** : `.omp/backup-auto/backup-album-scoping.specs.md`
+**Card AC** : `.opencode/scratch/backup-album-scoping.acceptance.md`
+**AC Cards** : AC-AS01 – AC-AS08
+**Phase** : P2 — Backup
+
+#### Objectif
+Remplacer les exclusions heuristiques par nom de fichier par une vraie sélection/exclusion d'albums. `excludeCameraRoll` = `!hasPrefix("IMG_")` exclut presque toute une pellicule iPhone ; `excludeWhatsApp` = `!contains("WhatsApp")` ne filtre rien sur iOS. `excludeScreenshots` compare `albumName`, qui n'est **qu'un** album par asset.
+
+#### Points d'entrée
+- `BackupSettings` / `BackupSettingsStore` — `excludedAlbumIDs` (clé `photoBackupExcludedAlbums`), suppression des 3 anciens booléens + migration one-shot de `excludeScreenshots`
+- `BackupAssetSource` — `fetchCandidates(in:excluding:)`, `BackupAlbum.isSmart`, suppression de `BackupCandidate.albumName`
+- `PhotoLibraryServiceImpl` — smart albums (`smartAlbumScreenshots`…) dans `fetchAlbums`, exclusion par `Set<String>` de `localIdentifier`, suppression de `assetAlbumName`
+- `BackupSettingsView` / `AlbumPickerView` — « Albums to back up » + « Albums to skip », picker paramétré par `Binding<Set<String>>`
+
+#### Endpoint API
+- Aucun (PhotosKit uniquement)
+
+#### Étapes d'implémentation
+1. Protocole : `excluding:`, `isSmart`, retrait de `albumName`
+2. Source : ensemble d'exclusion calculé en amont — supprime au passage le `fetchAssetCollectionsContaining` **par asset** du scan complet
+3. Engine : suppression des 3 `filter` (l.209-217) et de `screenshotsAlbumName`
+4. Store : nouvelle clé + migration + `removeObject` des clés mortes
+5. UI : deux périmètres d'albums, plus aucun toggle d'exclusion heuristique
+6. Tests
+
+#### Tests attendus
+- `Tests/UploadViewModelTests.swift` → `BackupEngineExclusionTests` réécrite, ≥5 tests : transmission du scoping, `IMG_0001.HEIC` sauvegardé, migration `excludeScreenshots`, persistance, clés legacy supprimées
+- Regression : TEST SUCCEEDED (le compte peut baisser — les tests qui pinnaient les filtres nom-de-fichier meurent avec le code)
+
+---
+
+### 2.13. Backup — Ledger Reconciliation (P2)
+
+#### Résultat (2026-09-10)
+AC-LR01 – AC-LR08 **PASS**. `BackupLedgerReconciliationTests` (13 tests) : fichier v2 versionné + v1 toujours lisible, checksum mémorisé aux deux `markBackedUp`, passe hebdo par chunks de `checkChunkSize` (100), `isTrashed` conservé, erreur réseau silencieuse, asset oublié re-uploadé dans le même run, `deviceAssetId`/`deviceId` envoyés, `DeviceIdentity` (UUID persisté, pas `identifierForVendor`).
+
+**Fichier spec** : `.omp/backup-auto/backup-ledger-reconciliation.specs.md`
+**Card AC** : `.opencode/scratch/backup-ledger-reconciliation.acceptance.md`
+**AC Cards** : AC-LR01 – AC-LR08
+**Phase** : P2 — Backup
+
+#### Objectif
+Rendre `BackupLedger` auto-réparant. Il n'est jamais confronté au serveur : un asset supprimé côté serveur reste marqué « backed up », est filtré avant export (`BackupEngine.swift:224`) et ne remonte **jamais**. Le client Flutter n'a pas ce trou (dédup = `remote_asset_entity` réalimentée par `/api/sync/stream`).
+
+#### Points d'entrée
+- `BackupLedgerStoring` / `BackupLedger` — `markBackedUp(id:signature:checksum:)`, `entriesForReconciliation()`, `forget(ids:)`, `lastReconciliation`, fichier JSON **versionné** (v1 `[String: String]` reste lisible)
+- `BackupEngine` — `reconcileLedgerIfDue()` avant `fetchCandidates`, chunks de `checkChunkSize`, `reconcileInterval = 7 jours`
+- `ImmichAPIClient.uploadAsset` — ajouter `deviceAssetId` + `deviceId` aux champs multipart (l.480-491 : **aucun des deux n'est envoyé** aujourd'hui)
+- **NEW** `Sources/Services/DeviceIdentity.swift` — UUID persisté (⚠ pas `identifierForVendor`)
+- `BackupSettingsView` — « Last server check » + action non destructive « Check server now » à côté du reset
+
+#### Endpoint API
+- `POST /api/assets/bulk-upload-check` — existant : `action == "accept"` = le serveur ne l'a pas. Le checksum est **déjà calculé** par le run, donc la réconciliation ne coûte aucun octet de média.
+- `GET /api/assets/device/:deviceId` — **écarté** (inutilisable sur l'historique : champs device jamais envoyés ; dépend de la version serveur)
+
+#### Étapes d'implémentation
+1. Protocole + `BackupLedger` v2 (`Entry { signature, checksum? }`, `lastReconciliation`) avec fallback v1
+2. Passer le checksum aux deux `markBackedUp` (reject l.362-364, upload l.414)
+3. `reconcileLedgerIfDue()` off-main ; une erreur réseau n'est **pas** un échec de run (ni `lastError` ni `failures`)
+4. `deviceAssetId` / `deviceId` + `DeviceIdentity`
+5. UI Backup tracking + tests, puis `xcodegen generate`
+
+#### Tests attendus
+- `Tests/BackupLedgerReconciliationTests.swift` ≥10 tests : migration v1, round-trip v2, oubli des entrées absentes du serveur, conservation des rejects, `isTrashed` conservé, throttle, erreur réseau silencieuse, chunking, ré-upload dans le même run, entrées sans checksum ignorées, `deviceAssetId`/`deviceId` envoyés
+- Regression : suite ≥ 655
+
+#### Pièges cadrés dans la spec
+- `isTrashed == true` ⇒ le serveur l'a : **ne pas** oublier l'entrée
+- Changement de compte : vider le ledger explicitement (sinon la réconciliation le vide à l'aveugle → re-backup complet d'une photothèque iCloud)
+
+---
+
+### 2.14. Backup — Network Policy (P2)
+
+#### Résultat (2026-09-10)
+AC-NP01 – AC-NP07 **PASS**. `NetworkPolicyTests` (7 tests) : gate `isOnline` global, décision par asset avant export (zéro download iCloud pour un asset reporté), `allowCellularForPhotos`/`ForVideos`, report typé (`BackupDeferralReason`) jamais compté en échec, run manuel hors politique, `test_backup_wifiGateBlocksRun` remplacé.
+
+**Fichier spec** : `.omp/backup-auto/backup-network-policy.specs.md`
+**Card AC** : `.opencode/scratch/backup-network-policy.acceptance.md`
+**AC Cards** : AC-NP01 – AC-NP07
+**Phase** : P2 — Backup
+
+#### Objectif
+Politique réseau par type de média (parité `useCellularForPhotos` / `useCellularForVideos`) et vraie notion de hors-ligne. Aujourd'hui le gate est tout-ou-rien (`BackupEngine.swift:186-189`) et un run hors ligne exporte, hashe, puis compte **tous** les assets en `failedCount` — exactement la classe de faux échecs que le bucket `deferred` a éliminée pour l'iCloud.
+
+#### Points d'entrée
+- `BackupEnvironment` — `isOnline` (le `NWPathMonitor` de `SystemBackupEnvironment` reçoit déjà le `path`)
+- `BackupSettings` — `allowCellularForPhotos`, `allowCellularForVideos`
+- `BackupEngine` — gate global `isOnline` + `isUploadAllowedNow(candidate:settings:)` testé **avant** `exportOriginal` ; résultat = `deferredCount`, pas `failedCount` ; `BackupDeferralReason`
+- `BackupSettingsView` — 2 toggles indentés sous « Wi-Fi only » + légende « Waiting for Wi-Fi » vs « Waiting for iCloud »
+
+#### Endpoint API
+- Aucun (Network.framework)
+
+#### Étapes d'implémentation
+1. `isOnline` au protocole + cache `NWPathMonitor`
+2. Gate global hors-ligne (branche `!manual` uniquement)
+3. Décision par asset → defer avant tout export (aucun download iCloud pour un asset reporté)
+4. `deferralReason` + libellés UI
+5. Tests
+
+#### Tests attendus
+- `Tests/BackupEngineTests.swift` → `NetworkPolicyTests` ≥7 tests : hors-ligne = pipeline non entré, photo uploadée / vidéo reportée en cellulaire, asset reporté jamais exporté, pas de `lastError`, Wi-Fi ignore les toggles, run manuel ignore la politique, raison du report
+- `test_backup_wifiGateBlocksRun` pinne l'ancien contrat tout-ou-rien : **remplacé**, pas re-pinné
+- Regression : suite ≥ 645
+
+---
+
+### 2.15. Backup — Library Observer (P2)
+
+#### Résultat (2026-09-10)
+AC-LO01 – AC-LO07 **PASS**, AC-LO08 **manuel** (non simulable : `PHPhotoLibraryChangeObserver`). `PhotoLibraryChangeMonitorTests` (6 tests) : règle `shouldObserveLibraryChanges`, réveil unique malgré deux insertions, réveil ignoré pendant un run. `PhotoLibraryChangeMonitor` filtre sur `insertedObjects` (une édition ne déclenche pas de scan complet) et débounce 5 s.
+
+**Fichier spec** : `.omp/backup-auto/backup-library-observer.specs.md`
+**Card AC** : `.opencode/scratch/backup-library-observer.acceptance.md`
+**AC Cards** : AC-LO01 – AC-LO08
+**Phase** : P2 — Backup
+
+#### Objectif
+Faire que « Auto-detect new photos » détecte réellement les nouvelles photos. Aucun `PHPhotoLibraryChangeObserver` n'existe dans `Sources/` : le toggle n'autorise qu'un scan à l'activation de scène (`DependencyContainer.kickOffAutoBackup` ← `ImmichSwiftUIApp.swift:24`). Le libellé promet ce que le code ne fait pas.
+
+#### Points d'entrée
+- **NEW** `Sources/Core/Protocols/PhotoLibraryChangeMonitoring.swift` — `onAssetsInserted`, `start()`, `stop()`
+- **NEW** `Sources/Services/PhotoLibraryChangeMonitor.swift` — baseline `PHFetchResult`, réveil **uniquement** si `changeDetails.insertedObjects` non vide, débounce 5 s, hop `@MainActor`
+- `DependencyContainer` — `libraryMonitor` injectable + `syncLibraryMonitor()`
+- `ImmichSwiftUIApp` — `sync` sur `.active`, `stop()` sur `.background`
+- `BackupSettingsView` — libellé « Back up new photos automatically » + footer qui assume les deux régimes (temps réel au premier plan, BGTask sinon)
+
+#### Contrainte plateforme
+iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter (étude §3.3). Les seuls déclencheurs sont : activation au premier plan, fenêtres `BGTaskScheduler`, et `PHPhotoLibraryChangeObserver` **pendant que l'app tourne**.
+
+#### Étapes d'implémentation
+1. Protocole + monitor (filtre insertions, débounce, idempotent, `deinit` → `stop`)
+2. Câblage `DependencyContainer` + cycle de vie de scène
+3. Libellé + footer honnêtes
+4. `MockLibraryMonitor` + tests, puis `xcodegen generate` (2 fichiers NEW)
+
+#### Tests attendus
+- `Tests/PhotoLibraryChangeMonitorTests.swift` ≥6 tests (via mock) : start/stop selon les 2 toggles, callback → un seul run, ignoré pendant un run, débounce coalescant
+- **AC-LO08 manuel** : app ouverte, ajout d'une photo, run déclenché en <10 s (anneau visible autour de l'avatar) — non simulable en unitaire
+- Regression : suite ≥ 645
+
+---
+
 ## Référence API — endpoints ImmichClient
 
 ### Endpoints déjà wire (existants)
@@ -492,6 +680,8 @@ Internationalisation complète : externaliser TOUS les textes hardcodés dans `L
 | 5 | `POST /api/shared-links/:slug/check-password` | Shared Links Enriched | P3 |
 | 6 | `POST /api/users/me/device-token` | Push Notifications | P5 |
 
+**Champs manquants (pas des endpoints)** — `POST /api/assets` n'envoie ni `deviceAssetId` ni `deviceId` (`ImmichAPIClient.swift:480-491`). Corrigé par §2.13 ; prérequis de toute réconciliation par appareil.
+
 ---
 
 ## Checklists de vérification
@@ -499,7 +689,7 @@ Internationalisation complète : externaliser TOUS les textes hardcodés dans `L
 ### Checklist commune à TOUTES les features
 
 - [ ] `xcodebuild build` réussit sans warning nouveau
-- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 214 tests
+- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 691 tests
 - [ ] Mock dans `MockImmichClient` mis à jour
 - [ ] `DependencyContainer` injecte le nouveau ViewModel
 - [ ] `ProfileView` navigation mise à jour si feature ajoutée
@@ -508,7 +698,7 @@ Internationalisation complète : externaliser TOUS les textes hardcodés dans `L
 
 ### Checklist par feature
 
-**Backup Auto** : `grep -q "excludeCameraRoll" Sources/Features/Upload/UploadViewModel.swift` ✓
+**Backup Auto** : ✅ terminé (691 tests verts, 5 suites P2 livrées le 2026-09-10, cards `backup-engine`/`backup-live-activity` re-vérifiées le même jour). Suites : Live Photos §2.11, Album Scoping §2.12, Ledger Reconciliation §2.13, Network Policy §2.14, Library Observer §2.15 — chacune a sa card AC dans `.opencode/scratch/backup-*.acceptance.md` — ⚠ §2.12 **supprime** `excludeCameraRoll`/`excludeWhatsApp` : ne pas les greper comme critère de succès.
 **OAuth2 UI** : `grep -q "ASWebAuthenticationSession" Sources/Features/Auth/AuthViewModel.swift` ✓
 **Partners UI** : Créer `PartnerShellViewModel.swift` + `PartnerShellView.swift` + `InvitePartnerSheet.swift`
 **Memories Complete** : 7 nouvelles méthodes ImmichClient + `CreateMemorySheet.swift`
@@ -521,4 +711,4 @@ Internationalisation complète : externaliser TOUS les textes hardcodés dans `L
 
 ---
 
-*Généré automatiquement depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés, baseline 214 → 691 tests).*

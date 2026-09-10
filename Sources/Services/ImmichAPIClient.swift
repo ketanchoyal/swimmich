@@ -473,13 +473,17 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         isFavorite: Bool,
         visibility: AssetVisibility,
         livePhotoVideoId: String?,
-        checksum: String
+        checksum: String,
+        deviceAssetId: String,
+        deviceId: String
     ) async throws -> AssetMediaResponseDto {
         guard let url = resolvedURL(path: ImmichAPI.assets.path("")) else { throw APIError.invalidURL }
 
         var fields: [(name: String, value: String)] = [
             ("fileCreatedAt", fileCreatedAt),
             ("fileModifiedAt", fileModifiedAt),
+            ("deviceAssetId", deviceAssetId),
+            ("deviceId", deviceId),
         ]
         if let duration {
             fields.append(("duration", String(duration)))

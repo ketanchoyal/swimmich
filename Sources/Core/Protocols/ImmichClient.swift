@@ -159,6 +159,10 @@ protocol ImmichClient: AnyObject, Sendable {
     /// Uploads an asset via streamed multipart/form-data — the body is
     /// assembled from `fileURL` on disk, never held in memory.
     /// `checksum` is base64-encoded SHA1 (also sent as `x-immich-checksum` header).
+    /// `deviceAssetId` is the source Photos identifier and `deviceId` this
+    /// installation's stable id: together they let the server attribute the
+    /// asset to a device, which is what the web UI's device filter and any
+    /// per-device server-side query rely on.
     func uploadAsset(
         fileURL: URL,
         fileCreatedAt: String,
@@ -168,7 +172,9 @@ protocol ImmichClient: AnyObject, Sendable {
         isFavorite: Bool,
         visibility: AssetVisibility,
         livePhotoVideoId: String?,
-        checksum: String
+        checksum: String,
+        deviceAssetId: String,
+        deviceId: String
     ) async throws -> AssetMediaResponseDto
 
     func bulkUploadCheck(_ request: AssetBulkUploadCheckRequest) async throws -> AssetBulkUploadCheckResponse

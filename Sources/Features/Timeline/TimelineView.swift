@@ -124,6 +124,7 @@ struct TimelineView: View {
                                 .accessibilityIdentifier("selectButton")
                             }
                             ProfileAvatarButton { openProfile() }
+                                .overlay { avatarBackupRing }
                         }
                         .padding(.trailing, PVSpacing.s16)
                         .padding(.top, PVSpacing.s8)
@@ -202,7 +203,6 @@ struct TimelineView: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
-                .overlay(alignment: .top) { uploadBanner }
                 .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : "")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
@@ -288,21 +288,33 @@ struct TimelineView: View {
         )
     }
 
-    // MARK: - Upload progress banner (AC-BK05/BK06)
-
+    // MARK: - Backup progress ring (AC-BK05/BK06)
+    // Backup progress as a circular ring around the profile avatar, on every
+    // device. iOS never shows an app's OWN Live Activity in the Dynamic
+    // Island while that app is frontmost — and this ring is only ever visible
+    // while the app IS frontmost — so the ring and the island never compete:
+    // island (or notification panel) out of app, ring in app. The ring
+    // vanishes the moment the run finishes.
     @ViewBuilder
-    private var uploadBanner: some View {
-        if upload.engine.phase == .checking || upload.engine.phase == .uploading {
-            UploadProgressBanner(
-                uploaded: upload.engine.uploadedCount,
-                total: upload.engine.total,
-                phase: upload.engine.phase,
-                lastError: upload.engine.lastError,
-                onRetry: { Task { await upload.runBackup(manual: true) } }
-            )
-            .padding(.horizontal, PVSpacing.s16)
-            .padding(.top, PVSpacing.s8)
-            .transition(.move(edge: .top).combined(with: .opacity))
+    private var avatarBackupRing: some View {
+        let engine = upload.engine
+        if engine.phase == .checking || engine.phase == .uploading {
+            Circle()
+                .trim(from: 0, to: max(0.02, engine.progressFraction))
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.immichPrimary, Color.immichPrimary.opacity(0.55)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                .frame(width: 36, height: 36)
+                .rotationEffect(.degrees(-90))
+                .animation(
+                    reduceMotion ? nil : .spring(duration: 0.5, bounce: 0.15),
+                    value: engine.progressFraction
+                )
+                .accessibilityLabel("Backing up — \(engine.progressPercent) percent")
         }
     }
 

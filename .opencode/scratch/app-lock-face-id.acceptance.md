@@ -137,8 +137,9 @@ Post-state attendu: PASS
 
 ```
 ### AC-114 [type: new]
-Assertion: BackupSettingsView expose un Toggle "Require Face ID" bindé sur appLock, et appLock est injecté via `@Environment(AppLockViewModel.self)` (type concret @Observable, cohérent avec @Environment(AuthViewModel.self) existant).
-Check post-impl: sh -c 'grep -qE "Toggle.*Require Face ID|Toggle.*App Lock" Sources/Features/Upload/UploadViewModel.swift && grep -qE "@Environment\(AppLockViewModel.self\)" Sources/Features/Upload/UploadViewModel.swift && echo PASS || echo FAIL'
+Assertion: un Toggle "Require Face ID" bindé sur appLock existe, et appLock est injecté via `@Environment(AppLockViewModel.self)` (type concret @Observable, cohérent avec @Environment(AuthViewModel.self) existant).
+Note (2026-09-10): le toggle a été DÉPLACÉ de BackupSettingsView vers ProfileView (« Me » → section Security) — l'app lock garde l'app entière, pas seulement la sauvegarde, et l'écran Backup a été nettoyé de tout ce qui n'est pas du backup. Le critère suit la surface, il ne pinne plus le fichier.
+Check post-impl: sh -c 'grep -qE "Toggle\(\"Require Face ID\"" Sources/Features/Profile/ProfileView.swift && grep -qE "@Environment\(AppLockViewModel.self\)" Sources/Features/Profile/ProfileView.swift && ! grep -q "Require Face ID" Sources/Features/Upload/UploadViewModel.swift && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
@@ -169,5 +170,5 @@ Post-state attendu: PASS (3, inchangé)
 2. VM-2: Transition lock/unlock fluide (spring 0.25s), pas de flash.
 3. VM-3: Haptic success au déverrouillage (UINotificationFeedbackGenerator).
 4. VM-4: Face ID prompt au retour background <1s; 3 fails → passcode auto.
-5. VM-5: Toggle "Require Face ID" dans BackupSettingsView, natif Form, effet immédiat.
+5. VM-5: Toggle "Require Face ID" dans ProfileView (« Me » → Security), natif Form, effet immédiat. (Déplacé depuis BackupSettingsView le 2026-09-10.)
 6. VM-6: App switcher montre blur overlay (snapshot système), pas contenu sensible.

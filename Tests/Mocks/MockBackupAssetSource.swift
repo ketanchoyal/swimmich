@@ -7,43 +7,102 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
     nonisolated(unsafe) var albums: [BackupAlbum] = []
     nonisolated(unsafe) var dataProvider: (String) -> Data = { _ in Data() }
     nonisolated(unsafe) var loadError: Error?
+    /// Candidate ids whose `exportOriginal` throws (per-asset failure), so a
+    /// run can mix successes and failures deterministically.
+    nonisolated(unsafe) var failIDs: Set<String> = []
+    /// Candidate ids whose `exportOriginal` throws `.cloudDownloadPending`
+    /// (iCloud original not local yet) — deferred, not a failure.
+    nonisolated(unsafe) var deferIDs: Set<String> = []
     /// Invoked exactly once on the first `exportOriginal` — cancellation-path
     /// tests must be idempotent (the engine loops through all candidates
     /// before honoring the flag).
     nonisolated(unsafe) var onFirstLoad: (() -> Void)?
     nonisolated(unsafe) var lastAlbumIDs: Set<String>?
+    nonisolated(unsafe) var lastExcludedAlbumIDs: Set<String>?
+    /// Candidate ids the excluded albums contain, so the mock can honor the
+    /// exclusion contract the real source implements.
+    nonisolated(unsafe) var excludedAssetIDs: Set<String> = []
+    /// Candidate ids that also have a paired video, and the ones whose paired
+    /// export should fail / defer instead.
+    nonisolated(unsafe) var livePhotoIDs: Set<String> = []
+    nonisolated(unsafe) var pairedFailIDs: Set<String> = []
+    nonisolated(unsafe) var pairedDeferIDs: Set<String> = []
 
     private let fetchLock = NSLock()
 
     func fetchAlbums() -> [BackupAlbum] { albums }
 
-    func fetchCandidates(in albumIDs: Set<String>) -> [BackupCandidate] {
+    func fetchCandidates(in albumIDs: Set<String>, excluding excludedAlbumIDs: Set<String>) -> [BackupCandidate] {
         fetchLock.lock()
         lastAlbumIDs = albumIDs
+        lastExcludedAlbumIDs = excludedAlbumIDs
         fetchLock.unlock()
-        return candidates
+        // The exclusion contract lives in the source, so the mock honors it the
+        // same way: assets the excluded albums contain are not candidates.
+        guard !excludedAlbumIDs.isEmpty, !excludedAssetIDs.isEmpty else { return candidates }
+        return candidates.filter { !excludedAssetIDs.contains($0.id) }
     }
 
-    func exportOriginal(for candidate: BackupCandidate) async throws -> URL {
+    func exportOriginal(
+        for candidate: BackupCandidate,
+        onState: @escaping @Sendable (BackupExportState) -> Void
+    ) async throws -> URL {
+        fetchLock.lock()
+        exportedIDs.append(candidate.id)
+        fetchLock.unlock()
         onFirstLoad?()
         onFirstLoad = nil
         if let loadError { throw loadError }
+        if failIDs.contains(candidate.id) {
+            throw APIError.decoding("export failed for \(candidate.id)")
+        }
+        if deferIDs.contains(candidate.id) {
+            throw BackupExportError.cloudDownloadPending
+        }
+        return try write(dataProvider(candidate.id), named: candidate.fileName)
+    }
+
+    func exportPairedVideo(
+        for candidate: BackupCandidate,
+        onState: @escaping @Sendable (BackupExportState) -> Void
+    ) async throws -> BackupPairedVideo? {
+        guard livePhotoIDs.contains(candidate.id) else { return nil }
+        if pairedFailIDs.contains(candidate.id) {
+            throw APIError.decoding("paired export failed for \(candidate.id)")
+        }
+        if pairedDeferIDs.contains(candidate.id) {
+            throw BackupExportError.cloudDownloadPending
+        }
+        let name = "\(candidate.id).MOV"
+        let url = try write(Data("paired-\(candidate.id)".utf8), named: name)
+        return BackupPairedVideo(url: url, fileName: name, duration: 3)
+    }
+
+    private func write(_ data: Data, named name: String) throws -> URL {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("immich-test-backup", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent("\(UUID().uuidString)-\(candidate.fileName)")
-        try dataProvider(candidate.id).write(to: url)
+        let url = dir.appendingPathComponent("\(UUID().uuidString)-\(name)")
+        try data.write(to: url)
         return url
     }
+
+    nonisolated(unsafe) var purgeCount = 0
+    /// Ids the engine actually asked to export, in order — the network-policy
+    /// tests assert a deferred asset is *never* exported.
+    nonisolated(unsafe) var exportedIDs: [String] = []
+    func purgeStaleExports() { purgeCount += 1 }
 }
 
 /// Deterministic environment — tests toggle the gates by hand.
 final class MockBackupEnvironment: BackupEnvironment, @unchecked Sendable {
     nonisolated(unsafe) var isChargingValue = true
     nonisolated(unsafe) var hasWiFiValue = true
+    nonisolated(unsafe) var isOnlineValue = true
 
     var isCharging: Bool { isChargingValue }
     var hasWiFiConnection: Bool { hasWiFiValue }
+    var isOnline: Bool { isOnlineValue }
 }
 
 /// Records submissions; production analog is BGTaskScheduler.

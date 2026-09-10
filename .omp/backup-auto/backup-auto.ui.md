@@ -1,5 +1,7 @@
 # Task: backup-auto — UI Brief (Liquid Glass Primary)
 
+> **Révision du 2026-09-10** — la `BackfillReorganizeButton` / `BackfillSheet` décrites plus bas ont été RETIRÉES (doublon du scoping d'albums + « Run now »). La section « Security / Require Face ID » a quitté l'écran Backup pour `ProfileView` (« Me » → Security). Le scoping d'albums est désormais un mode tri-état (All / Only selected / All but selected) : un `Picker` + un seul `NavigationLink` contextuel.
+
 ## Design Philosophy
 
 Tout l'écran est pensé **à partir du matériau vitreux** — pas une couche ajoutée après, mais la fondation de chaque surface, contrôle et interaction. Le user voit des photos en arrière-plan à travers les surfaces vitrées. C'est Apple qui a fait ça.

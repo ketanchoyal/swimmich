@@ -6,6 +6,11 @@ import UIKit
 protocol BackupEnvironment: Sendable {
     var isCharging: Bool { get }
     var hasWiFiConnection: Bool { get }
+    /// Any usable network path (Wi-Fi or cellular). `hasWiFiConnection ==
+    /// false` alone cannot tell "on cellular" from "airplane mode", so a run
+    /// without the Wi-Fi gate used to export + hash the whole library offline
+    /// and then fail every upload.
+    var isOnline: Bool { get }
 }
 
 /// Production environment: UIDevice battery state + NWPathMonitor cache.
@@ -13,6 +18,7 @@ protocol BackupEnvironment: Sendable {
 struct SystemBackupEnvironment: BackupEnvironment, @unchecked Sendable {
     private static let stateLock = NSLock()
     private static var cachedWiFi = false
+    private static var cachedOnline = false
     private static var monitorStarted = false
 
     init() {
@@ -34,8 +40,10 @@ struct SystemBackupEnvironment: BackupEnvironment, @unchecked Sendable {
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { path in
             let isWiFi = path.usesInterfaceType(.wifi) && path.status == .satisfied
+            let online = path.status == .satisfied
             stateLock.lock()
             cachedWiFi = isWiFi
+            cachedOnline = online
             stateLock.unlock()
         }
         monitor.start(queue: .global(qos: .utility))
@@ -52,5 +60,11 @@ struct SystemBackupEnvironment: BackupEnvironment, @unchecked Sendable {
         Self.stateLock.lock()
         defer { Self.stateLock.unlock() }
         return Self.cachedWiFi
+    }
+
+    var isOnline: Bool {
+        Self.stateLock.lock()
+        defer { Self.stateLock.unlock() }
+        return Self.cachedOnline
     }
 }

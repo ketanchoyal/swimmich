@@ -1,6 +1,12 @@
 # Task: backup-auto
 
-Status: pending
+Status: shipped — AC-BK01/BK02 (réécrits), BK03/BK04/BK07 (révisés), BK09, BK10 PASS ; AC-BK05, BK06 et BK08 OBSOLÈTES (surfaces retirées volontairement).
+Dernière vérification : 2026-09-10, suite **691 tests TEST SUCCEEDED** (iPhone 17).
+
+> **Révisions du 2026-09-10** — le `## Plan` ci-dessous est le plan d'origine (2026-09-08) et décrit deux surfaces qui ont été retirées depuis. Il est conservé comme trace de ce qui a été livré, pas comme état courant :
+> - **Backfill / `BackfillSheet` / `runBackfill(albumId:)`** : retirés — doublon du scoping d'albums + « Run now », et le libellé « Reorganize » mentait (aucune réorganisation côté serveur). AC-BK08 passe OBSOLÈTE ; AC-BK10 couvre le remplacement.
+> - **Toggle « Require Face ID »** : déplacé vers `ProfileView` (« Me » → Security) — l'app lock garde l'application entière, pas la sauvegarde. AC-114 suit la surface.
+> - Le scoping d'albums est désormais **un mode tri-état** (`BackupAlbumScope.{all, selected, excluded}`) : les deux liens indépendants « Albums to back up » / « Albums to skip » pouvaient inclure et exclure le même album, soit un run qui ne sauvegarde rien.
 
 ## Plan
 
@@ -64,66 +70,73 @@ Status: pending
 ### Critères
 
 ```
-### AC-BK01 [type: new]
-Assertion: BackupSettingsStore expose excludeCameraRoll, excludeWhatsApp, autoDetectNewPhotos, persistés avec clés photoBackup*.
-Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -q "excludeCameraRoll" "$f" && grep -q "excludeWhatsApp" "$f" && grep -q "autoDetectNewPhotos" "$f" && grep -q "photoBackupExcludeCameraRoll" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL (ces propriétés n'existent pas)
-Post-state attendu: PASS
-```
-
-```
-### AC-BK02 [type: new]
-Assertion: BackupSettings struct contient excludeCameraRoll, excludeWhatsApp, autoDetectNewPhotos, et BackupSettingsStore.snapshot() les inclut.
-Check post-impl: sh -c 'f=Sources/Services/BackupEngine.swift; grep -q "excludeCameraRoll" "$f" && grep -q "excludeWhatsApp" "$f" && grep -q "autoDetectNewPhotos" "$f"; f2=Sources/Features/Upload/UploadViewModel.swift; grep -q "excludeCameraRoll" "$f2" && grep -q "excludeWhatsApp" "$f2" && grep -q "autoDetectNewPhotos" "$f2" && echo PASS || echo FAIL'
+### AC-BK01 [type: new] — RÉÉCRIT 2026-09-10 (était OBSOLÈTE)
+Assertion (historique): BackupSettingsStore expose excludeCameraRoll / excludeWhatsApp persistés avec clés photoBackup*.
+OBSOLÈTE : ces deux booléens ont été SUPPRIMÉS par la suite Album Scoping — les heuristiques nom-de-fichier derrière eux étaient fausses sur iOS (`!hasPrefix("IMG_")` excluait presque toute la pellicule, `!contains("WhatsApp")` ne filtrait rien). Ils sont remplacés par le scoping d'albums (AC-BK10 / AC-AS01..AS08).
+Assertion courante: BackupSettingsStore persiste isEnabled, onlyOnWiFi, onlyWhenCharging, autoDetectNewPhotos, le mode d'albums et les deux ensembles d'albums.
+Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; for k in enabledKey wifiKey chargingKey autoDetectNewPhotosKey albumScopeKey albumsKey excludedAlbumsKey; do grep -q "$k" "$f" || exit 1; done; ! grep -q "excludeCameraRoll\|excludeWhatsApp" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
 
 ```
-### AC-BK03 [type: new]
-Assertion: UploadViewModel expose runBackfill(albumId:) + showBackfillSheet + uploadHistory.
-Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -q "func runBackfill" "$f" && grep -q "showBackfillSheet" "$f" && grep -q "UploadHistoryEntry" "$f" && echo PASS || echo FAIL'
+### AC-BK02 [type: new] — RÉÉCRIT 2026-09-10 (était OBSOLÈTE)
+Assertion (historique): BackupSettings porte excludeCameraRoll / excludeWhatsApp et snapshot() les inclut.
+OBSOLÈTE : BackupSettings ne porte plus ces booléens (cf. AC-BK01) ; il porte `excludedAlbumIDs` / `selectedAlbumIDs`, dont un SEUL est rempli selon le mode d'albums.
+Assertion courante: BackupSettings porte autoDetectNewPhotos + les deux ensembles d'albums, et snapshot() ne transmet que celui du mode actif.
+Check post-impl: sh -c 'f=Sources/Services/BackupEngine.swift; grep -q "autoDetectNewPhotos" "$f" && grep -qE "var excludedAlbumIDs" "$f" && grep -qE "var selectedAlbumIDs" "$f" && f2=Sources/Features/Upload/UploadViewModel.swift; grep -q "effectiveAlbumScope" "$f2" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
 
 ```
-### AC-BK04 [type: new]
-Assertion: BackupSettingsView intègre les 4 nouveaux toggles + bouton backfill reorganize.
-Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; n=$(grep -cE "excludeCameraRoll|excludeWhatsApp|autoDetectNewPhotos|backfill|reorganize|camera.*roll|WhatsApp" "$f"); test "$n" -ge 12 && echo PASS || echo FAIL'
+### AC-BK03 [type: new] — révisé 2026-09-10
+Assertion: UploadViewModel expose resumeUpload() + uploadHistory (le backfill a été retiré : il ne faisait que `selectedAlbumIDs = [album]` + run manuel, soit exactement le scoping d'albums + « Run now »).
+Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -q "func resumeUpload" "$f" && grep -q "UploadHistoryEntry" "$f" && ! grep -q "runBackfill" "$f" && echo PASS || echo FAIL'
+Pre-state attendu: FAIL
+Post-state attendu: PASS
+```
+
+```
+### AC-BK04 [type: new] — révisé 2026-09-10
+Assertion: BackupSettingsView intègre les toggles auto-detect + le scoping d'albums (mode tri-état + lien vers le picker).
+Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -q "autoDetectNewPhotos" "$f" && grep -q "BackupAlbumScope" "$f" && grep -q "AlbumPickerView" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (seulement enable/wifi/charging/screenshots)
 Post-state attendu: PASS
 ```
 
 ```
-### AC-BK05 [type: new]
-Assertion: UploadProgressBanner existe et est injecté dans TimelineView pendant l'upload actif.
-Check post-impl: sh -c 'grep -q "UploadProgressBanner" Sources/Features/Timeline/TimelineView.swift && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
+### AC-BK05 [type: new] — OBSOLÈTE depuis 2026-09-09
+Assertion (historique): UploadProgressBanner existe et est injecté dans TimelineView pendant l'upload actif.
+OBSOLÈTE : la bannière a été supprimée volontairement et remplacée par l'anneau de progression autour de l'avatar (`TimelineView.avatarBackupRing`). Le critère pinne une surface UI abandonnée — ne pas le « réparer ».
 ```
 
 ```
-### AC-BK06 [type: new]
-Assertion: UploadProgressBanner utilise .scrollEdgeEffectStyle(.floating) et présente uploaded/total.
-Check post-impl: sh -c 'grep -q "scrollEdgeEffectStyle" Sources/Features/Upload/UploadViewModel.swift && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
+### AC-BK06 [type: new] — OBSOLÈTE depuis 2026-09-09
+Assertion (historique): UploadProgressBanner utilise .scrollEdgeEffectStyle(.floating) et présente uploaded/total.
+OBSOLÈTE : même surface que AC-BK05, supprimée avec la bannière. La progression vit maintenant dans `BackupSettingsView.progressSection` + l'anneau du Timeline.
 ```
 
 ```
-### AC-BK07 [type: new]
-Assertion: Tests UploadViewModelTests: ≥6 tests couvrant resume, backfill settings, exclude filters, snapshot persistence.
-Check post-impl: sh -c 'f=Tests/UploadViewModelTests.swift; n=$(grep -cE "^[[:space:]]*func test_" "$f"); test "$n" -ge 6 && echo PASS || echo FAIL'
+### AC-BK07 [type: new] — révisé 2026-09-10
+Assertion: Tests UploadViewModelTests: ≥6 tests couvrant resume, scoping d'albums, persistance du snapshot.
+Check post-impl: sh -c 'f=Tests/UploadViewModelTests.swift; n=$(grep -cE "^[[:space:]]*func test_" "$f"); n=${n:-0}; test "$n" -ge 6 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier n'existe pas)
 Post-state attendu: PASS
 ```
 
 ```
-### AC-BK08 [type: new]
-Assertion: BackfillSheet existe et utilise glass morphing (Namespace/glassEffectID) pour la transition.
-Check post-impl: sh -c 'grep -q "BackfillSheet" Sources/Features/Upload/UploadViewModel.swift && grep -q "@Namespace" Sources/Features/Upload/UploadViewModel.swift && grep -q "glassEffectID\|glassEffectTransition" Sources/Features/Upload/UploadViewModel.swift && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
+### AC-BK08 [type: new] — OBSOLÈTE depuis 2026-09-10
+Assertion (historique): BackfillSheet existe et utilise glass morphing (Namespace/glassEffectID) pour la transition.
+OBSOLÈTE : la sheet Backfill a été SUPPRIMÉE (demande utilisateur) parce qu'elle était un doublon du scoping d'albums + « Run now » : `runBackfill(albumId:)` ne faisait que fixer `selectedAlbumIDs = [albumId]` puis lancer un run manuel, sans aucune réorganisation côté serveur malgré le libellé « Reorganize ».
+Remplacement vérifié par AC-BK10.
+```
+
+```
+### AC-BK10 [type: new] — ajouté 2026-09-10
+Assertion: le scoping d'albums est un mode unique à trois états (all / selected / excluded) et un seul ensemble part au moteur, donc « inclure » et « exclure » ne peuvent plus se contredire.
+Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -q "enum BackupAlbumScope" "$f" && grep -q "effectiveAlbumScope" "$f" && grep -qE "excludedAlbumIDs: inForce == .excluded" "$f" && grep -qE "selectedAlbumIDs: inForce == .selected" "$f" && echo PASS || echo FAIL'
+Pre-state attendu: FAIL (deux NavigationLink indépendants, aucun mode)
 Post-state attendu: PASS
 ```
 

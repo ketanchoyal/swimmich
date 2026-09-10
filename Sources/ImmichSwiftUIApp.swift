@@ -13,6 +13,10 @@ struct ImmichSwiftUIApp: App {
                     switch phase {
                     case .background:
                         container.appLock.lock()
+                        // No PhotoLibrary observer outside the foreground: it
+                        // cannot fire usefully there, and it would race the
+                        // BGTask window's own run.
+                        container.libraryMonitor.stop()
                     case .active:
                         if container.appLock.isEnabled && container.appLock.isLocked {
                             Task { _ = await container.appLock.authenticate() }
@@ -22,6 +26,7 @@ struct ImmichSwiftUIApp: App {
                         // then keep the pending background request alive so
                         // the next OS window picks up anything new.
                         container.kickOffAutoBackup()
+                        container.syncLibraryMonitor()
                         if container.isAutoBackupEnabled() {
                             container.backupScheduler.submit()
                         }
@@ -50,7 +55,7 @@ struct ImmichSwiftUIApp: App {
             if container.isAutoBackupEnabled() {
                 container.backupScheduler.submit()
             }
-            let upload = container.makeUploadViewModel()
+            let upload = container.upload
             task.expirationHandler = {
                 upload.engine.cancel()
             }

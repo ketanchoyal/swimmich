@@ -68,12 +68,18 @@ struct MultipartBody {
         try write("Content-Disposition: form-data; name=\"\(fileField.name)\"; filename=\"\(fileField.filename)\"\(crlf)")
         try write("Content-Type: \(fileField.contentType)\(crlf)\(crlf)")
 
-        // File bytes, streamed from disk one chunk at a time.
+        // File bytes, streamed from disk one chunk at a time. Each iteration is
+        // wrapped in an autorelease pool: FileHandle.read hands back an
+        // autoreleased NSData whose backing bytes would otherwise accumulate for
+        // the entire file — gigabytes for a video — until this function returns,
+        // OOM-killing the app. Draining per chunk pins peak memory at one chunk.
         let input = try FileHandle(forReadingFrom: fileField.fileURL)
         defer { try? input.close() }
-        while let chunk = try input.read(upToCount: 1 << 20), !chunk.isEmpty {
+        while try autoreleasepool(invoking: {
+            guard let chunk = try input.read(upToCount: 1 << 20), !chunk.isEmpty else { return false }
             try out.write(contentsOf: chunk)
-        }
+            return true
+        }) {}
         try write(crlf)
 
         // Text fields.

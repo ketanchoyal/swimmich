@@ -5,6 +5,8 @@ import SwiftUI
 /// storage-stats, also shows the server's storage usage + quota.
 struct ProfileView: View {
     @Environment(AuthViewModel.self) private var auth
+    @Environment(AppLockViewModel.self) private var appLock
+    @AppStorage(AppLockViewModel.enabledKey) private var appLockEnabled = false
     @Environment(\.openURL) private var openURL
     @State var trash: TrashViewModel
     @State var storage: StorageStatsViewModel
@@ -76,6 +78,20 @@ struct ProfileView: View {
                     } header: {
                         Text("Administration")
                     }
+                }
+
+                // App lock lives here rather than on the Backup screen: it
+                // guards the whole app, not the backup run.
+                Section {
+                    Toggle("Require Face ID", isOn: $appLockEnabled)
+                        .onChange(of: appLockEnabled) { _, newValue in
+                            appLock.setEnabled(newValue)
+                        }
+                        .accessibilityIdentifier("appLockToggle")
+                } header: {
+                    Text("Security")
+                } footer: {
+                    Text("Asks for Face ID (or your passcode) every time Immich comes back to the foreground, so someone holding your unlocked phone can't browse your photos.")
                 }
 
                 Section {

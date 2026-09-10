@@ -10,7 +10,7 @@ struct BackupNowAppIntent: AppIntent {
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
-        let upload = await MainActor.run { DependencyContainer.shared.makeUploadViewModel() }
+        let upload = await MainActor.run { DependencyContainer.shared.upload }
         await upload.runBackup(manual: true)
         return .result()
     }}

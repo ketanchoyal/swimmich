@@ -2,29 +2,31 @@ import Foundation
 import XCTest
 @testable import ImmichSwiftUI
 
-// MARK: - BackupSettingsStore new fields (AC-BK01, AC-BK02)
+// MARK: - BackupSettingsStore scoping + auto-detect (AC-BK01, AC-BK02)
 
 final class BackupSettingsNewFieldsTests: XCTestCase {
 
     @MainActor
-    func test_settingsStore_exposesExcludeCameraRoll() {
-        let suite = "backup-cameraroll-test-\(UUID().uuidString)"
+    func test_settingsStore_exposesExcludedAlbumIDs() {
+        let suite = "backup-excluded-albums-\(UUID().uuidString)"
         let store = BackupSettingsStore(suiteName: suite)
-        XCTAssertFalse(store.excludeCameraRoll)
-        store.excludeCameraRoll = true
+        XCTAssertTrue(store.excludedAlbumIDs.isEmpty)
+        store.excludedAlbumIDs = ["album-1", BackupAlbum.SmartID.videos]
         let fresh = BackupSettingsStore(suiteName: suite)
-        XCTAssertTrue(fresh.excludeCameraRoll)
+        XCTAssertEqual(fresh.excludedAlbumIDs, ["album-1", BackupAlbum.SmartID.videos])
         UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
     }
 
     @MainActor
-    func test_settingsStore_exposesExcludeWhatsApp() {
-        let suite = "backup-whatsapp-test-\(UUID().uuidString)"
+    func test_settingsStore_exposesCellularPolicy() {
+        let suite = "backup-cellular-test-\(UUID().uuidString)"
         let store = BackupSettingsStore(suiteName: suite)
-        XCTAssertFalse(store.excludeWhatsApp)
-        store.excludeWhatsApp = true
+        XCTAssertFalse(store.allowCellularForPhotos)
+        XCTAssertFalse(store.allowCellularForVideos)
+        store.allowCellularForPhotos = true
         let fresh = BackupSettingsStore(suiteName: suite)
-        XCTAssertTrue(fresh.excludeWhatsApp)
+        XCTAssertTrue(fresh.allowCellularForPhotos)
+        XCTAssertFalse(fresh.allowCellularForVideos)
         UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
     }
 
@@ -43,12 +45,13 @@ final class BackupSettingsNewFieldsTests: XCTestCase {
     func test_snapshot_includesNewFields() {
         let suite = "backup-snapshot-test-\(UUID().uuidString)"
         let store = BackupSettingsStore(suiteName: suite)
-        store.excludeCameraRoll = true
-        store.excludeWhatsApp = true
+        store.excludedAlbumIDs = [BackupAlbum.SmartID.bursts]
+        store.albumScope = .excluded
+        store.allowCellularForVideos = true
         store.autoDetectNewPhotos = true
         let snap = store.snapshot()
-        XCTAssertTrue(snap.excludeCameraRoll)
-        XCTAssertTrue(snap.excludeWhatsApp)
+        XCTAssertEqual(snap.excludedAlbumIDs, [BackupAlbum.SmartID.bursts])
+        XCTAssertTrue(snap.allowCellularForVideos)
         XCTAssertTrue(snap.autoDetectNewPhotos)
         UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite)
     }
@@ -61,7 +64,7 @@ private func makeCandidate(id: String, fileName: String) -> BackupCandidate {
         id: id, kind: .image, fileName: fileName,
         fileCreatedAt: "2024-01-01T00:00:00.000Z",
         fileModifiedAt: "2024-01-01T00:00:00.000Z",
-        duration: nil, isFavorite: false, albumName: nil
+        duration: nil, isFavorite: false
     )
 }
 
@@ -104,26 +107,17 @@ final class UploadViewModelNewFeaturesTests: XCTestCase {
     }
 
     @MainActor
-    func test_viewModel_showBackfillSheet() {
-        let settings = BackupSettingsStore(suiteName: "vm-sheet-\(UUID().uuidString)")
-        let (vm, _) = makeVM(client: MockImmichClient(), source: MockBackupAssetSource(), settings: settings)
-        XCTAssertFalse(vm.showBackfillSheet)
-        vm.showBackfillSheet = true
-        XCTAssertTrue(vm.showBackfillSheet)
-    }
-
-    @MainActor
     func test_viewModel_sharesSettingsStore() {
         // The view binds toggles to $vm.settings.*; the VM must run the
         // engine against that same store, so a toggle flows into the snapshot.
-        let settings = BackupSettingsStore(suiteName: "vm-backfill-\(UUID().uuidString)")
+        let settings = BackupSettingsStore(suiteName: "vm-scope-\(UUID().uuidString)")
         let (vm, _) = makeVM(client: MockImmichClient(), source: MockBackupAssetSource(), settings: settings)
-        vm.settings.excludeCameraRoll = true
-        vm.settings.excludeWhatsApp = true
+        vm.settings.excludedAlbumIDs = [BackupAlbum.SmartID.screenshots]
+        vm.settings.albumScope = .excluded
         vm.settings.autoDetectNewPhotos = true
         let snap = vm.settings.snapshot()
-        XCTAssertTrue(snap.excludeCameraRoll)
-        XCTAssertTrue(snap.excludeWhatsApp)
+        XCTAssertEqual(snap.excludedAlbumIDs, [BackupAlbum.SmartID.screenshots])
+        XCTAssertTrue(snap.selectedAlbumIDs.isEmpty, "l'autre ensemble ne part jamais au moteur")
         XCTAssertTrue(snap.autoDetectNewPhotos)
     }
 
@@ -150,8 +144,11 @@ final class UploadViewModelNewFeaturesTests: XCTestCase {
         XCTAssertEqual(entry.failed, 0)
     }
 
+    /// "Run now" with the album scope set to a single album is what the removed
+    /// Backfill sheet used to do: same manual run, same scoped fetch. Covered
+    /// here so the capability it provided can't regress with it.
     @MainActor
-    func test_runBackfill_scopesToAlbumAndUploads() async {
+    func test_manualRun_scopedToAlbumUploadsIt() async {
         let client = MockImmichClient()
         client.bulkUploadCheckResponse = AssetBulkUploadCheckResponse(
             results: [.init(id: "a1", action: "accept")]
@@ -159,19 +156,19 @@ final class UploadViewModelNewFeaturesTests: XCTestCase {
         let source = MockBackupAssetSource()
         source.candidates = [makeCandidate(id: "a1", fileName: "album-photo.jpg")]
         source.dataProvider = { _ in Data(repeating: 1, count: 64) }
-        // Auto-backup OFF: backfill must still run (manual, forced).
-        let settings = BackupSettingsStore(suiteName: "vm-backfill-run-\(UUID().uuidString)")
+        // Auto-backup OFF: a manual run must still go (explicit user action).
+        let settings = BackupSettingsStore(suiteName: "vm-scoped-run-\(UUID().uuidString)")
         settings.isEnabled = false
+        settings.selectedAlbumIDs = ["album-42"]
+        settings.albumScope = .selected
         let (vm, engine) = makeVM(client: client, source: source, settings: settings)
 
-        vm.runBackfill(albumId: "album-42")
-        // runBackfill kicks off a detached Task; await completion.
+        vm.resumeUpload()
         await vm.awaitCurrentBackup()
 
-        XCTAssertEqual(source.lastAlbumIDs, ["album-42"], "backfill scopes fetch to the chosen album")
+        XCTAssertEqual(source.lastAlbumIDs, ["album-42"], "le run est scopé à l'album choisi")
         XCTAssertEqual(engine.phase, .done)
         XCTAssertEqual(engine.uploadedCount, 1)
-        XCTAssertFalse(vm.showBackfillSheet)
     }
 }
 
@@ -238,70 +235,189 @@ final class BackupManualRunTests: XCTestCase {
         XCTAssertEqual(engine.uploadedCount, 1)
     }
 
-    /// Automatic run with Wi-Fi-only + no Wi-Fi is blocked with an error.
+    /// An automatic run on cellular with "Wi-Fi only" enters the pipeline and
+    /// reports the asset instead of refusing the whole run: the choice is per
+    /// media kind now, so a refusal at the run level would block photos the
+    /// user allowed.
     @MainActor
-    func test_automaticRun_wifiGateBlocks() async {
+    func test_automaticRun_cellularDefersInsteadOfBlocking() async {
         let client = MockImmichClient()
         let source = MockBackupAssetSource()
         source.candidates = [makeCandidate(id: "x1", fileName: "photo.jpg")]
+        source.dataProvider = { _ in Data(repeating: 3, count: 16) }
         let env = MockBackupEnvironment()
         env.hasWiFiValue = false
         let settings = BackupSettingsStore(suiteName: "auto-nowifi-\(UUID().uuidString)")
         settings.isEnabled = true
         settings.onlyOnWiFi = true
+        settings.allowCellularForPhotos = false
         let engine = BackupEngine(client: client, source: source, environment: env)
 
         await engine.run(settings: settings.snapshot(), manual: false)
 
+        XCTAssertEqual(engine.phase, .done)
+        XCTAssertEqual(engine.deferredCount, 1)
+        XCTAssertEqual(engine.failedCount, 0)
+        XCTAssertNil(engine.lastError, "un report n'est pas une erreur")
+        XCTAssertEqual(engine.deferralReason, [.waitingForWiFi])
+    }
+
+    /// Offline is the one automatic refusal, and it happens before any work.
+    @MainActor
+    func test_automaticRun_offlineBlocks() async {
+        let client = MockImmichClient()
+        let source = MockBackupAssetSource()
+        source.candidates = [makeCandidate(id: "x1", fileName: "photo.jpg")]
+        let env = MockBackupEnvironment()
+        env.isOnlineValue = false
+        let settings = BackupSettingsStore(suiteName: "auto-offline-\(UUID().uuidString)")
+        settings.isEnabled = true
+        let engine = BackupEngine(client: client, source: source, environment: env)
+
+        let started = await engine.run(settings: settings.snapshot(), manual: false)
+
+        XCTAssertFalse(started)
         XCTAssertEqual(engine.phase, .idle)
-        XCTAssertNotNil(engine.lastError)
+        XCTAssertEqual(source.purgeCount, 0, "aucun octet lu")
+        XCTAssertEqual(engine.lastError, "Backup needs a network connection.")
     }
 }
 
 // MARK: - BackupEngine exclusion filtering (AC-BK02 runtime)
 
+/// Album-based exclusion: the album set is resolved by the asset source, so the
+/// engine's job is to pass it through and to have no filename opinions at all.
 final class BackupEngineExclusionTests: XCTestCase {
 
-    /// WhatsApp files are dropped before the dedup check.
     @MainActor
-    func test_engine_filtersWhatsAppFiles() async {
+    func test_engine_passesExcludedAlbumIDsToSource() async {
+        let client = MockImmichClient()
+        let source = MockBackupAssetSource()
+        source.candidates = [makeCandidate(id: "n1", fileName: "photo.jpg")]
+        source.dataProvider = { _ in Data(repeating: 0, count: 50) }
+        let settings = BackupSettingsStore(suiteName: "eng-ex-\(UUID().uuidString)")
+        settings.isEnabled = true
+        settings.excludedAlbumIDs = [BackupAlbum.SmartID.screenshots, "album-42"]
+        settings.albumScope = .excluded
+        let engine = BackupEngine(client: client, source: source, environment: MockBackupEnvironment())
+
+        await engine.run(settings: settings.snapshot())
+
+        XCTAssertEqual(source.lastExcludedAlbumIDs, [BackupAlbum.SmartID.screenshots, "album-42"])
+    }
+
+    /// An excluded album drops its assets before dedup, wherever they'd land.
+    @MainActor
+    func test_engine_excludedAlbumAssetsNeverReachDedup() async {
         let client = MockImmichClient()
         let source = MockBackupAssetSource()
         source.candidates = [
-            makeCandidate(id: "w1", fileName: "WhatsApp/IMG_123.jpg"),
-            makeCandidate(id: "n1", fileName: "photo.jpg")
+            makeCandidate(id: "excluded", fileName: "screenshot.png"),
+            makeCandidate(id: "kept", fileName: "photo.jpg"),
         ]
+        source.excludedAssetIDs = ["excluded"]
         source.dataProvider = { _ in Data(repeating: 0, count: 50) }
-        let settings = BackupSettingsStore(suiteName: "eng-wa-\(UUID().uuidString)")
+        let settings = BackupSettingsStore(suiteName: "eng-ex2-\(UUID().uuidString)")
         settings.isEnabled = true
-        settings.excludeWhatsApp = true
+        settings.excludedAlbumIDs = [BackupAlbum.SmartID.screenshots]
+        settings.albumScope = .excluded
         let engine = BackupEngine(client: client, source: source, environment: MockBackupEnvironment())
 
         await engine.run(settings: settings.snapshot())
 
         let checkedIDs = client.bulkUploadCheckChunks.flatMap { $0 }.map(\.id)
-        XCTAssertEqual(checkedIDs, ["n1"], "the WhatsApp file is filtered out before dedup")
+        XCTAssertEqual(checkedIDs, ["kept"])
+        XCTAssertEqual(engine.total, 1)
     }
 
-    /// Camera-roll (IMG_) files are dropped entirely.
+    /// The filename heuristics are gone: `IMG_*` and `WhatsApp*` are ordinary
+    /// assets now. They used to drop nearly a whole iPhone camera roll (IMG_)
+    /// or filter nothing at all (WhatsApp).
     @MainActor
-    func test_engine_filtersCameraRollFiles() async {
+    func test_engine_hasNoFilenameHeuristics() async {
         let client = MockImmichClient()
         let source = MockBackupAssetSource()
         source.candidates = [
             makeCandidate(id: "c1", fileName: "IMG_001.jpg"),
-            makeCandidate(id: "c2", fileName: "IMG_002.jpg")
+            makeCandidate(id: "w1", fileName: "WhatsApp Image 2024.jpg"),
         ]
         source.dataProvider = { _ in Data(repeating: 0, count: 50) }
-        let settings = BackupSettingsStore(suiteName: "eng-cr-\(UUID().uuidString)")
+        client.bulkUploadCheckResponse = AssetBulkUploadCheckResponse(results: [
+            .init(id: "c1", action: "accept"),
+            .init(id: "w1", action: "accept"),
+        ])
+        let settings = BackupSettingsStore(suiteName: "eng-heur-\(UUID().uuidString)")
         settings.isEnabled = true
-        settings.excludeCameraRoll = true
         let engine = BackupEngine(client: client, source: source, environment: MockBackupEnvironment())
 
         await engine.run(settings: settings.snapshot())
 
-        XCTAssertTrue(client.bulkUploadCheckChunks.flatMap { $0 }.isEmpty, "all IMG_ files filtered")
-        XCTAssertEqual(engine.total, 0)
+        XCTAssertEqual(engine.total, 2, "aucun filtre sur le nom de fichier")
+        XCTAssertEqual(engine.uploadedCount, 2)
+    }
+
+    /// No exclusion configured must mean "everything" — the default has to
+    /// widen the scope, not narrow it (the trap the old `IMG_` heuristic fell
+    /// into).
+    @MainActor
+    func test_engine_noExclusionUploadsEverything() async {
+        let client = MockImmichClient()
+        let source = MockBackupAssetSource()
+        source.candidates = (0..<4).map { makeCandidate(id: "c\($0)", fileName: "photo\($0).jpg") }
+        source.dataProvider = { _ in Data(repeating: 0, count: 50) }
+        client.bulkUploadCheckResponse = AssetBulkUploadCheckResponse(
+            results: (0..<4).map { .init(id: "c\($0)", action: "accept") }
+        )
+        let settings = BackupSettingsStore(suiteName: "eng-none-\(UUID().uuidString)")
+        settings.isEnabled = true
+        let engine = BackupEngine(client: client, source: source, environment: MockBackupEnvironment())
+
+        await engine.run(settings: settings.snapshot())
+
+        XCTAssertTrue(source.lastExcludedAlbumIDs?.isEmpty ?? false)
+        XCTAssertEqual(engine.total, 4)
+        XCTAssertEqual(engine.uploadedCount, 4)
+    }
+
+    /// The scoping is read from the store at run time, so a change made between
+    /// two runs applies to the next one. Fresh ledgers on both sides so the
+    /// assertion is about the scoping, not about dedup.
+    @MainActor
+    func test_engine_exclusionAppliesFromTheNextRun() async {
+        let client = MockImmichClient()
+        let source = MockBackupAssetSource()
+        source.candidates = [
+            makeCandidate(id: "a", fileName: "a.jpg"),
+            makeCandidate(id: "b", fileName: "b.jpg"),
+        ]
+        source.dataProvider = { _ in Data(repeating: 0, count: 50) }
+        client.bulkUploadCheckResponse = AssetBulkUploadCheckResponse(results: [
+            .init(id: "a", action: "accept"),
+            .init(id: "b", action: "accept"),
+        ])
+        let settings = BackupSettingsStore(suiteName: "eng-live-\(UUID().uuidString)")
+        settings.isEnabled = true
+
+        let first = BackupEngine(
+            client: client, source: source,
+            environment: MockBackupEnvironment(), ledger: BackupLedger.inMemory()
+        )
+        await first.run(settings: settings.snapshot())
+        XCTAssertEqual(first.total, 2)
+        XCTAssertEqual(source.exportedIDs, ["a", "b"])
+
+        settings.excludedAlbumIDs = ["album-holidays"]
+        settings.albumScope = .excluded
+        source.excludedAssetIDs = ["b"]
+        let second = BackupEngine(
+            client: client, source: source,
+            environment: MockBackupEnvironment(), ledger: BackupLedger.inMemory()
+        )
+        await second.run(settings: settings.snapshot())
+
+        XCTAssertEqual(source.lastExcludedAlbumIDs, ["album-holidays"])
+        XCTAssertEqual(second.total, 1, "l'album exclu ne fournit plus de candidat")
+        XCTAssertEqual(source.exportedIDs, ["a", "b", "a"], "b n'est plus exporté au 2e run")
     }
 }
 

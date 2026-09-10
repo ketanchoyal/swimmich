@@ -202,8 +202,21 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastUploadIsFavorite: Bool?
     var lastUploadVisibility: AssetVisibility?
     var lastUploadChecksum: String?
+    var lastUploadLivePhotoVideoId: String?
+    var lastUploadDeviceAssetId: String?
+    var lastUploadDeviceId: String?
+    /// Every upload in order — the Live Photo paths are about *order* (hidden
+    /// video first, then the still) as much as about content.
+    var uploads: [(filename: String, visibility: AssetVisibility, livePhotoVideoId: String?, deviceAssetId: String?)] = []
     var uploadResponse: AssetMediaResponseDto?
     var uploadError: Error?
+    /// Per-filename answers, so a batch can mix a successful video upload with
+    /// a failing still (or the reverse). Falls back to `uploadResponse`.
+    var uploadResponsesByFilename: [String: AssetMediaResponseDto] = [:]
+    /// Applied per filename; falls back to `uploadError`.
+    var uploadErrorsByFilename: [String: Error] = [:]
+    /// Captured `updateAsset` (id, dto) calls — the Live Photo repair path.
+    var updateAssetCalls: [(id: String, dto: UpdateAssetDto)] = []
     /// Captured bulk-check payloads, per call (chunking assertions).
     var bulkUploadCheckChunks: [[AssetBulkUploadCheckRequest.Item]] = []
 
@@ -318,6 +331,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastUpdateAssetId = id
         lastUpdateAssetBody = dto
         lastUpdateMethod = .PATCH
+        updateAssetCalls.append((id: id, dto: dto))
         if let r = updateAssetResponse { return r }
         // Echo back with isFavorite toggled.
         var base = try await getAsset(id: id)
@@ -698,7 +712,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     func uploadAsset(
         fileURL: URL, fileCreatedAt: String, fileModifiedAt: String, filename: String,
         duration: Int?, isFavorite: Bool, visibility: AssetVisibility, livePhotoVideoId: String?,
-        checksum: String
+        checksum: String, deviceAssetId: String, deviceId: String
     ) async throws -> AssetMediaResponseDto {
         bump()
         lastUploadData = (try? Data(contentsOf: fileURL)) ?? Data()
@@ -709,7 +723,14 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastUploadIsFavorite = isFavorite
         lastUploadVisibility = visibility
         lastUploadChecksum = checksum
+        lastUploadLivePhotoVideoId = livePhotoVideoId
+        lastUploadDeviceAssetId = deviceAssetId
+        lastUploadDeviceId = deviceId
+        uploads.append((filename: filename, visibility: visibility,
+                        livePhotoVideoId: livePhotoVideoId, deviceAssetId: deviceAssetId))
         if let e = globalError ?? uploadError { throw e }
+        if let e = uploadErrorsByFilename[filename] { throw e }
+        if let r = uploadResponsesByFilename[filename] { return r }
         return uploadResponse ?? AssetMediaResponseDto(id: "new-asset", status: "created")
     }
 

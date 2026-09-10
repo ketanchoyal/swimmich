@@ -2,6 +2,8 @@
 
 Status: shipped — AC-1040..AC-1049 PASS 2026-08-12 (382 → 399 tests).
 
+> **Révision du 2026-09-10** — quatre checks (AC-1040, AC-1045, AC-1048, AC-1049) pinnaient des surfaces que les chantiers P2 suivants ont fait évoluer *volontairement* : signatures du protocole `BackupAssetSource`, `DependencyContainer.makeUploadViewModel()` supprimé au profit d'un VM unique, chemin du mock d'environnement, summary /tmp orphelin. Les checks ont été réécrits sur l'état courant, pas le code ramené en arrière. Nouvelle mesure : **691 tests, TEST SUCCEEDED** (iPhone 17, 2026-09-10).
+
 ## Plan
 
 **Objectif**: Remplacer le scaffold `UploadViewModel` par un vrai moteur de sauvegarde: diffing serveur via `bulkUploadCheck` (P0, inutilisé jusqu'ici), upload séquentiel multipart avec progression, conditions réseau/batterie, exclusion des captures d'écran, sélection d'albums, persistance des réglages, planification `BGTaskScheduler` (BGProcessingTask), registration au lancement + submit après chaque run. UI: BackupSettingsView avec toggles + liste albums + ligne de progression.
@@ -53,9 +55,10 @@ Status: shipped — AC-1040..AC-1049 PASS 2026-08-12 (382 → 399 tests).
 ### Critères
 
 ```
-### AC-1040 [type: new]
-Assertion: BackupCandidate/BackupAlbum/BackupAssetSource définis dans Sources/Core/Protocols/BackupAssetSource.swift (fetchCandidates(in:), fetchAlbums(), loadData(for:)).
-Check post-impl: sh -c 'f=Sources/Core/Protocols/BackupAssetSource.swift; grep -qE "struct BackupCandidate" "$f" && grep -qE "struct BackupAlbum" "$f" && grep -qE "protocol BackupAssetSource" "$f" && grep -qE "func fetchCandidates\(in albumIDs: Set<String>\)" "$f" && grep -qE "func fetchAlbums" "$f" && grep -qE "func loadData\(for candidate: BackupCandidate\) async throws -> Data" "$f" && echo PASS || echo FAIL'
+### AC-1040 [type: new] — check révisé 2026-09-10
+Assertion: BackupCandidate/BackupAlbum/BackupAssetSource définis dans Sources/Core/Protocols/BackupAssetSource.swift (fetchCandidates, fetchAlbums, exportOriginal, exportPairedVideo).
+Note (2026-09-10) : le protocole a évolué depuis la rédaction — `fetchCandidates(in:)` a reçu `excluding:` (Album Scoping, §2.12), `loadData(for:)` a été remplacé par `exportOriginal(for:onState:)` (upload streamé fichier-flux) puis complété par `exportPairedVideo` (Live Photos, §2.11). L'assertion d'origine pinnant les anciennes signatures était périmée, pas le code.
+Check post-impl: sh -c 'f=Sources/Core/Protocols/BackupAssetSource.swift; grep -qE "struct BackupCandidate" "$f" && grep -qE "struct BackupAlbum" "$f" && grep -qE "protocol BackupAssetSource" "$f" && grep -qE "func fetchCandidates\(in albumIDs: Set<String>, excluding excludedAlbumIDs: Set<String>\)" "$f" && grep -qE "func fetchAlbums" "$f" && grep -qE "func exportOriginal" "$f" && grep -qE "func exportPairedVideo" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier n'existe pas)
 Post-state attendu: PASS
 ```
@@ -93,9 +96,10 @@ Post-state attendu: PASS
 ```
 
 ```
-### AC-1045 [type: new]
-Assertion: UploadViewModel expose runBackup()/cancelBackup()/loadAlbums()/albums + engine + settings; DependencyContainer.makeUploadViewModel().
-Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -qE "func runBackup\(\) async" "$f" && grep -qE "func cancelBackup\(\)" "$f" && grep -qE "func loadAlbums\(\)" "$f" && grep -qE "makeUploadViewModel\(\)" Sources/DependencyContainer.swift && echo PASS || echo FAIL'
+### AC-1045 [type: new] — check révisé 2026-09-10
+Assertion: UploadViewModel expose runBackup/cancelBackup/loadAlbums/albums + engine + settings ; le conteneur possède UNE instance partagée (`upload`).
+Note (2026-09-10) : `runBackup()` a reçu `overrideSettings:manual:` (gates auto vs run manuel), et `DependencyContainer.makeUploadViewModel()` a été SUPPRIMÉ au profit d'un `let upload: UploadViewModel` unique — plusieurs VM = plusieurs moteurs, donc des passes concurrentes sur la même photothèque et plusieurs Live Activities qui se marchent dessus (« pas d'île quand l'app est ouverte »).
+Check post-impl: sh -c 'f=Sources/Features/Upload/UploadViewModel.swift; grep -qE "func runBackup\(overrideSettings:" "$f" && grep -qE "func cancelBackup\(\)" "$f" && grep -qE "func loadAlbums\(\)" "$f" && grep -qE "var albums: \[BackupAlbum\]" "$f" && grep -qE "let upload: UploadViewModel" Sources/DependencyContainer.swift && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
@@ -117,17 +121,19 @@ Post-state attendu: PASS
 ```
 
 ```
-### AC-1048 [type: new]
-Assertion: Tests BackupEngineTests: ≥12 func test_ couvrant dédup accept/reject, checksum, wifi gate, charging gate, cancel, continue-on-error, filtre Screenshots, albumIDs transmis, chunking, snapshot persistence; MockBackupAssetSource/MockBackupEnvironment.
-Check post-impl: sh -c 'f=Tests/BackupEngineTests.swift; test -f "$f" && grep -qE "final class MockBackupAssetSource" Tests/Mocks/MockBackupAssetSource.swift && grep -qE "final class MockBackupEnvironment" Tests/Mocks/MockBackupEnvironment.swift && n=$(grep -cE "^[[:space:]]*func test_" "$f"); test "$n" -ge 12 && echo PASS || echo FAIL'
+### AC-1048 [type: new] — check révisé 2026-09-10
+Assertion: Tests BackupEngineTests: ≥12 func test_ couvrant dédup accept/reject, checksum, gating réseau/batterie, cancel, continue-on-error, scoping d'albums, chunking, persistance des réglages; MockBackupAssetSource/MockBackupEnvironment.
+Note (2026-09-10) : `MockBackupEnvironment` vit dans `Tests/Mocks/MockBackupAssetSource.swift` (le fichier `MockBackupEnvironment.swift` supposé n'a jamais existé). Le filtre Screenshots nom-de-fichier a été remplacé par le scoping d'albums (§2.12). Compte réel : 55 `func test_` dans le fichier.
+Check post-impl: sh -c 'f=Tests/BackupEngineTests.swift; test -f "$f" && grep -qE "final class MockBackupAssetSource" Tests/Mocks/MockBackupAssetSource.swift && grep -qE "final class MockBackupEnvironment" Tests/Mocks/MockBackupAssetSource.swift && n=$(grep -cE "^[[:space:]]*func test_" "$f"); test "$n" -ge 12 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (aucun de ces fichiers)
 Post-state attendu: PASS
 ```
 
 ```
-### AC-1049 [type: regression]
+### AC-1049 [type: regression] — check révisé 2026-09-10
 Assertion: Suite complète green ≥ 382 tests avec TEST SUCCEEDED.
-Check post-impl: sh -c 'rtk grep -q "TEST SUCCEEDED" /tmp/immich_backup_engine_test_summary.txt && n=$(grep -o "Executed [0-9]* tests" /tmp/immich_backup_engine_test_summary.txt | grep -o "[0-9]*" | sort -n | tail -1); test "$n" -ge 382 && echo PASS || echo FAIL'
+Note (2026-09-10) : le check lisait un summary /tmp qui n'était produit par aucun run ultérieur. Il lance désormais la suite et écrit lui-même son summary (même forme que AC-BK09 / AC-NP07). Dernière mesure : **691 tests, TEST SUCCEEDED** (iPhone 17, 2026-09-10).
+Check post-impl: sh -c 'cd /Users/millian/SideProjects/immich_swiftui && xcodebuild test -project ImmichSwiftUI.xcodeproj -scheme ImmichSwiftUI -destination "platform=iOS Simulator,name=iPhone 17" 2>&1 | tee /tmp/immich_backup_engine_test_summary.txt | grep -q "TEST SUCCEEDED" && n=$(grep -o "Executed [0-9]* tests" /tmp/immich_backup_engine_test_summary.txt | grep -o "[0-9]*" | sort -n | tail -1); test "${n:-0}" -ge 382 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (pas de summary)
 Post-state attendu: PASS
 ```

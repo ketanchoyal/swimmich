@@ -110,3 +110,43 @@ Check post-impl: sh -c 'grep -q "TEST SUCCEEDED" /tmp/immich_backup_test_summary
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
+
+## État au 2026-09-09 (vérifié)
+
+> **Révision du 2026-09-10** — les sections Objectif, Plan et le tableau ci-dessous sont la trace de la livraison d'origine (2026-09-08). Deux surfaces décrites ici n'existent plus : le **backfill** (`runBackfill` / `BackfillSheet` / section « Backfill ») et le **toggle Face ID** (déplacé vers `ProfileView`). Voir la tête de `.opencode/scratch/backup-auto.acceptance.md` pour l'état courant.
+
+Suite complète à la livraison : **645 tests, TEST SUCCEEDED**.
+
+Suite complète au 2026-09-10 (après les 5 suites P2) : **691 tests, TEST SUCCEEDED**.
+
+| AC | État | Preuve |
+|---|---|---|
+| AC-BK01 | PASS | `excludeCameraRoll` / `excludeWhatsApp` / `autoDetectNewPhotos` dans `BackupSettingsStore` (`UploadViewModel.swift:29-52`) |
+| AC-BK02 | PASS | filtres dans `BackupEngine.run()` l.209-217 |
+| AC-BK03 | PASS (révisé 2026-09-10) | `resumeUpload` + `uploadHistory` dans `UploadViewModel` — le `runBackfill` a été RETIRÉ (doublon du scoping d'albums + « Run now ») |
+| AC-BK04 | PASS (révisé 2026-09-10) | `BackupSettingsView.backupSection` + `albumSection` (mode tri-état `BackupAlbumScope`), `AlbumPickerView` — la `BackfillSheet` a été RETIRÉE |
+| AC-BK05 | **OBSOLÈTE** | `UploadProgressBanner` a été supprimé volontairement et remplacé par l'anneau de progression autour de l'avatar (`TimelineView.avatarBackupRing`). Le critère pinne une surface UI abandonnée : il ne doit pas être « réparé ». |
+| AC-BK06 | PASS | 5 classes dans `Tests/UploadViewModelTests.swift` (dont `BackupEngineExclusionTests`, `BackupAutoChainTests`) |
+| AC-BK07 | PASS | 645 tests, 0 échec |
+
+## Suites à implémenter
+
+Écarts réels restants vs le client Flutter, chacun spécifié à part dans ce même
+dossier, par ordre de valeur décroissante :
+
+1. `backup-live-photos.specs.md` — les Live Photos partent en images mortes
+   (`livePhotoVideoId: nil` en dur, la ressource `.pairedVideo` n'est jamais
+   uploadée). Le `.MOV` n'existe nulle part ailleurs que sur l'appareil.
+2. `backup-album-scoping.specs.md` — remplace les exclusions heuristiques par
+   nom de fichier (`hasPrefix("IMG_")`, `contains("WhatsApp")`) par une vraie
+   sélection/exclusion d'albums. Les deux toggles actuels ne font pas ce que
+   leur libellé promet.
+3. `backup-ledger-reconciliation.specs.md` — le ledger local n'est jamais
+   confronté au serveur : un asset supprimé côté serveur ne remonte jamais.
+   Ajoute aussi `deviceAssetId`/`deviceId`, absents de l'upload multipart.
+4. `backup-network-policy.specs.md` — gate réseau tout-ou-rien ; pas de
+   politique cellulaire par type de média, pas de notion de hors-ligne (un run
+   hors ligne produit de faux échecs).
+5. `backup-library-observer.specs.md` — « Auto-detect new photos » ne branche
+   aucun `PHPhotoLibraryChangeObserver` : c'est un scan à l'activation de la
+   scène, et le libellé ment.

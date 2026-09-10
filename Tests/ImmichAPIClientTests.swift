@@ -96,7 +96,9 @@ final class ImmichAPIClientTests: XCTestCase {
             isFavorite: false,
             visibility: .timeline,
             livePhotoVideoId: nil,
-            checksum: "Y2hlY2tzdW0="
+            checksum: "Y2hlY2tzdW0=",
+            deviceAssetId: "local://asset-1",
+            deviceId: "device-uuid"
         )
 
         guard let captured = CapturingURLProtocol.lastRequest else {
@@ -118,6 +120,8 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertTrue(bodyString.contains(#"name="assetData""#), "assetData field missing")
         XCTAssertTrue(bodyString.contains(#"name="fileCreatedAt""#), "fileCreatedAt missing")
         XCTAssertTrue(bodyString.contains(#"name="fileModifiedAt""#), "fileModifiedAt missing")
+        XCTAssertTrue(bodyString.contains(#"name="deviceAssetId""#), "deviceAssetId missing")
+        XCTAssertTrue(bodyString.contains(#"name="deviceId""#), "deviceId missing")
 
         // isFavorite sent as string "false".
         XCTAssertTrue(bodyString.contains(#"name="isFavorite""#))
@@ -128,13 +132,17 @@ final class ImmichAPIClientTests: XCTestCase {
         let crlf = 2
         let overhead = (
             "--\(boundary)--\r\n".utf8.count
-            + "--\(boundary)\r\n".utf8.count * 5 // 5 parts: assetData, fileCreatedAt, fileModifiedAt, isFavorite, visibility
+            + "--\(boundary)\r\n".utf8.count * 7 // 7 parts: assetData, fileCreatedAt, fileModifiedAt, deviceAssetId, deviceId, isFavorite, visibility
             + ("Content-Disposition: form-data; name=\"assetData\"; filename=\"photo.jpg\"\r\n".utf8.count)
             + ("Content-Type: application/octet-stream\r\n\r\n".utf8.count)
             + ("Content-Disposition: form-data; name=\"fileCreatedAt\"\r\n\r\n".utf8.count)
             + ("2024-07-01T00:00:00.000Z".utf8.count + crlf)
             + ("Content-Disposition: form-data; name=\"fileModifiedAt\"\r\n\r\n".utf8.count)
             + ("2024-07-01T00:00:00.000Z".utf8.count + crlf)
+            + ("Content-Disposition: form-data; name=\"deviceAssetId\"\r\n\r\n".utf8.count)
+            + ("local://asset-1".utf8.count + crlf)
+            + ("Content-Disposition: form-data; name=\"deviceId\"\r\n\r\n".utf8.count)
+            + ("device-uuid".utf8.count + crlf)
             + ("Content-Disposition: form-data; name=\"isFavorite\"\r\n\r\n".utf8.count)
             + ("false".utf8.count + crlf)
             + ("Content-Disposition: form-data; name=\"visibility\"\r\n\r\n".utf8.count)

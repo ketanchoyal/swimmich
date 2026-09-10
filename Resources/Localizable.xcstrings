@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "· %@" : {
+
+    },
     "(You)" : {
       "localizations" : {
         "fr" : {
@@ -55,10 +58,16 @@
         }
       }
     },
+    "%@" : {
+
+    },
     "%@ assets" : {
 
     },
     "%@ copies" : {
+
+    },
+    "%@ couldn't be backed up" : {
 
     },
     "%@ item%@" : {
@@ -104,6 +113,19 @@
 
     },
     "%@ photos in stack" : {
+
+    },
+    "%@ uploaded · %@ already on server" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ uploaded · %2$@ already on server"
+          }
+        }
+      }
+    },
+    "%@%%" : {
 
     },
     "%lld items" : {
@@ -440,7 +462,6 @@
       }
     },
     "Albums" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -451,6 +472,12 @@
       }
     },
     "All" : {
+
+    },
+    "All albums" : {
+
+    },
+    "All but selected albums" : {
 
     },
     "All items in trash will be permanently deleted. Action cannot be undone." : {
@@ -502,6 +529,12 @@
     "Archived" : {
 
     },
+    "Asks for Face ID (or your passcode) every time Immich comes back to the foreground, so someone holding your unlocked phone can't browse your photos." : {
+
+    },
+    "Asks the server which of your tracked photos it still has. Nothing is uploaded or downloaded — it is a list comparison, so it is quick even on a large library. Photos you deleted on the server are forgotten here, so the next backup uploads them again. Immich does this automatically about once a week; run it by hand after deleting photos on the server, so they come back without waiting for the next backup." : {
+
+    },
     "Assign Face" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -512,6 +545,9 @@
           }
         }
       }
+    },
+    "Auto backup" : {
+
     },
     "Background backup is a roadmap item. The upload API surface is wired and unit-tested." : {
       "extractionState" : "stale",
@@ -534,6 +570,9 @@
           }
         }
       }
+    },
+    "Backup tracking" : {
+
     },
     "Bienvenue sur Immich" : {
 
@@ -588,6 +627,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Cancelled — %@ of %@ done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cancelled — %1$@ of %2$@ done"
           }
         }
       }
@@ -1107,6 +1156,9 @@
         }
       }
     },
+    "Every photo was backed up." : {
+
+    },
     "Existing Links" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1265,6 +1317,9 @@
         }
       }
     },
+    "Forgets every photo Immich has recorded as backed up — the tracked count goes to zero. The next backup then re-checks the whole library against the server. Nothing is deleted from Immich or from Photos, and already-uploaded photos are skipped again, but on an iCloud-optimized library the re-check reads a lot of metadata and can take a long time. Prefer \"Check server now\" when only a few photos are missing." : {
+
+    },
     "Identifiez-vous" : {
 
     },
@@ -1278,6 +1333,12 @@
           }
         }
       }
+    },
+    "Immich Backup" : {
+
+    },
+    "Immich remembers which photos are already backed up so it never re-reads your whole iCloud library on every run. A photo stays on this list until the server is found to no longer have it." : {
+
     },
     "Indiquez l'URL de votre instance Immich." : {
 
@@ -1697,9 +1758,6 @@
         }
       }
     },
-    "No albums" : {
-
-    },
     "No albums yet" : {
       "localizations" : {
         "fr" : {
@@ -1929,6 +1987,9 @@
         }
       }
     },
+    "Only selected albums" : {
+
+    },
     "Only the server admin can list users. Existing collaborators can still be managed." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2083,6 +2144,9 @@
     "Photos from this day in past years will appear here." : {
 
     },
+    "Photos kept only in iCloud are downloaded before they can be uploaded. A slow or not-yet-ready download retries automatically, and anything still pending is picked up on the next backup." : {
+
+    },
     "Photos with a recognized location will appear here as places you can explore." : {
       "localizations" : {
         "fr" : {
@@ -2145,6 +2209,9 @@
           }
         }
       }
+    },
+    "Progress" : {
+
     },
     "Projection" : {
       "extractionState" : "stale",
@@ -2525,7 +2592,6 @@
       }
     },
     "Security" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -2565,6 +2631,9 @@
           }
         }
       }
+    },
+    "Server check" : {
+
     },
     "Server URL" : {
       "extractionState" : "stale",
@@ -2795,6 +2864,9 @@
       }
     },
     "The certificate of %@ cannot be verified. Trust it anyway?" : {
+
+    },
+    "The next backup will re-check every photo against the server. Nothing is deleted — already-uploaded photos are simply skipped again." : {
 
     },
     "The photo stays in your library." : {
@@ -3157,6 +3229,9 @@
           }
         }
       }
+    },
+    "While Immich is open, new photos start backing up within a few seconds. When it's closed, iOS decides when to run — usually while charging on Wi-Fi." : {
+
     },
     "Yes" : {
       "extractionState" : "stale",
