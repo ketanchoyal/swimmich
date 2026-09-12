@@ -112,6 +112,18 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.immich.swiftui.tests
         GENERATE_INFOPLIST_FILE: YES
+  ImmichSwiftUIUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: ImmichSwiftUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.immich.swiftui.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: ImmichSwiftUI
 schemes:
   ImmichSwiftUI:
     build:
@@ -119,12 +131,14 @@ schemes:
         ImmichSwiftUI: all
         ImmichWidgets: all
         ImmichSwiftUITests: [test]
+        ImmichSwiftUIUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - ImmichSwiftUITests
+        - ImmichSwiftUIUITests
     profile:
       config: Release
     analyze:

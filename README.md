@@ -91,7 +91,7 @@ flowchart TD
 ### Authentication
 
 1. **Onboarding:** server URL (typed or QR code scan) → ping `/api/server/ping` + server configuration.
-2. **Login:** email/password (`/api/auth/login`) or OAuth2/OIDC (`ASWebAuthenticationSession`, callback `app.immich://oauth-callback`).
+2. **Login:** email/password (`/api/auth/login`) or OAuth2/OIDC (`ASWebAuthenticationSession`, callback `app.immich:///oauth-callback`).
 3. **Token storage:** stored in Keychain; on every launch, `restoreSession()` re-validates the token and rebuilds the session.
 4. **App Lock (Face ID):** locks when the app goes to background, overlay `LockView`.
 

@@ -79,19 +79,21 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     // MARK: - OAuth (P5 oauth)
 
-    func getOAuthMobileURL(redirectURI: String) async throws -> OAuthMobileResponseDto {
+    func authorizeOAuth(redirectURI: String, state: String, codeChallenge: String) async throws -> OAuthAuthorizeResponseDto {
         try await sendNoAuth(
-            .GET,
-            path: ImmichAPI.oauthMobile.path(""),
-            query: [URLQueryItem(name: "redirectUri", value: redirectURI)]
+            .POST,
+            path: ImmichAPI.oauthAuthorize.path(""),
+            body: AnyEncodable(
+                OAuthAuthorizeRequestDto(redirectUri: redirectURI, state: state, codeChallenge: codeChallenge)
+            )
         )
     }
 
-    func exchangeOAuthCode(url: String, redirectURI: String) async throws -> OAuthCallbackResponseDto {
+    func exchangeOAuthCode(url: String, state: String, codeVerifier: String) async throws -> LoginResponseDto {
         try await sendNoAuth(
             .POST,
             path: ImmichAPI.oauthCallback.path(""),
-            body: AnyEncodable(OAuthCallbackRequestDto(url: url, redirectUri: redirectURI))
+            body: AnyEncodable(OAuthCallbackRequestDto(url: url, state: state, codeVerifier: codeVerifier))
         )
     }
 

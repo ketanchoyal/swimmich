@@ -49,10 +49,17 @@ struct LoginScreen: View {
 
                     // P5 oauth: SSO sign-in via ASWebAuthenticationSession when
                     // the server advertises OAuth (oauthButtonText non-empty).
+                    // Password and SSO are two distinct paths — hence the separator.
                     if auth.canOAuthLogin {
+                        orDivider
+
                         Button(action: oauthSignIn) {
                             HStack(spacing: PVSpacing.s8) {
-                                Image(systemName: "person.badge.key.fill")
+                                if auth.isLoading {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "person.badge.key.fill")
+                                }
                                 Text(auth.serverConfig?.oauthButtonText ?? "Sign in with SSO")
                                     .lineLimit(1)
                             }
@@ -97,6 +104,28 @@ struct LoginScreen: View {
             .buttonStyle(PVPrimaryButtonStyle())
             .disabled(email.isEmpty || password.isEmpty || auth.isLoading)
         }
+    }
+
+    /// Separates the password path from the SSO path.
+    ///
+    /// `Divider()` renders *vertical* inside an `HStack` (two upright bars
+    /// flanking the label), so the rule is drawn explicitly.
+    private var orDivider: some View {
+        HStack(spacing: PVSpacing.s12) {
+            orRule
+            Text("OU")
+                .font(.pvCaption)
+                .foregroundStyle(Color.textSecondaryPV)
+                .fixedSize()
+            orRule
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var orRule: some View {
+        Rectangle()
+            .fill(Color.separatorPV)
+            .frame(height: 1)
     }
 
     private var header: some View {

@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **691 tests** (mesurée le 2026-09-10, TEST SUCCEEDED).
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **692 tests** (mesurée le 2026-09-10, TEST SUCCEEDED).
 
 ---
 
@@ -22,8 +22,8 @@
 
 | # | Feature | Phase | AC Cards | Spéc | Prompt | Status | Endpoints manquants | Tests | Progression |
 |---|---------|-------|----------|------|--------|--------|---------------------|-------|-------------|
-| 1 | **Backup Auto** | P2 | AC-BK01–BK10 | .omp/backup-auto/ | Voir §2.1 | ✅ Terminé | — | suite 691 verte | 7/10 AC (BK05, BK06, BK08 obsolètes) |
-| 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | 🟡 Plan | — (wire) | 50% (5 tests existants) | 6/8 AC |
+| 1 | **Backup Auto** | P2 | AC-BK01–BK10 | .omp/backup-auto/ | Voir §2.1 | ✅ Terminé | — | suite 692 verte | 7/10 AC (BK05, BK06, BK08 obsolètes) |
+| 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | ✅ Terminé | — (wire) | 6 `test_oauth_*` | 8/8 AC |
 | 3 | **Partners UI** | P3 | AC-3100–3109 | .omp/partners-ui/ | Voir §2.3 | 🟡 Plan | createPartner, getPartners(dir) | 0/6 | 0/10 AC |
 | 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | 🟡 Plan | 7 (CRUD + stats) | 0/8 | 0/9 AC |
 | 5 | **Push Notifications** | P5 | AC-3300–3308 | .omp/push-notifications/ | Voir §2.5 | 🟡 Plan | device-token reg/unreg | 0/9 | 0/9 AC |
@@ -94,7 +94,7 @@ Cinq items séparés, tous en P2 et **livrés** : §2.11 Live Photos, §2.12 Alb
 
 ---
 
-### 2.2. OAuth2 UI (P5)
+### 2.2. OAuth2 UI (P5) — ✅ Terminé (2026-09-08, réconcilié le 2026-09-10)
 
 **Fichier spec** : `.omp/oauth2-ui/oauth2-ui.specs.md`
 **Card AC** : `.opencode/scratch/oauth2-ui.acceptance.md`
@@ -102,30 +102,24 @@ Cinq items séparés, tous en P2 et **livrés** : §2.11 Live Photos, §2.12 Alb
 **AC Cards** : AC-3000 – AC-3007
 **Phase** : P5 — Auth & Platform
 
-#### Objectif
-Ajouter le bouton OAuth2 dans LoginScreen pour connexion OIDC (SSO). Les DTOs et client sont wire mais pas d'interface.
+#### Résultat
+AC-3000 – AC-3007 **PASS** (8/8, vérifiés par exécution de chaque check le 2026-09-10). Suite complète **692 tests, TEST SUCCEEDED** (iPhone 17, baseline 691).
 
-#### Points d'entrée
-- `AuthViewModel` — `startOAuthFlow()`, `handleOAuthCallback(url:)`, `oauthResult: OAuthResult?`, `oauthAuthorizationURL: URL?`
-- `LoginScreen` — Bouton "Sign in with Provider" (globe SF symbol) + OR divider
-- `OAuthLoadingView` — Sheet avec ProgressView pendant ASWebAuthenticationSession
-- `ImmichSwiftUIApp` — `.onOpenURL` pour `app.immich://oauth-callback`
+#### Livré
+- `AuthViewModel` (`Sources/Features/Auth/AuthViewModel.swift`) : `oauthRedirectURI = "app.immich:///oauth-callback"` (l.32), `oauthSessionHandler: (URL) async -> URL?` injectable (l.35-37), `canOAuthLogin` gate sur `serverConfig.oauthButtonText` (l.239), `startOAuthFlow()` — authorize (PKCE) → session navigateur → `exchangeOAuthCode` → `applySession` partagé avec le login mot de passe (l.248-289)
+- `OAuthPKCE` (`Sources/Core/Utilities/OAuthPKCE.swift`) : `state`, `codeVerifier`, `codeChallenge` = base64url(SHA256(verifier)) sans padding
+- `OAuthSessionPresenter` (`Sources/Services/OAuthSessionPresenter.swift`) : `ASWebAuthenticationSession` + ancre première `UIWindowScene` key-window, `callbackScheme = "app.immich"` (doit matcher `CFBundleURLTypes`, `Resources/Info.plist:25-33`)
+- `LoginScreen` (`Sources/Features/Auth/Onboarding/LoginScreen.swift`) : bouton SSO conditionnel libellé par le serveur (fallback « Sign in with SSO »), séparateur `orDivider` « OU », spinner in-flight (l.53-74, 110-119)
+- Tests : 6 `test_oauth_*` dans `Tests/AuthViewModelTests.swift` (gate serveur, succès complet, annulation, URL malformée, erreur serveur, serveur sans OAuth)
 
-#### Endpoint API
-- `GET /api/auth/oauth2/mobile` — existant (`getOAuthMobileURL`)
-- `POST /api/auth/oauth2/exchange` — existant (`exchangeOAuthCode`)
+#### Réconciliation (2026-09-10)
+Les critères d'origine pinnaient une surface **jamais construite** et écartée par la conception : `oauthResult`/`oauthAuthorizationURL`/`handleOAuthCallback(url:)`, `OAuthLoadingView.swift` (sheet glass), `.onOpenURL` dans `ImmichSwiftUIApp`, littéral « Sign in with Provider ». Le callback est capturé par `ASWebAuthenticationSession` (`callbackURLScheme`) — un handler de deep link serait du code mort. Carte, spec et UI brief réécrits sur la surface réelle ; même classe de dérive que les 8 checks réécrits le même jour pour `backup-engine`/`backup-live-activity`.
 
-#### Étapes d'implémentation
-1. Ajouter `startOAuthFlow()`, `handleOAuthCallback(url:)` dans `AuthViewModel`
-2. `ASWebAuthenticationSession` avec `app.immich://oauth-callback` dans `startOAuthFlow()`
-3. Ajouter bouton OAuth + OR divider dans `LoginScreen`
-4. Créer `OAuthLoadingView` dans `Sources/Features/Auth/`
-5. Ajouter `.onOpenURL` handler dans `ImmichSwiftUIApp.swift`
-6. Tests ≥4 dans `AuthViewModelTests`
+#### Correctif trouvé pendant la réconciliation
+`startOAuthFlow()` sortait par `return` sur annulation et sur URL provider malformée **avant** `isLoading = false` → le CTA de login restait désactivé et le bouton SSO grisé définitivement. Corrigé par `defer { isLoading = false }` (l.256) + `test_oauth_cancelLeavesStateUntouched` et `test_oauth_malformedProviderURLResetsLoading` (échec prouvé avant correctif, PASS après).
 
-#### Tests attendus
-- `AuthViewModelTests` ≥4 tests : startOAuth, handleCallback, exchangeCode, cancel, error
-- Regression : suite ≥ baseline
+#### Limite assumée
+Flow non vérifiable bout-en-bout sans serveur Immich avec provider OIDC : la session navigateur est injectée, la vérification reste manuelle.
 
 ---
 
@@ -640,8 +634,8 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 | DELETE | /api/assets/:id | deleteAsset() | Trash |
 | POST | /api/auth/login | login() | Auth |
 | POST | /api/auth/logout | logout() | Auth |
-| GET | /api/auth/oauth2/mobile | getOAuthMobileURL() | OAuth2 |
-| POST | /api/auth/oauth2/exchange | exchangeOAuthCode() | OAuth2 |
+| POST | /api/oauth/authorize | authorizeOAuth() | OAuth2 |
+| POST | /api/oauth/callback | exchangeOAuthCode() | OAuth2 |
 | GET | /api/albums | getAlbums() | Albums |
 | POST | /api/albums | createAlbum() | Albums |
 | PATCH | /api/albums/:id | updateAlbum() | Albums |
@@ -689,7 +683,7 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 ### Checklist commune à TOUTES les features
 
 - [ ] `xcodebuild build` réussit sans warning nouveau
-- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 691 tests
+- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 692 tests
 - [ ] Mock dans `MockImmichClient` mis à jour
 - [ ] `DependencyContainer` injecte le nouveau ViewModel
 - [ ] `ProfileView` navigation mise à jour si feature ajoutée
@@ -699,7 +693,7 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 ### Checklist par feature
 
 **Backup Auto** : ✅ terminé (691 tests verts, 5 suites P2 livrées le 2026-09-10, cards `backup-engine`/`backup-live-activity` re-vérifiées le même jour). Suites : Live Photos §2.11, Album Scoping §2.12, Ledger Reconciliation §2.13, Network Policy §2.14, Library Observer §2.15 — chacune a sa card AC dans `.opencode/scratch/backup-*.acceptance.md` — ⚠ §2.12 **supprime** `excludeCameraRoll`/`excludeWhatsApp` : ne pas les greper comme critère de succès.
-**OAuth2 UI** : `grep -q "ASWebAuthenticationSession" Sources/Features/Auth/AuthViewModel.swift` ✓
+**OAuth2 UI** : ✅ terminé (692 tests verts, 8/8 AC PASS le 2026-09-10). Check : `grep -q "ASWebAuthenticationSession" Sources/Services/OAuthSessionPresenter.swift` ✓ — ⚠ la session vit dans le **service**, pas dans `AuthViewModel` (qui ne connaît que `oauthSessionHandler`) ; pas de `handleOAuthCallback`, pas d'`OAuthLoadingView`, pas d'`.onOpenURL` : ces surfaces ont été écartées par la conception, ne pas les « rétablir ».
 **Partners UI** : Créer `PartnerShellViewModel.swift` + `PartnerShellView.swift` + `InvitePartnerSheet.swift`
 **Memories Complete** : 7 nouvelles méthodes ImmichClient + `CreateMemorySheet.swift`
 **Push Notifications** : 4 nouveaux fichiers (Service, Store, ViewModel, View) + 3 intégrations
@@ -711,4 +705,11 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés, baseline 214 → 691 tests).*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés ; OAuth2 UI ✅ clôturé : 8/8 AC PASS, carte/spec/UI brief réécrits sur la surface réelle, fuite de `isLoading` corrigée — baseline 214 → 692 tests).*
+t + `WidgetDataProvider.swift` + ImmichWidgetsBundle
+**Stacks UI** : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift`
+**i18n** : Localizable.xcstrings ≥200 clés + tous les Views migrés + `LanguageSettingsView.swift` + `AppDateFormat.swift`
+
+---
+
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés ; OAuth2 UI ✅ clôturé : 8/8 AC PASS, carte/spec/UI brief réécrits sur la surface réelle, fuite de `isLoading` corrigée — baseline 214 → 692 tests).*

@@ -1,0 +1,198 @@
+import XCTest
+
+/// End-to-end UI verification for the OAuth/SSO flow — drives the real app
+/// through onboarding and `ASWebAuthenticationSession` against a local Immich
+/// API stub and writes screenshots to `/tmp`.
+///
+/// This is the only test that exercises the real browser session: it is the
+/// regression guard for the 404 the flow used to hit on `/api/auth/oauth/*`
+/// (the app never reached the authenticated shell). It needs the stub running:
+///
+///     python3 /tmp/immich_stub_modes.py 8421
+///
+/// Without it the tests skip, so the default scheme stays green.
+final class ImmichRenderScreenshots: XCTestCase {
+
+    private let stub = "http://127.0.0.1:8421"
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        try XCTSkipUnless(stubIsReachable(), "Local Immich stub not running on \(stub)")
+    }
+
+    /// Probe used only to decide skip-vs-run; the assertions below make their
+    /// own requests.
+    private func stubIsReachable() -> Bool {
+        guard let url = URL(string: "\(stub)/api/server/ping") else { return false }
+        let done = DispatchSemaphore(value: 0)
+        var ok = false
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 3
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            ok = (response as? HTTPURLResponse)?.statusCode == 200
+            done.signal()
+        }.resume()
+        return done.wait(timeout: .now() + 5) == .success && ok
+    }
+
+    // MARK: - Helpers
+
+    private func shot(_ name: String) {
+        let data = XCUIScreen.main.screenshot().pngRepresentation
+        try? data.write(to: URL(fileURLWithPath: "/tmp/shot-\(name).png"))
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print("SHOT /tmp/shot-\(name).png")
+    }
+
+    private func setProvider(_ mode: String) {
+        let url = URL(string: "\(stub)/__provider?mode=\(mode)")!
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 10), .success, "Stub did not answer")
+        XCTAssertEqual(body, "{\"provider\": \"\(mode)\"}")
+    }
+
+    /// Waits for any button whose label contains `text` and taps it.
+    ///
+    /// Case-sensitive on purpose: the software keyboard's return key is
+    /// labelled "continuer" (lowercase) and would otherwise shadow the
+    /// "Continuer" CTA.
+    @discardableResult
+    private func tapButton(containing text: String, timeout: TimeInterval = 20) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        let button = app.buttons.containing(predicate).firstMatch
+        let direct = app.buttons.matching(predicate).firstMatch
+        for candidate in [direct, button] where candidate.waitForExistence(timeout: timeout) {
+            candidate.tap()
+            return true
+        }
+        return false
+    }
+
+    private func dismissSystemSignInAlertIfPresent() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Continue", "Continuer"] {
+            let button = springboard.alerts.buttons[label]
+            if button.waitForExistence(timeout: 6) {
+                button.tap()
+                return
+            }
+        }
+        // Some iOS builds surface the consent alert inside the app's own tree.
+        for label in ["Continue", "Continuer"] {
+            let button = app.alerts.buttons[label]
+            if button.waitForExistence(timeout: 2) {
+                button.tap()
+                return
+            }
+        }
+    }
+
+    /// Taps the provider's "Authorize" link. The OAuth page is presented by
+    /// `ASWebAuthenticationSession` in the system's `SafariViewService`
+    /// process, so it is invisible to the app's own accessibility tree.
+    @discardableResult
+    private func tapAuthorizeInProvider(timeout: TimeInterval = 20) -> Bool {
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
+        let predicate = NSPredicate(format: "label CONTAINS 'Authorize'")
+        for candidate in [safari.links.matching(predicate).firstMatch,
+                          safari.buttons.matching(predicate).firstMatch] {
+            if candidate.waitForExistence(timeout: timeout) {
+                candidate.tap()
+                return true
+            }
+        }
+        return false
+    }
+
+    /// The app persists the OAuth session (Keychain token), so only a
+    /// simulator without it can present the onboarding flow. Re-runs on a warm
+    /// simulator skip the full browser walk instead of failing.
+    ///
+    ///     xcrun simctl erase <device>   # to re-arm the full walk
+    private func requireCleanSession() throws {
+        try XCTSkipUnless(
+            app.staticTexts["Votre photothèque"].waitForExistence(timeout: 25),
+            "A persisted OAuth session skips onboarding — erase the simulator to re-run the full walk"
+        )
+    }
+
+    /// Welcome → server URL → login. Leaves the app on the login screen.
+    private func walkOnboardingToLogin() {
+        XCTAssertTrue(tapButton(containing: "Commencer", timeout: 30), "Welcome CTA missing")
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 20), "Server URL field missing")
+        // The stub URL may already be seeded in the app's defaults; retyping
+        // would append and produce an invalid URL.
+        if (field.value as? String) != stub {
+            field.tap()
+            field.typeText(stub)
+        }
+        XCTAssertTrue(tapButton(containing: "Vérifier la connexion"), "Check-connection CTA missing")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Continuer'"))
+            .firstMatch.waitForExistence(timeout: 30), "Server never became reachable")
+        shot("02-server-reachable")
+        XCTAssertTrue(tapButton(containing: "Continuer"), "Continue CTA missing")
+        XCTAssertTrue(app.staticTexts["Identifiez-vous"].waitForExistence(timeout: 20),
+                      "Login screen did not appear")
+        app.swipeUp() // dismisses the keyboard (.scrollDismissesKeyboard)
+    }
+
+    // MARK: - Scenarios
+
+    func test_01_onboardingAndOAuthSignIn() throws {
+        setProvider("manual")
+        app.launch()
+        try requireCleanSession()
+        shot("01-welcome")
+        walkOnboardingToLogin()
+        shot("03-login-sso-visible")
+
+        XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+        dismissSystemSignInAlertIfPresent()
+        // The provider page lives in the system auth sheet (a separate
+        // process), so the "Authorize" link is queried there, not in `app`.
+        XCTAssertTrue(tapAuthorizeInProvider(), "Authorize link not reachable in the auth sheet")
+
+        // Callback → POST /api/oauth/callback → session applied → main shell.
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "OAuth did not reach the authenticated shell")
+        sleep(4) // let the timeline load its first buckets
+        shot("06-timeline-after-oauth")
+
+        // "Me" is a sheet raised from the avatar button in every tab's bar.
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(3)
+        shot("07-profile-me")
+    }
+
+    func test_02_renderAuthorizedShellAfterRelaunch() {
+        setProvider("auto")
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+        shot("08-timeline-relaunch")
+
+        app.tabBars.buttons["Albums"].tap()
+        sleep(3)
+        shot("09-albums")
+    }
+}

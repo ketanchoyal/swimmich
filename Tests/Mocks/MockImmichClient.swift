@@ -22,12 +22,15 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var loginError: Error?
 
     // OAuth (P5)
-    var oauthMobileResponse: OAuthMobileResponseDto?
-    var oauthCallbackResponse: OAuthCallbackResponseDto?
+    var oauthAuthorizeResponse: OAuthAuthorizeResponseDto?
+    var oauthCallbackResponse: LoginResponseDto?
     var oauthError: Error?
     var lastOAuthRedirectURI: String?
+    var lastOAuthState: String?
+    var lastOAuthCodeChallenge: String?
     var lastOAuthCallbackURL: String?
-    var lastOAuthCallbackRedirectURI: String?
+    var lastOAuthCallbackState: String?
+    var lastOAuthCodeVerifier: String?
 
     var pingResponse: ServerPingResponse?
     var pingError: Error?
@@ -38,21 +41,25 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var validateResponse: ValidateAccessTokenResponseDto?
     var validateError: Error?
 
-    func getOAuthMobileURL(redirectURI: String) async throws -> OAuthMobileResponseDto {
+    func authorizeOAuth(redirectURI: String, state: String, codeChallenge: String) async throws -> OAuthAuthorizeResponseDto {
         bump()
         lastOAuthRedirectURI = redirectURI
+        lastOAuthState = state
+        lastOAuthCodeChallenge = codeChallenge
         if let e = globalError ?? oauthError { throw e }
-        return oauthMobileResponse ?? OAuthMobileResponseDto(url: "https://sso.example.com/authorize")
+        return oauthAuthorizeResponse ?? OAuthAuthorizeResponseDto(url: "https://sso.example.com/authorize")
     }
 
-    func exchangeOAuthCode(url: String, redirectURI: String) async throws -> OAuthCallbackResponseDto {
+    func exchangeOAuthCode(url: String, state: String, codeVerifier: String) async throws -> LoginResponseDto {
         bump()
         lastOAuthCallbackURL = url
-        lastOAuthCallbackRedirectURI = redirectURI
+        lastOAuthCallbackState = state
+        lastOAuthCodeVerifier = codeVerifier
         if let e = globalError ?? oauthError { throw e }
-        return oauthCallbackResponse ?? OAuthCallbackResponseDto(
-            accessToken: "oauth-token", isAdmin: false, name: "OAuth User",
-            email: "oauth@example.com", profileImagePath: "", shouldChangePassword: nil
+        return oauthCallbackResponse ?? LoginResponseDto(
+            accessToken: "oauth-token", userId: "oauth-user", userEmail: "oauth@example.com",
+            name: "OAuth User", profileImagePath: "", isAdmin: false,
+            shouldChangePassword: false, isOnboarded: true
         )
     }
 

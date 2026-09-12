@@ -1,92 +1,55 @@
 # Task: oauth2-ui
 
-**Objectif** : Ajouter le bouton OAuth2 dans l'écran de login pour la connexion via OIDC provider (Google, Microsoft, Keycloak, etc.). Les DTOs et le client sont wire (`getOAuthMobileURL`, `exchangeOAuthCode`) mais il n'y a pas de bouton UI.
+**Statut** : livré (2026-09-08), réconcilié le 2026-09-10 — 8/8 AC PASS, suite 692 tests TEST SUCCEEDED.
+**Card AC** : `.opencode/scratch/oauth2-ui.acceptance.md`
+**UI brief** : `.omp/oauth2-ui/oauth2-ui.ui.md`
+**Prérequis couvert ailleurs** : `oauth.acceptance.md` (AC-1130..AC-1135, shipped) — transport (`getOAuthMobileURL`, `exchangeOAuthCode`, DTOs, constantes de chemin). Cette spec ne couvre que la surface.
 
-**Hypothèses** :
-- `getOAuthMobileURL(redirectURI: String)` → `OAuthMobileResponseDto` (ImmichClient, wire).
-- `exchangeOAuthCode(url: String, redirectURI: String)` → `OAuthCallbackResponseDto` (ImmichClient, wire).
-- `OAuthMobileResponseDto` expose `authorizationUrl`, `verificationUri`, `userCode`, `deviceCode`, `interval` (RFC 8628 ou RFC 9614).
-- `OAuthCallbackResponseDto` expose `accessToken`, `refreshToken` — same shape que le login.
-- `AuthViewModel` gère le login email/password — on ajoute OAuth comme alternative.
-- `OnboardingFlowView` — le onboarding 3-step (welcome → serverURL → login) — on ajoute OAuth au login step.
-- iOS Safari pour l'OIDC flow (ASWebAuthenticationSession).
-- `redirectURI` format : `app.immich://oauth-callback` (custom URL scheme).
-- `LoginScreen.swift` existe — on ajoute un bouton "Sign in with provider" en dessous du login form.
+**Objectif** : connexion OIDC/SSO depuis l'écran de login, sur les serveurs Immich qui exposent un provider (`serverConfig.oauthButtonText` non vide).
 
-**Approche retenue** : A — `ASWebAuthenticationSession` pour le OAuth flow, bouton dans LoginScreen, result injecté dans AuthViewModel.
-- **B (rejetée)** : nouveau écran dédié. Inutile, le login screen suffit.
-- **C (rejetée)** : navigateur externe (Safari) + Universal Links. Moins fluide que ASWebAuthenticationSession.
+## Ground truth (vérifié 2026-09-10)
 
-## Étapes
+| Ancre | Fichier:ligne |
+|---|---|
+| `static let oauthRedirectURI = "app.immich:///oauth-callback"` | `Sources/Features/Auth/AuthViewModel.swift:32` |
+| `var oauthSessionHandler: (URL) async -> URL?` (défaut `OAuthSessionPresenter.present`) | `AuthViewModel.swift:35-37` |
+| `var canOAuthLogin` (gate `serverConfig.oauthButtonText` non vide) | `AuthViewModel.swift:239-242` |
+| `func startOAuthFlow()` — mobile URL → session → `exchangeOAuthCode` → `applySession` | `AuthViewModel.swift:248-281` |
+| `defer { isLoading = false }` (toutes les sorties du flow) | `AuthViewModel.swift:256` |
+| `private func applySession(token:email:name:userId:isAdmin:)` partagé login/OAuth | `AuthViewModel.swift:285` |
+| `enum OAuthSessionPresenter` (`@MainActor`), `callbackScheme = "app.immich"`, `ASWebAuthenticationSession` | `Sources/Services/OAuthSessionPresenter.swift:10-28` |
+| Bouton SSO conditionnel + `orDivider` + spinner in-flight | `Sources/Features/Auth/Onboarding/LoginScreen.swift:53-74, 110-133` |
+| `CFBundleURLTypes` → `app.immich` | `Resources/Info.plist:25-33`, `project.yml:56-58` |
+| `OAuthPKCE` — state + verifier + challenge S256 | `Sources/Core/Utilities/OAuthPKCE.swift` |
+| `oauthAuthorizeResponse` / `oauthCallbackResponse` / `oauthError` / `lastOAuth*` | `Tests/Mocks/MockImmichClient.swift:24-64` |
+| 6 tests `test_oauth_*` | `Tests/AuthViewModelTests.swift:326-446` |
 
-1. **AuthViewModel** — Étendre avec :
-   - `func startOAuthFlow()` — lance le flow OAuth.
-   - `oauthResult: OAuthResult?` — résultat du flow (accessToken + success).
-   - `OAuthResult` struct : `{ accessToken: String, refreshToken: String }`.
-   - `func handleOAuthCallback(url: URL)` — parse le callback URL + exchange code.
-2. **OAuth flow integration** :
-   - `ASWebAuthenticationSession` pour ouvrir l'OIDC provider.
-   - `redirectURI` = `app.immich://oauth-callback` (custom URL scheme).
-   - `onDidFinish` → parse URL → `handleOAuthCallback(url:)` → call `exchangeOAuthCode` → set result.
-   - `getOAuthMobileURL` → obtenir `authorizationUrl` + `redirectURI` → passer à ASWebAuthenticationSession.
-3. **LoginScreen** — Ajouter :
-   - Bouton "Sign in with Google" / "Sign in with provider" (large button, system image: `globe`).
-   - Ou un bouton "OAuth" générique + picker de provider (si l'endpont supporte des providers distincts).
-   - Alternative : bouton "Sign in with provider" → présente un sheet de recherche de provider.
-   - Disposition : login form en haut, "OR" separator, OAuth button en bas.
-4. **AuthViewModel** — `startOAuthFlow` → call `getOAuthMobileURL(redirectURI:)` → `ASWebAuthenticationSession` → redirect URI → `handleOAuthCallback(url:)` → `exchangeOAuthCode` → set `activeAccountID` (same comme le login).
-5. **ImmichSwiftUIApp** — `.onOpenURL { url in if url.scheme == "immich" { auth.handleOAuthCallback(url: url) } }`.
-6. **Tests** — `AuthViewModelTests` + tests (startOAuth, handleCallback, exchangeCode, ASWeb params).
-7. **xcodegen + suite**.
+**Endpoints** : `POST /api/oauth/authorize` (body `{redirectUri, state, codeChallenge}`) et `POST /api/oauth/callback` (body `{url, state, codeVerifier}`) — déjà wire, aucun ajout. ⚠️ Les routes `/api/auth/oauth/*` initialement câblées **n'existent pas** dans le contrôleur `oauth` d'Immich et rendaient un 404 (corrigé le 2026-09-12).
 
-## Acceptance Contract
+## Approche retenue
 
-### Approches candidates
-**A (retenue)** : ASWebAuthenticationSession + bouton dans LoginScreen + onOpenURL handler.
-**B** : Écran dédié. Inutile.
-**C** : Safari externe + Universal Links. Moins fluide.
+**A — `ASWebAuthenticationSession` (service injectable) + bouton contextuel dans `LoginScreen`.**
 
-### Approche retenue + rationale
-**A**. Flow natif iOS, pas d'écran supplémentaire, réutilise les DTOs + client déjà wire.
+Le callback est capturé **par la session navigateur** (`callbackURLScheme`), rendu à la closure de complétion. Conséquence de conception : **aucun `.onOpenURL` n'est nécessaire** dans `ImmichSwiftUIApp`, et en ajouter un serait du code mort. Le résultat du flow n'a pas de type intermédiaire (`OAuthResult`) : `startOAuthFlow()` appelle directement `applySession(...)`, le même chemin que le login mot de passe — une seule application de session à maintenir.
 
-### Critères
+- **B (rejetée)** : écran OAuth dédié. `LoginScreen` porte déjà l'URL serveur et la config ; un écran de plus ne gagne rien.
+- **C (rejetée)** : Safari externe + Universal Links. Moins fluide, retour non maîtrisé, et `prefersEphemeralWebBrowserSession = false` (cookies du provider conservés) serait à réimplémenter.
 
-```
-### AC-OA01 [type: new]
-Assertion: AuthViewModel expose startOAuthFlow(), handleOAuthCallback(url:), oauthResult.
-Check post-impl: sh -c 'f=Sources/Features/Auth/AuthViewModel.swift; grep -q "func startOAuthFlow" "$f" && grep -q "func handleOAuthCallback" "$f" && grep -q "oauthResult" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+## Étapes (as-built)
 
-```
-### AC-OA02 [type: new]
-Assertion: LoginScreen intègre un bouton OAuth (ASWebAuthenticationSession, app.immich://oauth-callback).
-Check post-impl: sh -c 'f=Sources/Features/Auth/LoginScreen.swift; grep -q "ASWebAuthenticationSession\|oauth\|OAuth" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+1. **EDIT** `AuthViewModel.swift` — `oauthRedirectURI`, `canOAuthLogin`, `oauthSessionHandler` injectable, `startOAuthFlow()`, `applySession` partagé.
+2. **NEW** `Sources/Services/OAuthSessionPresenter.swift` — `ASWebAuthenticationSession` + `AnchorProvider` (première `UIWindowScene` key-window ; une référence de scène fixe périmerait).
+3. **EDIT** `LoginScreen.swift` — bouton SSO conditionnel, libellé = texte du serveur (fallback « Sign in with SSO »), séparateur `orDivider`, `oauthSignIn()`.
+4. **EDIT** `AuthViewModel.swift` + `LoginScreen.swift` (2026-09-10) — `defer { isLoading = false }` (l'annulation et l'URL provider malformée sortaient avant la remise à zéro : le CTA de login restait désactivé et le bouton SSO grisé pour de bon), spinner sur le bouton SSO, séparateur « OU ».
+5. **EDIT** `Tests/AuthViewModelTests.swift` — 6 tests `test_oauth_*` : gate `canOAuthLogin`, succès complet (token + admin + nom + redirect URI transmis), annulation (état intact + `isLoading == false`), URL provider malformée, erreur serveur, serveur sans OAuth.
+6. **Régression** — 691 → 692 tests, TEST SUCCEEDED (iPhone 17).
 
-```
-### AC-OA03 [type: new]
-Assertion: ImmichSwiftUIApp intègre .onOpenURL handler pour app.immich://oauth-callback.
-Check post-impl: sh -c 'grep -q "onOpenURL" Sources/ImmichSwiftUIApp.swift && grep -q "oauth" Sources/ImmichSwiftUIApp.swift && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+## Tests attendus
 
-```
-### AC-OA04 [type: new]
-Assertion: AuthViewModelTests expose tests OAuth (startOAuth, handleCallback, exchangeCode, error).
-Check post-impl: sh -c 'f=Tests/AuthViewModelTests.swift; n=$(grep -c "oauth\|OAuth" "$f"); test "$n" -ge 8 && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+- `Tests/AuthViewModelTests.swift` → 6 tests `test_oauth_*` (voir ci-dessus).
+- Régression : suite ≥ 691 tests, `TEST SUCCEEDED`.
 
-```
-### AC-OA05 [type: regression]
-Assertion: Suite ≥ baseline, TEST SUCCEEDED.
-Check post-impl: sh -c 'grep -q "TEST SUCCEEDED" /tmp/immich_oauth_test_summary.txt && n=$(grep -o "Executed [0-9]* tests" /tmp/immich_oauth_test_summary.txt | grep -o "[0-9]*" | sort -n | tail -1) && test "$n" -ge 200 && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+## Risques / limites
+
+- **Non vérifié bout-en-bout** : la session navigateur est injectée, donc les tests couvrent le contrat du ViewModel, pas `ASWebAuthenticationSession` ni le retour réel du provider. Exige un serveur Immich avec provider OIDC configuré — vérification manuelle.
+- `oauthButtonText` est un signal serveur : serveur sans OAuth ⇒ pas de bouton (jamais de bouton mort).

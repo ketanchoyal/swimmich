@@ -37,6 +37,20 @@
          </BuildActionEntry>
          <BuildActionEntry
             buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "14CF9D12828A274568D46D72"
+               BuildableName = "ImmichSwiftUIUITests.xctest"
+               BlueprintName = "ImmichSwiftUIUITests"
+               ReferencedContainer = "container:ImmichSwiftUI.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
             buildForRunning = "YES"
             buildForProfiling = "YES"
             buildForArchiving = "YES"
@@ -75,6 +89,17 @@
                BlueprintIdentifier = "DA6E7A8F7562E6A3FF0C8F8E"
                BuildableName = "ImmichSwiftUITests.xctest"
                BlueprintName = "ImmichSwiftUITests"
+               ReferencedContainer = "container:ImmichSwiftUI.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "14CF9D12828A274568D46D72"
+               BuildableName = "ImmichSwiftUIUITests.xctest"
+               BlueprintName = "ImmichSwiftUIUITests"
                ReferencedContainer = "container:ImmichSwiftUI.xcodeproj">
             </BuildableReference>
          </TestableReference>

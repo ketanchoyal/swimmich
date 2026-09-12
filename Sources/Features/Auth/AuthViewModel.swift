@@ -27,8 +27,9 @@ final class AuthViewModel: AuthSessionDelegate {
     static let userIdDefaultsKey = "authUserId"
     static let isAdminDefaultsKey = "authIsAdmin"
 
-    /// OAuth callback scheme — must match the `CFBundleURLTypes` entry.
-    static let oauthRedirectURI = "app.immich://oauth-callback"
+    /// Must match the `CFBundleURLTypes` scheme *and* the value whitelisted at
+    /// the OIDC provider — this is the exact URI the Immich docs publish.
+    static let oauthRedirectURI = "app.immich:///oauth-callback"
 
     /// Injectable browser-session hook. Production default runs an
     /// `ASWebAuthenticationSession`; tests inject a mock closure.
@@ -241,20 +242,29 @@ final class AuthViewModel: AuthSessionDelegate {
         return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Mobile OAuth flow (P5): GET the provider URL → browser session →
-    /// exchange the callback code → apply the session like a normal login.
-    /// Cancelling the browser leaves the current state untouched.
+    /// Mobile OAuth flow (P5): POST /oauth/authorize for the provider URL →
+    /// browser session → POST /oauth/callback with the PKCE verifier → apply
+    /// the session like a normal login. Cancelling the browser leaves the
+    /// current state untouched.
     @MainActor
     func startOAuthFlow() async {
-        guard let url = baseURL, canOAuthLogin else {
+        guard baseURL != nil, canOAuthLogin else {
             errorMessage = "OAuth is not enabled on this server."
             return
         }
         isLoading = true
+        // Every exit below — cancel, malformed provider URL, network failure,
+        // success — must clear the flag; the login CTA stays disabled otherwise.
+        defer { isLoading = false }
         errorMessage = nil
         do {
-            let mobile = try await client.getOAuthMobileURL(redirectURI: Self.oauthRedirectURI)
-            guard let providerURL = URL(string: mobile.url) else {
+            let pkce = OAuthPKCE()
+            let authorize = try await client.authorizeOAuth(
+                redirectURI: Self.oauthRedirectURI,
+                state: pkce.state,
+                codeChallenge: pkce.codeChallenge
+            )
+            guard let providerURL = URL(string: authorize.url) else {
                 errorMessage = "The server returned an invalid OAuth URL."
                 return
             }
@@ -263,19 +273,19 @@ final class AuthViewModel: AuthSessionDelegate {
             }
             let response = try await client.exchangeOAuthCode(
                 url: callbackURL.absoluteString,
-                redirectURI: Self.oauthRedirectURI
+                state: pkce.state,
+                codeVerifier: pkce.codeVerifier
             )
             applySession(
                 token: response.accessToken,
-                email: response.email,
+                email: response.userEmail,
                 name: response.name,
-                userId: nil,
+                userId: response.userId,
                 isAdmin: response.isAdmin
             )
         } catch let e {
             errorMessage = e.localizedDescription
         }
-        isLoading = false
     }
 
     /// Applies a successful auth response: state + Keychain + UserDefaults +

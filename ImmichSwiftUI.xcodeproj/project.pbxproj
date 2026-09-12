@@ -84,6 +84,7 @@
 		4244006500C17C37EC3C23D6 /* TimelineGridZoomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC3814BFC146B5B49F9091F /* TimelineGridZoomTests.swift */; };
 		434E988EDB7068E50E3FADC8 /* BackupLedgerReconciliationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103F2A17DA5C174F4DCB0459 /* BackupLedgerReconciliationTests.swift */; };
 		45275B9AF85B6DC552A57D35 /* RoadTripFramePlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFA3FF97E3B0FEE3DDAB35E /* RoadTripFramePlanTests.swift */; };
+		454DFEF604178C1C282D847A /* OAuthPKCE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 962C7C0E8EBEEDBEE164B5D0 /* OAuthPKCE.swift */; };
 		4A82A536BDDEA5A236B7293D /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CECF9658E4B8FB7B4739C4F /* AppIntents.swift */; };
 		4AD086876E9B1E2BC9F2D9E7 /* RoadTripFramePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E748B459CA63ADFFC9414AC /* RoadTripFramePlan.swift */; };
 		4E159CE0616C083068F74143 /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D870EF69C11FD441421C6D /* SearchViewModel.swift */; };
@@ -114,6 +115,7 @@
 		6DB42ADF994B02E2121B4E45 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA3BB3A9E0C7AC8A15BFCFA2 /* AuthViewModel.swift */; };
 		6E0CA305C84E7449F703A226 /* PeopleViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83103D68387ED91742297BAB /* PeopleViewModel.swift */; };
 		6E7B778D9F491BF5176FD1BA /* AlbumShareViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F117AF914D1EB40979279C3 /* AlbumShareViewModelTests.swift */; };
+		6EE4B13C616AD03120A4C765 /* ImmichRenderScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB20A19BE3CE84F21953F08 /* ImmichRenderScreenshots.swift */; };
 		713A94699F5AFE930190CC37 /* RoadTripVideoRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9FC5CB9439ACC48B2E780B /* RoadTripVideoRenderer.swift */; };
 		71E9048879D41230FD79DE7B /* PVSkeletonGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D19ED957E71201D9F2AF86 /* PVSkeletonGrid.swift */; };
 		741FC097DE7A647EDDD0E766 /* JSONCoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB0B6FBF917910E6D37ED1BD /* JSONCoding.swift */; };
@@ -243,6 +245,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = A9393C688E556CB942AD4534;
 			remoteInfo = ImmichSharedKit;
+		};
+		1BC508F64DE936D2E4791F9A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33637C967137820639937F67 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B31020D1619B9803A47177CB;
+			remoteInfo = ImmichSwiftUI;
 		};
 		24916277D4CCE27DB29DC6A4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -419,6 +428,7 @@
 		84EE616DFB91236E2E2CE2CC /* ServerURLScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerURLScreen.swift; sourceTree = "<group>"; };
 		8615FB2C6F9490858FF86568 /* MapMarkerCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapMarkerCache.swift; sourceTree = "<group>"; };
 		876D85592DBAA4CC55A830B3 /* DeviceIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceIdentity.swift; sourceTree = "<group>"; };
+		88C6D5E32EB5D7D013E4A5B4 /* ImmichSwiftUIUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ImmichSwiftUIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8986002366C2702829706FC4 /* MockVideoPlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockVideoPlaybackEngine.swift; sourceTree = "<group>"; };
 		8CECF9658E4B8FB7B4739C4F /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
 		8E68697E232133B8C8114343 /* MockBackupAssetSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockBackupAssetSource.swift; sourceTree = "<group>"; };
@@ -434,6 +444,7 @@
 		94B3265764BD3709CAC94AD6 /* InlineErrorBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineErrorBadge.swift; sourceTree = "<group>"; };
 		94B9A4E50B640194B1A7A5B2 /* Motion+PhotoVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Motion+PhotoVault.swift"; sourceTree = "<group>"; };
 		961FEDFD8A5D29DD390C34B9 /* TagsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagsView.swift; sourceTree = "<group>"; };
+		962C7C0E8EBEEDBEE164B5D0 /* OAuthPKCE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthPKCE.swift; sourceTree = "<group>"; };
 		96FD1A133774F823AD435983 /* LoginScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginScreen.swift; sourceTree = "<group>"; };
 		98E0B8212195B42B1C1648C5 /* ExifFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExifFormatterTests.swift; sourceTree = "<group>"; };
 		9B5ECFEFD0658B794D13D709 /* MockAppLockService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAppLockService.swift; sourceTree = "<group>"; };
@@ -510,6 +521,7 @@
 		E958589215D0E65AF4BE8B95 /* SearchDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchDTOs.swift; sourceTree = "<group>"; };
 		E9700174E7E9B5F10958D843 /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
 		E9F278A2DD511F10E13FDED5 /* TrashViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashViewModelTests.swift; sourceTree = "<group>"; };
+		EAB20A19BE3CE84F21953F08 /* ImmichRenderScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichRenderScreenshots.swift; sourceTree = "<group>"; };
 		EB0B6FBF917910E6D37ED1BD /* JSONCoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCoding.swift; sourceTree = "<group>"; };
 		EBFDE41EB3F35AB3723245CB /* ImmichSwiftUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmichSwiftUIApp.swift; sourceTree = "<group>"; };
 		ED83254B66ED0E84314CD3F1 /* SharedLinksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinksViewModel.swift; sourceTree = "<group>"; };
@@ -656,6 +668,7 @@
 				D5B88FA63626BEB67A5EB033 /* EditPipeline.swift */,
 				8203F1AF23108DC7982903E9 /* ExifDisplayFormatter.swift */,
 				40EBF7B9926844ECBD81918C /* LongDateFormatter.swift */,
+				962C7C0E8EBEEDBEE164B5D0 /* OAuthPKCE.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -889,6 +902,7 @@
 				43EFADF0DFF6B6F100CC9AED /* ImmichSharedKit.framework */,
 				33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */,
 				923753AF1B4E81B4AA636C2D /* ImmichSwiftUITests.xctest */,
+				88C6D5E32EB5D7D013E4A5B4 /* ImmichSwiftUIUITests.xctest */,
 				D083424E27645D19C36429E6 /* ImmichWidgets.appex */,
 			);
 			name = Products;
@@ -914,6 +928,14 @@
 				15168B21BF81DE8DB9FB219B /* TimelineViewModel.swift */,
 			);
 			path = Timeline;
+			sourceTree = "<group>";
+		};
+		9F2F5C4EF0F34F4542103A4E /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				EAB20A19BE3CE84F21953F08 /* ImmichRenderScreenshots.swift */,
+			);
+			path = UITests;
 			sourceTree = "<group>";
 		};
 		A20DE10DB4730A9C0D0D19FA /* Search */ = {
@@ -965,6 +987,7 @@
 				060BF39A8A82C42AC7016375 /* Resources */,
 				1BFF1D5CC8ACFAF44253C137 /* Sources */,
 				72702A00F81C468E5F3BFE9B /* Tests */,
+				9F2F5C4EF0F34F4542103A4E /* UITests */,
 				9810076BCAABFF144648C16E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -1056,6 +1079,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		14CF9D12828A274568D46D72 /* ImmichSwiftUIUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E7AFFA8290E37BD8D8669369 /* Build configuration list for PBXNativeTarget "ImmichSwiftUIUITests" */;
+			buildPhases = (
+				D9FED6A17020BFD079019D14 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B6DD21D38699841F7A6CED99 /* PBXTargetDependency */,
+			);
+			name = ImmichSwiftUIUITests;
+			packageProductDependencies = (
+			);
+			productName = ImmichSwiftUIUITests;
+			productReference = 88C6D5E32EB5D7D013E4A5B4 /* ImmichSwiftUIUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		739F8A00265AD66EFBB0F27A /* ImmichWidgets */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8C9EC5791FC657E713CC36AC /* Build configuration list for PBXNativeTarget "ImmichWidgets" */;
@@ -1144,6 +1185,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					14CF9D12828A274568D46D72 = {
+						TestTargetID = B31020D1619B9803A47177CB;
+					};
 					739F8A00265AD66EFBB0F27A = {
 						DevelopmentTeam = 2MJF39L8VY;
 					};
@@ -1173,6 +1217,7 @@
 				A9393C688E556CB942AD4534 /* ImmichSharedKit */,
 				739F8A00265AD66EFBB0F27A /* ImmichWidgets */,
 				DA6E7A8F7562E6A3FF0C8F8E /* ImmichSwiftUITests */,
+				14CF9D12828A274568D46D72 /* ImmichSwiftUIUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1271,6 +1316,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D9FED6A17020BFD079019D14 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6EE4B13C616AD03120A4C765 /* ImmichRenderScreenshots.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ECA4E6370BE71562FA32587D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1362,6 +1415,7 @@
 				C6C20DE04B830E8B94B71C40 /* MemoryMomentView.swift in Sources */,
 				F2441CCAA3BADAA839F0F137 /* Motion+PhotoVault.swift in Sources */,
 				ABDC870D146CBBC241BC86E2 /* MultipartBody.swift in Sources */,
+				454DFEF604178C1C282D847A /* OAuthPKCE.swift in Sources */,
 				7AA9D0568A928BE39CD494A8 /* OAuthSessionPresenter.swift in Sources */,
 				293808534AFF743E31D0610C /* OnboardingFlowView.swift in Sources */,
 				0B1E36D253FF5663C799F7D9 /* PVButtonStyle.swift in Sources */,
@@ -1454,6 +1508,11 @@
 			isa = PBXTargetDependency;
 			target = 739F8A00265AD66EFBB0F27A /* ImmichWidgets */;
 			targetProxy = 24916277D4CCE27DB29DC6A4 /* PBXContainerItemProxy */;
+		};
+		B6DD21D38699841F7A6CED99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B31020D1619B9803A47177CB /* ImmichSwiftUI */;
+			targetProxy = 1BC508F64DE936D2E4791F9A /* PBXContainerItemProxy */;
 		};
 		D4B2C1D1988F2CFD04B0AB1F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1601,6 +1660,23 @@
 			};
 			name = Release;
 		};
+		83BB6567B10A64C674ACCC5A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.immich.swiftui.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ImmichSwiftUI;
+			};
+			name = Debug;
+		};
 		94CC4A78134392B84861ED75 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1712,6 +1788,23 @@
 			};
 			name = Release;
 		};
+		D48A7B936CD4CC62610456BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.immich.swiftui.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ImmichSwiftUI;
+			};
+			name = Release;
+		};
 		E0EA5CDBA8841996F7FFB695 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1779,6 +1872,15 @@
 			buildConfigurations = (
 				94CC4A78134392B84861ED75 /* Debug */,
 				13F31F51C309FC250468FEF4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E7AFFA8290E37BD8D8669369 /* Build configuration list for PBXNativeTarget "ImmichSwiftUIUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				83BB6567B10A64C674ACCC5A /* Debug */,
+				D48A7B936CD4CC62610456BA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

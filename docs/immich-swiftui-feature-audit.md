@@ -258,8 +258,8 @@
 | `/api/auth/login` | POST | ✅ |
 | `/api/auth/logout` | POST | ✅ |
 | `/api/auth/validateToken` | POST | ✅ (auto-restore) |
-| `/api/auth/oauth/mobile` | GET | ✅ (DTOs wired) |
-| `/api/auth/oauth/callback` | POST | ✅ (DTOs wired) |
+| `/api/oauth/authorize` | POST | ✅ (DTOs wired) |
+| `/api/oauth/callback` | POST | ✅ (DTOs wired) |
 | `/api/server/ping` | GET | ✅ (onboarding) |
 | `/api/server/version` | GET | ✅ (onboarding) |
 | `/api/server/config` | GET | ✅ (onboarding) |

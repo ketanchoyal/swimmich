@@ -341,9 +341,10 @@ final class AuthViewModelTests: XCTestCase {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
         let mock = MockImmichClient()
-        mock.oauthCallbackResponse = OAuthCallbackResponseDto(
-            accessToken: "oauth-jwt", isAdmin: true, name: "OAuth Alice",
-            email: "alice@sso.example.com", profileImagePath: "", shouldChangePassword: false
+        mock.oauthCallbackResponse = LoginResponseDto(
+            accessToken: "oauth-jwt", userId: "u-oauth", userEmail: "alice@sso.example.com",
+            name: "OAuth Alice", profileImagePath: "", isAdmin: true,
+            shouldChangePassword: false, isOnboarded: true
         )
         let keychain = MockKeychainStore()
         let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
@@ -352,18 +353,25 @@ final class AuthViewModelTests: XCTestCase {
         auth.serverConfig = makeOAuthConfig()
         auth.oauthSessionHandler = { url in
             XCTAssertEqual(url.absoluteString, "https://sso.example.com/authorize")
-            return URL(string: "app.immich://oauth-callback?code=abc")
+            return URL(string: "app.immich:///oauth-callback?code=abc")
         }
 
         await auth.startOAuthFlow()
 
         XCTAssertEqual(mock.lastOAuthRedirectURI, AuthViewModel.oauthRedirectURI)
-        XCTAssertEqual(mock.lastOAuthCallbackURL, "app.immich://oauth-callback?code=abc")
-        XCTAssertEqual(mock.lastOAuthCallbackRedirectURI, AuthViewModel.oauthRedirectURI)
+        XCTAssertEqual(mock.lastOAuthCallbackURL, "app.immich:///oauth-callback?code=abc")
+        // The verifier's challenge is what the provider received; the raw
+        // verifier is only replayed on the callback.
+        XCTAssertNotNil(mock.lastOAuthCodeChallenge)
+        XCTAssertNotEqual(mock.lastOAuthCodeChallenge, mock.lastOAuthCodeVerifier)
+        // Same `state` on both legs, or the server rejects the callback.
+        XCTAssertEqual(mock.lastOAuthState, mock.lastOAuthCallbackState)
+        XCTAssertNotNil(mock.lastOAuthState)
         XCTAssertEqual(keychain.savedToken, "oauth-jwt")
         XCTAssertTrue(auth.isAuthenticated)
         XCTAssertTrue(auth.isAdmin)
         XCTAssertEqual(auth.userName, "OAuth Alice")
+        XCTAssertEqual(auth.userId, "u-oauth")
     }
 
     @MainActor
@@ -384,6 +392,29 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertNil(keychain.savedToken)
         XCTAssertNil(auth.errorMessage)
         XCTAssertEqual(mock.requestCount, 1, "Only the mobile-URL call; no callback exchange")
+        XCTAssertFalse(auth.isLoading, "Cancelling must clear the in-flight flag — the login CTA stays disabled otherwise")
+    }
+
+    @MainActor
+    func test_oauth_malformedProviderURLResetsLoading() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.oauthAuthorizeResponse = OAuthAuthorizeResponseDto(url: "")
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        auth.serverConfig = makeOAuthConfig()
+        auth.oauthSessionHandler = { _ in
+            XCTFail("No browser session should open for a malformed provider URL")
+            return nil
+        }
+
+        await auth.startOAuthFlow()
+
+        XCTAssertEqual(auth.errorMessage, "The server returned an invalid OAuth URL.")
+        XCTAssertNil(auth.accessToken)
+        XCTAssertFalse(auth.isLoading)
     }
 
     @MainActor
@@ -396,7 +427,7 @@ final class AuthViewModelTests: XCTestCase {
         auth.serverURLString = "https://photos.example.com"
         _ = auth.baseURL
         auth.serverConfig = makeOAuthConfig()
-        auth.oauthSessionHandler = { _ in URL(string: "app.immich://oauth-callback?code=abc") }
+        auth.oauthSessionHandler = { _ in URL(string: "app.immich:///oauth-callback?code=abc") }
 
         await auth.startOAuthFlow()
 
@@ -412,7 +443,7 @@ final class AuthViewModelTests: XCTestCase {
         let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
         auth.serverURLString = "https://photos.example.com"
         _ = auth.baseURL
-        auth.oauthSessionHandler = { _ in URL(string: "app.immich://oauth-callback?code=abc") }
+        auth.oauthSessionHandler = { _ in URL(string: "app.immich:///oauth-callback?code=abc") }
 
         await auth.startOAuthFlow()
 

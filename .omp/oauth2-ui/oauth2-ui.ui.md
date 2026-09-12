@@ -1,260 +1,72 @@
-# Task: oauth2-ui — UI Brief (Liquid Glass Primary)
+# Task: oauth2-ui — UI Brief
+
+**Statut** : livré 2026-09-08, réconcilié le 2026-09-10. Ce brief décrivait à l'origine un écran glass avec morphing (`GlassEffectContainer`, `glassEffectID`, sheet `OAuthLoadingView`) : **rien de tout cela n'a été construit** et ce n'était pas le bon pattern — l'écran de login réel suit la refonte `onboarding-premium-redesign` (carte groupée native + barre d'action en bas). Le brief est réécrit sur la surface réelle, pas sur l'intention abandonnée.
 
 ## Design Philosophy
 
-Le login OAuth2 est une **fenêtre vitrée** sur l'identité provider. Le bouton OAuth est une capsule vitrée qui morph en sheet de connexion. C'est comme le "Sign in with Apple" mais pour tout provider OIDC — fluide, contextuel, et profondément vitré.
+Le SSO est une **alternative au mot de passe**, pas un chemin parallèle mis en avant. Il apparaît donc **sous** le formulaire, séparé par un filet discret, et seulement quand le serveur annonce un provider. Le parcours reste celui de l'onboarding : une carte, un CTA ancré en bas.
 
-## Layout
+## Layout (réel)
 
 ```
-LoginScreen
-└── ZStack {
-    ├── Background: subtle blurred photo (brand gradient)
-    └── GlassEffectContainer {
-        ├── ImmichLogo (brand identity)
-        ├── Email input — glass field
-        ├── Divider (glass line)
-        ├── Password input — glass field
-        ├── InlineErrorBadge (glass banner)
-        ├── Sign In button — prominent glass CTA
-        ├── OR divider (glass pill)
-        └── OAuth button — glass capsule, morphs into auth sheet
-    }
-    .toolbar { ... }
+LoginScreen — 4e étape de OnboardingFlowView
+└── ScrollView
+    ├── header              PVHeaderBadge + titre + sous-titre
+    ├── VStack(leading, s8)
+    │   ├── PVInputGroup     carte bgSecondary / PVRadius.lg
+    │   │   ├── TextField    vous@exemple.com        + .pvFieldSurface()
+    │   │   ├── Divider()
+    │   │   └── SecureField  ••••••••                + .pvFieldSurface()
+    │   ├── orDivider        orRule / « OU » / orRule        ← si canOAuthLogin
+    │   ├── Bouton SSO       icône (ou spinner) + libellé serveur ← si canOAuthLogin
+    │   └── InlineErrorBadge ← si auth.errorMessage
+    └── Spacer(minLength: s48)
+.onboardingBottomBar { « Se connecter » — PVPrimaryButtonStyle }
 ```
 
-### OAuthLoadingView — Glass auth flow
-```
-NavigationStack
-└── ZStack {
-    ├── Background: subtle blurred photo
-    └── GlassEffectContainer {
-        ├── Loading spinner — glass circle
-        ├── "Connecting to provider..." — glass text
-        ├── "A browser window will open..." — glass text
-        └── Browser preview — glass frame
-    }
-```
+Pas de `Form`, pas de sheet, pas de ZStack : le clavier est géré par `@FocusState` (email → mot de passe → `submitLabel(.go)` → `signIn()`), `scrollDismissesKeyboard(.immediately)` garde le CTA atteignable.
 
 ## Components
 
-### LoginScreen — Glass login form
+### Bouton SSO
 
-```swift
-struct LoginScreen: View {
-    @State var vm: AuthViewModel
-    @Namespace private var glassNamespace
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                // Brand gradient background
-                LinearGradient(
-                    colors: [Color.immichPrimary.opacity(0.3), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-                
-                GlassEffectContainer {
-                    VStack(spacing: PVSpacing.s32) {
-                        // Branding
-                        ImmichLogo(title: "Immich")
-                            .font(.pvTitleXL)
-                            .foregroundStyle(Color.immichPrimary)
-                            .glassEffect(.regular)
-                            .padding(.top, PVSpacing.s48)
-                        
-                        // Email input — glass field
-                        Section {
-                            TextField("Email", text: $vm.email)
-                                .textContentType(.emailAddress)
-                                .keyboardType(.emailAddress)
-                                .autocorrectionDisabled()
-                                .pvFieldSurface(focused: $vm.emailFocused)
-                        }
-                        
-                        // Password input — glass field
-                        Section {
-                            SecureField("Password", text: $vm.password)
-                                .textContentType(.password)
-                                .pvFieldSurface(focused: $vm.passwordFocused)
-                        }
-                        
-                        // Error banner — glass
-                        if let error = vm.loginError {
-                            InlineErrorBadge(message: error)
-                                .glassEffect(.regular)
-                        }
-                        
-                        // Sign In — prominent glass CTA
-                        Button { vm.login() } label: {
-                            HStack {
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .font(.pvBody)
-                                Text("Sign In")
-                                    .font(.pvHeadline.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(PVSpacing.s16)
-                            .glassEffect(.interactive())
-                        }
-                        
-                        // OR divider — glass pill
-                        HStack(spacing: PVSpacing.s12) {
-                            Divider()
-                            Text("OR")
-                                .font(.pvCaption)
-                                .foregroundStyle(.tertiary)
-                                .glassEffect(.regular)
-                            Divider()
-                        }
-                        
-                        // OAuth button — glass capsule, morphs into sheet
-                        Button { vm.startOAuthFlow() } label: {
-                            HStack(spacing: PVSpacing.s12) {
-                                Image(systemName: "globe")
-                                    .font(.pvBody)
-                                    .foregroundStyle(Color.immichPrimary)
-                                Text("Sign in with Provider")
-                                    .font(.pvBody.weight(.semibold))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(PVSpacing.s16)
-                            .glassEffect(.regular)
-                            .glassEffectID("oauth_button", in: glassNamespace)
-                        }
-                    }
-                    .padding(PVSpacing.s32)
-                }
-                .padding(.horizontal, PVSpacing.s16)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { vm.showServerSettings = true } label: {
-                        Image(systemName: "gear")
-                            .foregroundStyle(.secondary)
-                            .glassEffect(.interactive())
-                            .frame(width: 32, height: 32)
-                    }
-                }
-            }
-            .sheet(isPresented: $vm.showOAuthSession) {
-                OAuthLoadingView(authURL: $vm.oauthAuthorizationURL)
-            }
-        }
-    }
-}
-```
+- Conditionné à `auth.canOAuthLogin` (le serveur n'annonce un provider que si `serverConfig.oauthButtonText` est non vide) — sinon rien, pas de bouton mort.
+- Libellé = `auth.serverConfig?.oauthButtonText ?? "Sign in with SSO"`, `.lineLimit(1)`.
+- Icône `person.badge.key.fill` ; remplacée par un `ProgressView()` pendant le flow (`auth.isLoading`).
+- Surface : `Color.gray.opacity(0.12)` en `RoundedRectangle(cornerRadius: PVRadius.md, style: .continuous)` — volontairement **plus discrète** que le CTA primaire (bleu plein), `.buttonStyle(.plain)`, `minHeight: 44`.
+- `.disabled(auth.isLoading)`, et le CTA du bas l'est aussi → un seul flow à la fois.
 
-### OAuthLoadingView — Glass auth flow
+### orDivider
 
-```swift
-struct OAuthLoadingView: View {
-    @Binding var authURL: URL?
-    @Environment(\.dismiss) private var dismiss
-    @Namespace private var glassNamespace
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.immichBackground.ignoresSafeArea()
-                
-                GlassEffectContainer {
-                    VStack(spacing: PVSpacing.s24) {
-                        // Spinner — glass circle
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(Color.immichPrimary)
-                            .frame(width: 48, height: 48)
-                            .glassEffect(.regular)
-                            .scaleEffect(1.5)
-                        
-                        Text("Connecting to provider...")
-                            .font(.pvBody)
-                            .foregroundStyle(.primary)
-                        
-                        Text("A browser window will open to complete sign in.")
-                            .font(.pvCaption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(PVSpacing.s24)
-                }
-                .padding(.horizontal, PVSpacing.s16)
-            }
-            .toolbar { ImmichAppBar(title: "Sign In") }
-        }
-        .onAppear { openAuthorizationSession() }
-    }
-}
-```
+`orRule` / `Text("OU")` `.pvCaption` `Color.textSecondaryPV` / `orRule`, `spacing: PVSpacing.s12`, `.accessibilityHidden(true)` — purement visuel.
+
+`orRule` est un `Rectangle().fill(Color.separatorPV).frame(height: 1)` : **`Divider()` ne convient pas ici**. Dans un `HStack` il adopte l'axe vertical et rend deux barres verticales, pas deux filets horizontaux (constat utilisateur du 2026-09-12). Le label porte `.fixedSize()` pour que les règles absorbent la largeur restante sans tronquer « OU ».
+
+### InlineErrorBadge
+
+Réutilisé tel quel (composant du DesignSystem, AC-013). Rend les erreurs inline sous la carte, jamais en popup. `.transition(.opacity)` + `.animation(PVMotion.gentle, value:)`.
 
 ## Interactions
 
-### "Sign in with Provider" button
-1. Tap → glass shimmer on button + haptic `.selection`
-2. Shows OAuthLoadingView (glass morph from button via `glassEffectID`)
-3. Calls `getOAuthMobileURL(redirectURI: "app.immich://oauth-callback")`
-4. Opens ASWebAuthenticationSession
-5. User signs in on provider's page
-6. Provider redirects to `app.immich://oauth-callback`
-7. ImmichSwiftUIApp catches URL → calls `exchangeOAuthCode`
-8. Token received → AuthViewModel sets activeAccountID
-9. OAuthLoadingView dismisses → user sees Timeline
+1. Tap sur le bouton SSO → `oauthSignIn()` → `Task { await auth.startOAuthFlow() }`.
+2. `auth.isLoading = true` : spinner dans le bouton, bouton et CTA désactivés.
+3. `POST /oauth/authorize` (redirect URI + state + code challenge) → `ASWebAuthenticationSession` (service `OAuthSessionPresenter`) — le navigateur système s'ouvre **au-dessus** de l'app ; pas de sheet applicative.
+4. Retour du provider sur `app.immich:///oauth-callback` → capturé par la session → `POST /oauth/callback` avec le `codeVerifier` → `applySession` (token Keychain + compte sauvegardé + client reconfiguré).
+5. `RootView` bascule sur `isAuthenticated` → TabView principale. L'ouverture de l'app **est** la confirmation : pas d'écran de succès.
+6. Annulation du navigateur → état inchangé, aucun message d'erreur, `isLoading` remis à `false`.
+7. URL provider malformée / erreur serveur → `InlineErrorBadge`.
 
-### Error handling
-- Authorization URL fetch fails → InlineErrorBadge (glass banner)
-- User cancels → sheet dismisses (glass morph back to login)
-- Exchange code fails → InlineErrorBadge with "Réessayer" button (glass interactive)
-- Network error → InlineErrorBadge + retry button (glass interactive)
+## Accessibilité
 
-## Liquid Glass (iOS 26 — PRIMARY)
+- Bouton SSO : surface 44 pt de haut, libellé texte fourni par le serveur (donc localisé par le serveur lui-même).
+- `orDivider` masqué aux lecteurs d'écran (décoratif).
+- Erreurs annoncées via `InlineErrorBadge` + `sensoryFeedback(.error, trigger: auth.errorMessage)`.
+- Pas d'animation de forme : rien à réduire sous « Réduire les animations ».
 
-### Philosophy
-- **Toutes** les surfaces du login sont des glass cards
-- **Groupes** de inputs dans `GlassEffectContainer`
-- **Morphing** du bouton OAuth en sheet via `glassEffectID`
-- **Shimmer tactile** sur tous les éléments interactifs
-- **Glass inputs** avec field surfaces
+## Fichiers
 
-### Specific applications
-1. **Login form** : All inputs in glass field surfaces
-2. **Sign In button** : `.glassEffect(.interactive())` — prominent glass CTA
-3. **OAuth button** : Glass capsule → morph into auth sheet via `glassEffectID`
-4. **OR divider** : Glass pill
-5. **OAuth loading** : Glass card with glass spinner
-6. **Error badge** : Glass banner
-7. **Gear button** : `.glassEffect(.interactive())` in toolbar
-
-### Background
-- Subtle Immich brand gradient behind the glass login — depth and brand identity
-
-## Accessibility
-
-- Glass cards maintain contrast via `.regular` glass (auto adjusts for Reduce Transparency)
-- Email field: `.accessibilityLabel("Email address")`
-- Password field: `.accessibilityLabel("Password")`
-- Sign In button: `.accessibilityLabel("Sign in with email and password")`
-- OAuth button: `.accessibilityLabel("Sign in with identity provider")`
-- Loading view: `.accessibilityLabel("Loading, please wait")`
-- InlineErrorBadge: `.accessibilityLabel("Error: \(message)")` + "Réessayer" button
-- All elements ≥ 44×44pt
-- Reduce Motion: glass morphs → opacity crossfade, no shape change
-
-## Animations
-
-- OAuth button → sheet: `.glassEffectTransition(.matchedGeometry)` — shape morph
-- Button press: `PVMotion.snappy` (0.25s, damping 0.75)
-- Sheet presentation: `detent(.medium)` — medium size
-- Loading spinner: system ProgressView (always animating)
-- Error badge appearance: `.contentTransition(.opacity)` — fade in
-- Reduce Motion: spinner → pulsing dot (`.contentTransition(.opacity)`), no scale animation
-
-## Key Files Modified
-
-- `Sources/Features/Auth/LoginScreen.swift` — Glass form + OAuth button + glass morph
-- `Sources/Features/Auth/AuthViewModel.swift` — startOAuthFlow(), handleOAuthCallback(url:)
-- `Sources/ImmichSwiftUIApp.swift` — onOpenURL handler for app.immich://oauth-callback
-- `Sources/Features/Auth/OAuthLoadingView.swift` — NEW: glass loading sheet
-- `Sources/Core/Protocols/ImmichClient.swift` — already has getOAuthMobileURL + exchangeOAuthCode
+- `Sources/Features/Auth/Onboarding/LoginScreen.swift` — formulaire + séparateur + bouton SSO + état in-flight.
+- `Sources/Features/Auth/AuthViewModel.swift` — `startOAuthFlow()`, `canOAuthLogin`, `oauthSessionHandler`, `applySession`.
+- `Sources/Services/OAuthSessionPresenter.swift` — `ASWebAuthenticationSession` + ancre key-window.
+- `Sources/Core/Protocols/ImmichClient.swift` — `getOAuthMobileURL` + `exchangeOAuthCode` (déjà wire).
+- **Aucun** `OAuthLoadingView.swift`, **aucun** `.onOpenURL` : la session navigateur capture le callback.

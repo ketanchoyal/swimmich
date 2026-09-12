@@ -68,6 +68,14 @@ final class ImmichAPIClientTests: XCTestCase {
         return URLSession(configuration: config)
     }
 
+    /// Captured request body as a JSON object. Compares decoded values, not
+    /// source text — `JSONEncoder` escapes `/` as `\/`, so raw substring checks
+    /// on URL-bearing fields are unreliable.
+    private func decodedBody() throws -> [String: Any] {
+        let object = try JSONSerialization.jsonObject(with: CapturingURLProtocol.lastBody)
+        return try XCTUnwrap(object as? [String: Any])
+    }
+
     override func tearDown() {
         CapturingURLProtocol.reset()
     }
@@ -578,5 +586,79 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertTrue(query.contains("visibility=archive"))
         XCTAssertTrue(query.contains("withStacked=false"))
         XCTAssertFalse(query.contains("isFavorite"), "nil filters must be omitted")
+    }
+
+    // OAuth served 404s while these pinned the wrong routes: Immich exposes
+    // POST /api/oauth/authorize and POST /api/oauth/callback — there is no
+    // /api/auth/oauth/* controller.
+    func test_oauth_authorizePostsConfigDtoToOAuthController() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+
+        CapturingURLProtocol.nextData = #"{"url":"https://sso.example.com/authorize?x=1"}"#.data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 201
+
+        let response = try await client.authorizeOAuth(
+            redirectURI: "app.immich:///oauth-callback",
+            state: "state-1",
+            codeChallenge: "challenge-1"
+        )
+
+        XCTAssertEqual(response.url, "https://sso.example.com/authorize?x=1")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/oauth/authorize")
+        let body = try decodedBody()
+        XCTAssertEqual(body["redirectUri"] as? String, "app.immich:///oauth-callback")
+        XCTAssertEqual(body["state"] as? String, "state-1")
+        XCTAssertEqual(body["codeChallenge"] as? String, "challenge-1")
+    }
+
+    func test_oauth_callbackPostsCodeVerifierAndDecodesLoginResponse() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+
+        CapturingURLProtocol.nextData = """
+        {"accessToken":"jwt","userId":"u1","userEmail":"a@b.c","name":"Alice",
+         "profileImagePath":"","isAdmin":false,"shouldChangePassword":false,"isOnboarded":true}
+        """.data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 201
+
+        let response = try await client.exchangeOAuthCode(
+            url: "app.immich:///oauth-callback?code=abc&state=state-1",
+            state: "state-1",
+            codeVerifier: "verifier-1"
+        )
+
+        XCTAssertEqual(response.accessToken, "jwt")
+        XCTAssertEqual(response.userId, "u1")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/oauth/callback")
+        let body = try decodedBody()
+        XCTAssertEqual(body["url"] as? String, "app.immich:///oauth-callback?code=abc&state=state-1")
+        XCTAssertEqual(body["state"] as? String, "state-1")
+        XCTAssertEqual(body["codeVerifier"] as? String, "verifier-1")
+    }
+
+    /// RFC 7636: S256 challenge is base64url(SHA256(verifier)) with no padding,
+    /// and stays stable for a given verifier.
+    func test_pkceChallengeIsS256OfVerifier() {
+        XCTAssertEqual(
+            OAuthPKCE.challenge(for: "abc"),
+            "ungWv48Bz-pBQUDeXa4iI7ADYaOWF3qctBD_YfIAFa0"
+        )
+        let pkce = OAuthPKCE()
+        XCTAssertEqual(pkce.codeChallenge, OAuthPKCE.challenge(for: pkce.codeVerifier))
+        XCTAssertFalse(pkce.codeChallenge.contains("="), "base64url must be unpadded")
+        XCTAssertFalse(pkce.codeChallenge.contains("+"))
+        XCTAssertFalse(pkce.codeChallenge.contains("/"))
+        XCTAssertNotEqual(OAuthPKCE().state, OAuthPKCE().state, "state must be fresh per attempt")
     }
 }

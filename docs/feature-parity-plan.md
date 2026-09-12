@@ -44,7 +44,7 @@
 | album-edit | `PATCH /albums/:id` (updateAlbum already wired, unused) |
 | memories | `GET /memories` |
 | duplicates | `GET /duplicates` + per-group delete keep-newest |
-| oauth | `GET /auth/oauth/mobile` + ASWebAuthenticationSession + callback; `oauthButtonText` already in ServerConfigDto |
+| oauth | `POST /oauth/authorize` (redirect URI + PKCE state/challenge) + ASWebAuthenticationSession + `POST /oauth/callback` (state + code verifier); `oauthButtonText` already in ServerConfigDto |
 | qr-scan | AVFoundation metadata; server URL screen; NSCameraUsageDescription |
 | selfsigned-cert | URLSession delegate trust eval + Keychain trust store; drop blanket NSAllowsArbitraryLoads; PRD §5.10 |
 | multi-server | server registry (UserDefaults + per-URL Keychain tokens), switcher UI |

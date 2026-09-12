@@ -1,5 +1,6 @@
 import Foundation
 import AuthenticationServices
+import os
 
 /// Presents the Immich OAuth page in an `ASWebAuthenticationSession` and
 /// resolves with the callback URL (nil when the user cancels).
@@ -12,17 +13,39 @@ enum OAuthSessionPresenter {
     /// `CFBundleURLTypes` entry in project.yml.
     static let callbackScheme = "app.immich"
 
+    private static let log = Logger(subsystem: "app.immich.swiftui", category: "oauth")
+
+    /// `start()` returns while the sheet is still on screen, and an
+    /// `ASWebAuthenticationSession` that is deallocated before it completes is
+    /// cancelled without ever presenting — so the in-flight session (and its
+    /// presentation anchor, which the session holds weakly) must stay alive.
+    private static var activeSession: ASWebAuthenticationSession?
+    private static var activeAnchor: AnchorProvider?
+
     static func present(_ url: URL) async -> URL? {
         await withCheckedContinuation { continuation in
+            let anchor = AnchorProvider()
             let session = ASWebAuthenticationSession(
                 url: url,
                 callbackURLScheme: callbackScheme
-            ) { callbackURL, _ in
+            ) { callbackURL, error in
+                activeSession = nil
+                activeAnchor = nil
+                if let error {
+                    log.warning("OAuth session ended with error: \(error.localizedDescription, privacy: .public)")
+                }
                 continuation.resume(returning: callbackURL)
             }
-            session.presentationContextProvider = AnchorProvider()
+            session.presentationContextProvider = anchor
             session.prefersEphemeralWebBrowserSession = false
-            session.start()
+            activeAnchor = anchor
+            activeSession = session
+            if !session.start() {
+                activeSession = nil
+                activeAnchor = nil
+                log.error("ASWebAuthenticationSession.start() returned false")
+                continuation.resume(returning: nil)
+            }
         }
     }
 }
