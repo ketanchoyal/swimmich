@@ -207,7 +207,7 @@
 | Bulk upload check | ✅ Shipped | `Client.bulkUploadCheck()` wired |
 | Background backup scheduling | ✅ Shipped | `BackgroundBackupScheduling.swift` |
 | Backup engine (upload loop, cancel, phases) | ✅ Shipped | `BackupEngine.swift` |
-| Backup notification service | ✅ Shipped | `BackupNotificationService.swift` |
+| Backup notification service | ✅ Shipped | `NotificationService.swift` (ex `BackupNotificationService.swift`) |
 | Backup Live Activity (Dynamic Island + Lock Screen progress) | ✅ Shipped | `BackupLiveActivityService.swift`, `ImmichWidgets/BackupLiveActivity.swift` |
 | Backup settings UI (Wi-Fi only, exclude albums, etc.) | ✅ Shipped | `UploadViewModel.swift:BackupSettingsView` |
 | PhotoLibraryService (PHPhotoLibrary) injected | ✅ Shipped (wired, backup UI not yet exposed in root nav) | `PhotoLibraryServiceImpl.swift` |
@@ -369,7 +369,7 @@
 | Self-signed cert trust | `TrustEvaluatingURLSessionDelegate` | Via QR onboarding | No cert manager UI |
 | Widgets | `ImmichWidgets/` Live Activity only | No home-screen widgets | Live Activity shipped, widgets pending |
 | App Intents / Shortcuts | `AppIntents.swift` | Minimal | Basic intent support |
-| Push notifications | None | None | No `UNUserNotificationCenter` |
+| Push notifications | Permission screen (`UNUserNotificationCenter`) | Local notifications only | No APNs anywhere: the server has no device-token route and Flutter has no push stack. Permission screen shipped 2026-09-13 |
 | iCloud Keychain | Device Keychain only | None | Not iCloud synced |
 | Offline browsing | No offline | None | No download-for-offline |
 
@@ -402,7 +402,8 @@
 | Partner creation (by email) | ❌ | ✅ |
 | Partner UI (invite/remove) | Client only | ✅ |
 | Shared-album new assets notification | ❌ | ✅ |
-| Push notifications | ❌ | ✅ |
+| Notifications (local + permission) | ✅ | ✅ |
+| Push notifications (APNs) | ❌ (no server contract — not implementable) | ❌ |
 
 ### Search enhancements
 
@@ -435,7 +436,7 @@
 
 | Feature | SwiftUI | Flutter |
 |---|---|---|
-| Push notification settings | ❌ | ✅ |
+| Notification permission settings | ✅ | ✅ |
 | Sync status | ❌ | ✅ |
 | App log viewer | ❌ | ✅ |
 | "What's New" screen | ❌ | ✅ |
@@ -491,5 +492,5 @@
 3. **Memories complet** — save/unsave, création, autres types
 4. **i18n** — FR/EN hardcoded, catalogue `Localizable.xcstrings` partiel
 5. **Widgets / App Intents** — Live Activity fait, le reste en attente
-6. **Push notifications**
+6. ~~**Push notifications**~~ — re-scopé le 2026-09-13 : l'écran d'autorisation OS est livré ; le reste (APNs) est **impossible** (aucun endpoint serveur, aucun push dans Flutter)
 7. **Offline download**

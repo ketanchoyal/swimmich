@@ -3613,6 +3613,86 @@
           }
         }
       }
+    },
+    "Enable Notifications" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer les notifications"
+          }
+        }
+      }
+    },
+    "Immich tells you when a backup finishes, so a background backup isn't silent." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich vous prévient quand une sauvegarde se termine, pour qu'une sauvegarde en arrière-plan ne passe pas inaperçue."
+          }
+        }
+      }
+    },
+    "Immich tells you when a backup finishes." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich vous prévient quand une sauvegarde se termine."
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "Notifications are off. iOS only asks once, so turn them back on in System Settings." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les notifications sont désactivées. iOS ne demande qu'une fois : réactivez-les dans Réglages système."
+          }
+        }
+      }
+    },
+    "Off" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé"
+          }
+        }
+      }
+    },
+    "On" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les réglages système"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

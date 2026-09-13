@@ -1,5 +1,12 @@
 # Task: push-notifications
 
+> ⚠️ **OBSOLÈTE (2026-09-13)** — cette spec décrit une pile APNs qui n'existe pas :
+> `POST /api/users/me/device-token` est absent de toutes les versions publiées de
+> l'OpenAPI, et le client Flutter n'a aucun push (`flutter_local_notifications` +
+> socket.io seulement). Seul l'écran d'autorisation OS a été livré, sous le nom
+> « Notifications » (issue #16, AC-4100…AC-4107). **La carte
+> `.opencode/scratch/push-notifications.acceptance.md` fait foi**, pas ce fichier.
+
 **Objectif** : Implémenter les notifications push pour ImmichSwiftUI (parité Flutter). Le Flutter gère les notifs pour uploads terminés, shared album activity, et nouvelles photos de partenaires. ImmichSwiftUI n'a aucune gestion de `UNUserNotificationCenter`.
 
 **Hypothèses** :

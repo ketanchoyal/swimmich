@@ -43,7 +43,7 @@
 15. Storage/quota stats in profile ("deferred")
 
 **Platform features:**
-16. Push notifications (no APNs, no `UNUserNotificationCenter`)
+16. Push notifications — local only: permission screen shipped 2026-09-13 (`NotificationService` + écran « Notifications »). No APNs: Immich exposes no device-token route and the Flutter client has no push stack (`flutter_local_notifications` + socket.io only)
 17. Widgets / Live Activities / App Intents / Shortcuts — no extra targets, single app target
 18. QR server-config scan — TODO `$PHASE_QR`
 19. Self-signed cert trust flow — TODO `$PHASE_CERT`; blanket `NSAllowsArbitraryLoads: true`

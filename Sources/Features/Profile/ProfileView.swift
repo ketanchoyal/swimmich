@@ -18,6 +18,7 @@ struct ProfileView: View {
     @State var partners: PartnersViewModel
     @State var admin: AdminViewModel
     @State var offline: OfflineDownloadViewModel
+    @State var notifications: NotificationsViewModel
 
     var body: some View {
         NavigationStack {
@@ -49,6 +50,15 @@ struct ProfileView: View {
                     } label: {
                         Label("Backup", systemImage: "icloud.and.arrow.up")
                     }
+
+                    // Next to Backup on purpose: the only notification this app
+                    // posts is the end of a backup run.
+                    NavigationLink {
+                        NotificationSettingsView(vm: notifications)
+                    } label: {
+                        Label("Notifications", systemImage: "bell.badge")
+                    }
+                    .accessibilityIdentifier("notificationsRow")
 
                     NavigationLink {
                         DuplicatesView(vm: duplicates)

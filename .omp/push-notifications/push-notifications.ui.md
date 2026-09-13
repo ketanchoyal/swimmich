@@ -1,5 +1,11 @@
 # Task: push-notifications — UI Brief (Liquid Glass Primary)
 
+> ⚠️ **OBSOLÈTE (2026-09-13)** — brief de la pile APNs fantôme. L'écran livré est
+> `.opencode/scratch/push-notifications.acceptance.md` (AC-4100…AC-4107) /
+> `Sources/Features/Notifications/NotificationSettingsView.swift` : statut de
+> permission + Enable / Open System Settings, pas de toggles par type ni de
+> `connectionStatus` (rien à quoi se brancher).
+
 ## Design Philosophy
 
 Les notifications sont gérées via des **surfaces vitrées** : settings en glass, toasts flottants vitrés, et un status indicator qui pulse comme un verrou de sécurité. C'est comme les réglages de notifications iOS mais avec la profondeur du glass.

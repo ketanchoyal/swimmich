@@ -155,6 +155,12 @@ final class DependencyContainer {
         PartnersViewModel(client: client as any ImmichClient)
     }
 
+    /// Notification permission screen (issue #16). Holds no cache — it reads
+    /// the system's answer on appear.
+    func makeNotificationsViewModel() -> NotificationsViewModel {
+        NotificationsViewModel()
+    }
+
     func makeAdminViewModel() -> AdminViewModel {
         AdminViewModel(client: client as any ImmichClient)
     }

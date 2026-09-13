@@ -1192,6 +1192,92 @@ final class ImmichRenderScreenshots: XCTestCase {
         XCTAssertTrue(offlineEmptyStateShown(), "the storage screen did not fall back to its empty state")
     }
 
+    /// The notification permission screen (issue #16) against the committed
+    /// offline stub: the feature has **no** server contract of its own (the
+    /// only notification the app posts is the local "backup complete" alert),
+    /// so the stub is reused for what it does provide — onboarding, the OAuth
+    /// handshake and the authenticated shell. The subject is the system
+    /// permission: the screen must show the real status with exactly one action
+    /// (ask, or go to Settings), and asking must really reach iOS.
+    func test_10_notifications() throws {
+        setProvider("auto")
+        resetStacks()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(3)
+
+        // The Management section sits below the fold: a Form only publishes what
+        // it has rendered. Matched by identifier — the label is translated.
+        let row = app.buttons.matching(identifier: "notificationsRow").firstMatch
+        for _ in 0..<6 where !row.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        if !row.waitForExistence(timeout: 10) {
+            shot("45-notifications-hub-missing")
+            XCTFail("Notifications row missing in the Me hub:\n\(app.debugDescription)")
+        }
+        shot("45-notifications-hub")
+        row.tap()
+        sleep(3)
+
+        let status = app.descendants(matching: .any)
+            .matching(identifier: "notificationsStatusRow").firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: 15), "no status row on the notifications screen")
+        shot("45-notifications-settings")
+
+        let enable = app.buttons["notificationsEnableButton"]
+        let openSettings = app.buttons["notificationsOpenSettingsButton"]
+
+        if enable.waitForExistence(timeout: 5) {
+            // Never asked on this simulator: ask, and let iOS deliver its answer.
+            enable.tap()
+            allowNotificationsAlertIfPresent()
+            XCTAssertTrue(openSettings.waitForExistence(timeout: 15),
+                          "after answering the prompt the screen must offer System Settings, not 'Enable' again")
+            shot("45-notifications-allowed")
+        } else {
+            // Already answered on this simulator: a second ask would be ignored
+            // by iOS, so the screen must not offer it.
+            XCTAssertTrue(openSettings.exists,
+                          "the screen shows neither 'Enable' nor 'Open System Settings'")
+        }
+    }
+
+    /// The permission alert belongs to SpringBoard, not to the app (same shape
+    /// as `dismissSystemSignInAlertIfPresent`, which also has to try both
+    /// locales — this simulator runs in French).
+    private func allowNotificationsAlertIfPresent() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow", "Autoriser"] {
+            let button = springboard.alerts.buttons[label]
+            if button.waitForExistence(timeout: 10) {
+                button.tap()
+                return
+            }
+        }
+        // Some iOS builds surface the permission alert inside the app's tree.
+        for label in ["Allow", "Autoriser"] {
+            let button = app.alerts.buttons[label]
+            if button.waitForExistence(timeout: 2) {
+                button.tap()
+                return
+            }
+        }
+    }
+
     /// A button matched by either of two labels (the app runs in the
     /// simulator's locale, so a translated string must not decide a scenario).
     private func firstButton(labels: [String]) -> XCUIElement {

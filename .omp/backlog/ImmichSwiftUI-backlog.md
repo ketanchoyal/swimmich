@@ -26,8 +26,8 @@
 | 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | ✅ Terminé | — (wire) | 6 `test_oauth_*` | 8/8 AC |
 | 3 | **Partners UI** | P3 | AC-3100–3113 | .omp/partners-ui/ | Voir §2.3 | ✅ Terminé | — (2 wire, 1 corrigé) | 14 + 4 + 1 XCUITest | 14/14 AC |
 | 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | ✅ Terminé | — (100% wire) | 16 + 7 + 1 XCUITest | 9/9 AC |
-| 5 | **Push Notifications** | P5 | AC-3300–3308 | .omp/push-notifications/ | Voir §2.5 | 🟡 Plan | device-token reg/unreg | 0/9 | 0/9 AC |
-| 6 | **Shared Links Enriched** | P3 | AC-3900–3909 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | slug + URL builder + presets | 0/10 | 0/10 AC |
+| 5 | **Notifications** (ex « Push Notifications ») | P5 | AC-4100–4107 | .omp/push-notifications/ | Voir §2.5 | ✅ Terminé | — (aucun : pas de contrat serveur) | 6 + 1 XCUITest | 8/8 AC |
+| 6 | **Shared Links Enriched** | P3 | AC-3900–3909 | .omp/shared-links-enriched/ | Voir §2.6 | ✅ Terminé | — (slug + URL builder + presets, 100% wire) | suite 736 → 749 | 10/10 AC |
 | 7 | **Offline Download** | P4 | AC-3500–3512 | .omp/offline-download/ | Voir §2.7 | ✅ Terminé | — (FileManager) | 17 + 8 + 1 XCUITest | 13/13 AC |
 | 8 | **Widgets Home Screen** | P5 | AC-3600–3608 | .omp/widgets-homescreen/ | Voir §2.8 | 🟡 Plan | — (WidgetKit) | 0/4 | 0/9 AC |
 | 9 | **Stacks UI** | P3 | AC-3700–3709 | .omp/stacks-ui/ | Voir §2.9 | ✅ Terminé | — (100% wire) | 13 + 7 + 3 + 1 | 10/10 AC |
@@ -250,44 +250,27 @@ Deux comportements serveur que l'UI doit respecter : `PUT`/`DELETE /api/memories
 
 ---
 
-### 2.5. Push Notifications (P5)
+### 2.5. Notifications — autorisation OS (P5) — ✅ Terminé (2026-09-13)
 
-**Fichier spec** : `.omp/push-notifications/push-notifications.specs.md`
-**Card AC** : `.opencode/scratch/push-notifications.acceptance.md`
-**UI brief** : `.omp/push-notifications/push-notifications.ui.md`
-**AC Cards** : AC-3300 – AC-3308
+**Fichier spec** : `.omp/push-notifications/push-notifications.specs.md` (décrit encore la pile APNs fantôme)
+**Card AC** : `.opencode/scratch/push-notifications.acceptance.md` (réécrite le 2026-09-13 — AC-4100…AC-4107)
+**UI brief** : `.omp/push-notifications/push-notifications.ui.md` (brief de la pile fantôme, non suivi)
+**AC Cards** : AC-4100 – AC-4107
 **Phase** : P5 — Auth & Platform
+**Issue** : #16
 
-#### Objectif
-Notifications push APNs pour uploads terminés, activity de shared albums, et nouvelles photos de partenaires. Parité avec le client Flutter.
+#### Résultat (2026-09-13)
+**8/8 AC PASS.** Suite **831 → 837 tests TEST SUCCEEDED** (iPhone 17, `-only-testing:ImmichSwiftUITests`) ; le pré-état 831 a été mesuré sur un worktree `HEAD` (c741730), les huit checks rejoués verbatim avant/après. `test_10_notifications` vert deux fois contre le stub **committé** `UITests/stubs/immich_stub_offline.py` (réutilisé : la feature n'a aucun comportement serveur propre), et les **deux** états de l'écran exercés en vrai — simulateur chaud (« Activé » + « Ouvrir les réglages système ») puis après `xcrun simctl uninstall` (« Désactivé » + « Activer les notifications » → alerte système iOS → bascule sur « Activé »).
 
-#### Points d'entrée
-- `PushNotificationService` (Services) — requestAuthorization, registerDevice, unregisterDevice, handlePush, onBackupComplete, onNewActivity, onNewPartnerPhoto
-- `PushNotificationStore` (Services) — Persist settings dans UserDefaults("pushNotificationSettings")
-- `PushNotificationViewModel` (Features/Settings/) — loadSettings, saveSettings, registerDevice, unregisterDevice, isRegistered, connectionStatus
-- `PushNotificationSettingsView` (Features/Settings/) — Master toggle + sub-toggles (backup, activity, partner)
-- Intégration : `AuthViewModel` (register au login, unregister au logout), `UploadViewModel` (onBackupComplete), `ActivityFeedViewModel` (onNewActivity)
+Livré : `NotificationService` (seam unique `NotificationServicing` : `permission()`, `requestAuthorization()`, `notifyBackupComplete(...)` — `BackupNotificationService.swift` supprimé), `NotificationsViewModel` (permission, `loaded`, `isRequesting`, `isEnabled`, `canAsk`, guard de réentrance), `NotificationSettingsView` (statut + Enable / Open System Settings + footer par état), ligne `notificationsRow` dans le hub « Me » juste après « Backup », 8 clés EN/FR au catalogue, 6 tests unitaires + le scénario XCUITest.
 
-#### Endpoint API
-- `POST /api/users/me/device-token` — **manquant** (device token registration)
+#### Ce que la fiche d'origine demandait, et qui n'existe pas
+Vérifié le 2026-09-13 : `POST /api/users/me/device-token` = **0 occurrence** dans l'OpenAPI publié (`main`, `v1.135.0`), aucun schéma APNs/push — le serveur n'expose que `/notifications` (GET/PUT/DELETE), consommé par le **web** seul. Le client Flutter n'a **aucun** push (`mobile/pubspec.yaml` : `flutter_local_notifications` + `socket_io_client`, pas de `firebase_messaging`) ; son écran `notification_setting.dart` ne fait que l'état de permission OS + « Open Settings ». Les 9 AC d'origine (AC-3300…AC-3308) ne pinnaient que des `grep` de fichiers locaux et ont été **retirés**. Restent hors périmètre, parce qu'ils n'existent nulle part côté serveur : APNs, device-token, notifications in-app (`/api/notifications`).
 
-#### Étapes d'implémentation
-1. Créer `PushNotificationService` — APNs registration + callbacks dispatch
-2. Créer `PushNotificationStore` — persist settings (notificationsEnabled, backupEnabled, activityEnabled, partnerEnabled)
-3. Créer `PushNotificationViewModel` — settings + registration state
-4. Créer `PushNotificationSettingsView` — master toggle + sub-toggles
-5. Intégrer dans `AuthViewModel`, `UploadViewModel`, `ActivityFeedViewModel`
-6. Ajouter link "Notifications" dans `ProfileView`
-7. Tests ≥9 (Service + ViewModel)
-
-#### Tests attendus
-- `Tests/PushNotificationServiceTests.swift` ≥5 tests : auth, register, unregister, dispatch
-- `Tests/PushNotificationViewModelTests.swift` ≥4 tests : settings, registration
-- Regression : suite ≥ baseline
 
 ---
 
-### 2.6. Shared Links Enriched (P3)
+### 2.6. Shared Links Enriched (P3) — ✅ Terminé (2026-09-13)
 
 **Fichier spec** : `.omp/shared-links-enriched/shared-links-enriched.specs.md`
 **Card AC** : `.opencode/scratch/shared-links-enriched.acceptance.md`
@@ -814,4 +797,4 @@ Stacks UI : ✅ terminé (724 tests verts, 12/12 AC PASS le 2026-09-13). Fichier
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 : **Offline Download** (P4, issue #18) ✅ clôturé — 13/13 AC PASS, 805 → **831 tests TEST SUCCEEDED**, `test_09_offlineDownload` vert 3× contre le stub **committé** `UITests/stubs/immich_stub_offline.py` (§2.7) ; **Shared Link Viewer** ✅ clôturé (#22, 6/6 AC PASS, 772 → 805 tests, `test_SLV_viewer` vert deux fois de suite sur le stub **committé** `UITests/stubs/immich_stub_shared_link_viewer.py`) ; feature sans équivalent Flutter — contrat réel : `GET /shared-links/me?key=|slug=`, `POST /shared-links/login` (+ cookie), `POST /search/metadata` avec `albumIds`, `POST /assets?key=`) — **Memories Complete** ✅ clôturé (9/9 AC PASS, 749 → 772 tests, `test_08_memories` de bout en bout sur le stub **committé** `UITests/stubs/immich_stub_memories.py`) après révision du contrat serveur (`PUT` et non `PATCH` sur `/memories/{id}` ; `PUT`/`DELETE` et non `POST` sur `{id}/assets`, corps `BulkIdsDto`, réponse `BulkIdResponseDto` ; `MemoryType` mono-valeur — `first_day`/`yearly_recap` n'existent pas ; aucun champ titre dans l'API ; la liste filtre les mémoires sans asset, la création est `isSaved: true` pour échapper au ménage des 30 jours) — **Partners UI** ✅ clôturé (14/14 AC PASS, 724 → 736 tests, `test_06_partners` de bout en bout sur le premier stub **committé** du dépôt) après révision complète du contrat serveur (`direction` **requis** sur `GET /api/partners` — l'appel sans query rendait 400 au runtime ; création par `sharedWithId` et non par email ; `PUT`/`DELETE` valides chacun sur une seule direction ; rattachement au hub « Me ») — **Stacks UI** ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`.*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 : **Notifications** (P5, issue #16) ✅ clôturé — 8/8 AC PASS, 831 → **837 tests TEST SUCCEEDED**, `test_10_notifications` vert 2× contre le stub **committé** `UITests/stubs/immich_stub_offline.py` (§2.5) ; le contrat annoncé (`POST /users/me/device-token`, APNs) était **fantôme** : 0 occurrence dans l'OpenAPI publié, aucun push dans le client Flutter — seule l'autorisation OS est livrée ; **Offline Download** (P4, issue #18) ✅ clôturé — 13/13 AC PASS, 805 → **831 tests TEST SUCCEEDED**, `test_09_offlineDownload` vert 3× contre le stub **committé** `UITests/stubs/immich_stub_offline.py` (§2.7) ; **Shared Link Viewer** ✅ clôturé (#22, 6/6 AC PASS, 772 → 805 tests, `test_SLV_viewer` vert deux fois de suite sur le stub **committé** `UITests/stubs/immich_stub_shared_link_viewer.py`) ; feature sans équivalent Flutter — contrat réel : `GET /shared-links/me?key=|slug=`, `POST /shared-links/login` (+ cookie), `POST /search/metadata` avec `albumIds`, `POST /assets?key=`) — **Memories Complete** ✅ clôturé (9/9 AC PASS, 749 → 772 tests, `test_08_memories` de bout en bout sur le stub **committé** `UITests/stubs/immich_stub_memories.py`) après révision du contrat serveur (`PUT` et non `PATCH` sur `/memories/{id}` ; `PUT`/`DELETE` et non `POST` sur `{id}/assets`, corps `BulkIdsDto`, réponse `BulkIdResponseDto` ; `MemoryType` mono-valeur — `first_day`/`yearly_recap` n'existent pas ; aucun champ titre dans l'API ; la liste filtre les mémoires sans asset, la création est `isSaved: true` pour échapper au ménage des 30 jours) — **Partners UI** ✅ clôturé (14/14 AC PASS, 724 → 736 tests, `test_06_partners` de bout en bout sur le premier stub **committé** du dépôt) après révision complète du contrat serveur (`direction` **requis** sur `GET /api/partners` — l'appel sans query rendait 400 au runtime ; création par `sharedWithId` et non par email ; `PUT`/`DELETE` valides chacun sur une seule direction ; rattachement au hub « Me ») — **Stacks UI** ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`.*

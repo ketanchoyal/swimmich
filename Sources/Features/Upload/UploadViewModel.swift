@@ -197,7 +197,7 @@ final class UploadViewModel {
     var settings: BackupSettingsStore
     let scheduler: any BackgroundBackupScheduling
     let activityService: any BackupLiveActivityServicing
-    let notifications: any BackupNotificationServicing
+    let notifications: any NotificationServicing
 
     var albums: [BackupAlbum] = []
 
@@ -225,7 +225,7 @@ final class UploadViewModel {
         settings: BackupSettingsStore? = nil,
         scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
         activityService: any BackupLiveActivityServicing = LiveActivityBackupService(),
-        notifications: any BackupNotificationServicing = BackupNotificationService()
+        notifications: any NotificationServicing = NotificationService()
     ) {
         self.client = client
         self.photos = photos
@@ -302,7 +302,9 @@ final class UploadViewModel {
                 return
             }
         }
-        notifications.requestAuthorization()
+        // Fire-and-forget: the run must not wait for the user to answer the
+        // prompt, and the result only matters when the run ends.
+        Task { await notifications.requestAuthorization() }
         // Survive the app being backgrounded mid-run: the engine keeps
         // exporting/uploading (and the island keeps moving) for as long as the
         // OS grants us, instead of freezing the instant the user swipes away.
@@ -331,7 +333,7 @@ final class UploadViewModel {
         case .done:
             let success = engine.failedCount == 0
             activityService.end(success: success, snapshot: makeActivitySnapshot())
-            notifications.notifyBackupComplete(
+            await notifications.notifyBackupComplete(
                 uploaded: engine.uploadedCount,
                 total: engine.total,
                 failed: engine.failedCount,
