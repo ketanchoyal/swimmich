@@ -27,6 +27,13 @@ final class TimelineViewModel {
     /// Partner photos interleaved in the timeline (AC-1070). Nil = own assets.
     var filterWithPartners: Bool?
 
+    /// Collapse every stack to its primary tile, with the stack reported on
+    /// that tile (`stackId`/`stackCount`). On, the server drops the other
+    /// members from the bucket, so a stacked tile must route to the stack
+    /// itself — otherwise those photos become unreachable (`TimelineView`).
+    /// The trash keeps asking for the flat list (`TrashViewModel`).
+    var withStacked: Bool = true
+
     init(client: any ImmichClient) {
         self.client = client
     }
@@ -151,7 +158,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             bucketIndex = 0
             upperBucketIndex = -1
             items = []
@@ -168,7 +175,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             bucketIndex = 0
             upperBucketIndex = -1
             items = []
@@ -194,7 +201,7 @@ final class TimelineViewModel {
         guard !day.isEmpty else { return }
         if buckets.isEmpty {
             do {
-                buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+                buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             } catch let e {
                 errorMessage = e.localizedDescription
                 return
@@ -203,7 +210,7 @@ final class TimelineViewModel {
         guard let index = buckets.firstIndex(where: { $0.timeBucket == day }) else { return }
         isLoading = true
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: buckets[index].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            let columnar = try await client.getTimeBucket(timeBucket: buckets[index].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             let zipped = AssetReactItem.zip(columnar)
             items = zipped
             loadedIds = Set(zipped.map(\.id))
@@ -224,7 +231,7 @@ final class TimelineViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: buckets[upperBucketIndex].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            let columnar = try await client.getTimeBucket(timeBucket: buckets[upperBucketIndex].timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             let zipped = AssetReactItem.zip(columnar)
             let newItems = zipped.filter { !loadedIds.contains($0.id) }
             items.insert(contentsOf: newItems, at: 0)
@@ -240,7 +247,7 @@ final class TimelineViewModel {
         guard bucketIndex < buckets.count else { return }
         let bucket = buckets[bucketIndex]
         do {
-            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: nil)
+            let columnar = try await client.getTimeBucket(timeBucket: bucket.timeBucket, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
             // AC-013: zip columnar into objects.
             let zipped = AssetReactItem.zip(columnar)
             for item in zipped where !loadedIds.contains(item.id) {
@@ -348,13 +355,20 @@ final class TimelineViewModel {
 
     // MARK: - Stack (gap #1)
 
-    /// Stacks the selected assets (first selected becomes primary, min 2).
-    /// On success exits selection mode and refreshes so the new stack badges
-    /// appear. Same try-then-mutate discipline as the other batch actions.
+    /// Stacks the selected assets (the newest selected photo becomes primary,
+    /// min 2). On success exits selection mode and refreshes so the new stack
+    /// badges appear. Same try-then-mutate discipline as the other batch
+    /// actions.
+    ///
+    /// Order comes from `items`, not from `selectedIds`: the server makes the
+    /// **first** id the stack's primary (cover), and a `Set` has no order — the
+    /// cover would be arbitrary. Grid order makes "the newest selected photo is
+    /// the cover" predictable, and the cover stays changeable from the stack
+    /// detail.
     @MainActor
     func stackSelected() async {
-        guard selectedIds.count >= 2 else { return }
-        let ids = Array(selectedIds)
+        let ids = items.map(\.id).filter { selectedIds.contains($0) }
+        guard ids.count >= 2 else { return }
         do {
             _ = try await client.createStack(assetIds: ids)
             exitSelectionMode()

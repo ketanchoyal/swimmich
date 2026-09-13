@@ -79,8 +79,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastTimeBucketsIsFavorite: Bool?
     var lastTimeBucketsVisibility: String?
     var lastTimeBucketsWithPartners: Bool?
+    var lastTimeBucketsWithStacked: Bool?
     var lastTimeBucketWithPartners: Bool?
     var lastTimeBucketVisibility: String?
+    var lastTimeBucketWithStacked: Bool?
     var lastRestoreTrashAssetsIds: [String]?
     var restoreTrashAssetsResponse: TrashResponseDto?
     var restoreTrashAssetsError: Error?
@@ -296,6 +298,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastTimeBucketsIsFavorite = isFavorite
         lastTimeBucketsVisibility = visibility
         lastTimeBucketsWithPartners = withPartners
+        lastTimeBucketsWithStacked = withStacked
         if let e = globalError { throw e }
         return bucketsResponse
     }
@@ -310,6 +313,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         lastTimeBucketVisibility = visibility
         lastTimeBucketWithPartners = withPartners
+        lastTimeBucketWithStacked = withStacked
         if let e = globalError { throw e }
         return bucketResponses[timeBucket] ?? TimeBucketAssetResponseDto(
             id: [], ownerId: [], ratio: [], isFavorite: [], visibility: [], isTrashed: [],
@@ -827,6 +831,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     // MARK: - Stacks (gap #1)
 
     var stacksResponse: [StackResponseDto]?
+    /// Per-id answers for `getStack` (falls back to an empty stack).
+    var stackDetailResponses: [String: StackResponseDto] = [:]
+    var createStackResponse: StackResponseDto?
+    var updateStackResponse: StackResponseDto?
     var lastCreateStackIds: [String]?
     var lastUpdateStackId: String?
     var lastUpdateStackPrimaryId: String?
@@ -845,13 +853,13 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         lastCreateStackIds = assetIds
         if let e = globalError ?? stacksError { throw e }
-        return StackResponseDto(id: "stack-new", primaryAssetId: assetIds.first ?? "", assets: [])
+        return createStackResponse ?? StackResponseDto(id: "stack-new", primaryAssetId: assetIds.first ?? "", assets: [])
     }
 
     func getStack(id: String) async throws -> StackResponseDto {
         bump()
         if let e = globalError ?? stacksError { throw e }
-        return StackResponseDto(id: id, primaryAssetId: "", assets: [])
+        return stackDetailResponses[id] ?? StackResponseDto(id: id, primaryAssetId: "", assets: [])
     }
 
     func updateStack(id: String, primaryAssetId: String?) async throws -> StackResponseDto {
@@ -859,7 +867,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastUpdateStackId = id
         lastUpdateStackPrimaryId = primaryAssetId
         if let e = globalError ?? stacksError { throw e }
-        return StackResponseDto(id: id, primaryAssetId: primaryAssetId ?? "", assets: [])
+        return updateStackResponse ?? StackResponseDto(id: id, primaryAssetId: primaryAssetId ?? "", assets: [])
     }
 
     func deleteStack(id: String) async throws {

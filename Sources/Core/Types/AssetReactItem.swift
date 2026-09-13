@@ -29,15 +29,32 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     let country: String?
     let latitude: Double?
     let longitude: Double?
-    /// Ids of the other assets stacked together with this one (gap #1). Empty
-    /// when the asset is not part of a stack.
+    /// Raw `stack` cell of the timeline bucket (gap #1): `[stackId, assetCount]`
+    /// — the server serializes the count as a *string* (`array[stacked."stackId"::text,
+    /// count('stacked')::text]`). Empty for an asset that stands on its own.
+    ///
+    /// The column is only emitted when the request asked `withStacked: true`,
+    /// and only on the **primary** of a stack — every other request omits it
+    /// entirely, so other grids never carry a stack badge.
+    ///
+    /// Read `stackId` / `stackCount` instead of indexing this array.
     let stack: [String]
 
     /// True for video assets.
     var isVideo: Bool { !isImage }
 
-    /// True when this asset belongs to a stack of 2+ assets.
-    var isStacked: Bool { !stack.isEmpty }
+    /// True when this asset stands in for a stack of 2+ assets.
+    var isStacked: Bool { stackId != nil }
+
+    /// Server id of the stack this asset represents, when `isStacked`.
+    var stackId: String? { stack.count == 2 ? stack[0] : nil }
+
+    /// Total members of the stack — primary included — when `isStacked`.
+    var stackCount: Int? { stack.count == 2 ? Int(stack[1]) : nil }
+
+    /// Photos hidden behind the stack's cover (`stackCount - 1`), when known.
+    /// This is the number the timeline badge shows.
+    var stackedExtraCount: Int? { stackCount.map { max(0, $0 - 1) } }
 
     /// True when the slide plays inline motion in the slideshow: a real video,
     /// or a Live Photo whose video pair is present and playable (a nil or empty

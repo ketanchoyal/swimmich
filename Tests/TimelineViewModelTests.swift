@@ -598,4 +598,87 @@ final class TimelineViewModelTests: XCTestCase {
 
         XCTAssertEqual(mock.requestCount, calls, "identical partner filter does not reload")
     }
+
+    // MARK: - Stacks (gap #1)
+
+    /// `withStacked` is not a cosmetic flag: the server drops every non-primary
+    /// member from the bucket, so the timeline must ask for it on both calls
+    /// (bucket list + bucket page) or stacks would never collapse.
+    @MainActor
+    func test_stacks_timelineRequestsStackedPrimaries() async {
+        let mock = MockImmichClient()
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 1)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(ids: ["a1"], ratios: [1.0], thumbhashes: [nil], favorites: [false])
+        ]
+        let vm = TimelineViewModel(client: mock)
+
+        await vm.load()
+
+        XCTAssertEqual(mock.lastTimeBucketsWithStacked, true)
+        XCTAssertEqual(mock.lastTimeBucketWithStacked, true)
+    }
+
+    /// The bucket carries `[stackId, assetCount]` per row — the count is a
+    /// *string* and it includes the cover. The badge shows the rest.
+    @MainActor
+    func test_stacks_bucketTupleMapsToStackIdAndCount() async {
+        let mock = MockImmichClient()
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 2)]
+        mock.bucketResponses = [
+            "2024-07-01": TimeBucketAssetResponseDto(
+                id: ["cover", "solo"],
+                ownerId: ["owner", "owner"],
+                ratio: [1.0, 1.0],
+                isFavorite: [false, false],
+                visibility: ["timeline", "timeline"],
+                isTrashed: [false, false],
+                isImage: [true, true],
+                thumbhash: [nil, nil],
+                createdAt: ["2024-07-01T00:00:00.000Z", "2024-07-01T00:00:00.000Z"],
+                fileCreatedAt: ["2024-07-01T00:00:00.000Z", "2024-07-01T00:00:00.000Z"],
+                localOffsetHours: [0.0, 0.0],
+                duration: [nil, nil],
+                livePhotoVideoId: [nil, nil],
+                projectionType: [nil, nil],
+                stack: [["stk-1", "3"], nil],
+                city: nil, country: nil, latitude: nil, longitude: nil
+            )
+        ]
+        let vm = TimelineViewModel(client: mock)
+
+        await vm.load()
+
+        let cover = vm.items.first { $0.id == "cover" }
+        XCTAssertEqual(cover?.stackId, "stk-1")
+        XCTAssertEqual(cover?.stackCount, 3)
+        XCTAssertEqual(cover?.stackedExtraCount, 2, "the badge counts what's behind the cover")
+        XCTAssertEqual(cover?.isStacked, true)
+
+        let solo = vm.items.first { $0.id == "solo" }
+        XCTAssertNil(solo?.stackId)
+        XCTAssertNil(solo?.stackCount)
+        XCTAssertEqual(solo?.isStacked, false)
+    }
+
+    /// The server makes the first id the cover, and `selectedIds` is a Set —
+    /// without grid ordering the cover would be arbitrary.
+    @MainActor
+    func test_stacks_stackSelectedFollowsGridOrder() async {
+        let mock = MockImmichClient()
+        mock.bucketsResponse = [TimeBucketsResponseDto(timeBucket: "2024-07-01", count: 3)]
+        mock.bucketResponses = [
+            "2024-07-01": columnar(ids: ["a1", "a2", "a3"], ratios: [1, 1, 1], thumbhashes: [nil, nil, nil], favorites: [false, false, false])
+        ]
+        let vm = TimelineViewModel(client: mock)
+        await vm.load()
+        vm.enterSelectionMode()
+        vm.toggleSelection(id: "a3")
+        vm.toggleSelection(id: "a2")
+
+        await vm.stackSelected()
+
+        XCTAssertEqual(mock.lastCreateStackIds, ["a2", "a3"], "grid order, not Set order")
+        XCTAssertFalse(vm.selectionMode)
+    }
 }

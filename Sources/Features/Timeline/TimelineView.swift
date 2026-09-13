@@ -14,6 +14,9 @@ import SwiftUI
 struct TimelineView: View {
     @Environment(UploadViewModel.self) private var upload
     @State private var vm: TimelineViewModel
+    /// Stack hub state, borrowed from the root so a stack opened from a tile is
+    /// the same object the «Me» hub shows (and vice versa).
+    let stacks: StacksViewModel
     @Binding var scrollTargetID: String?
     @Binding var scrollTargetDay: String?
     @Environment(AuthViewModel.self) private var auth
@@ -45,14 +48,18 @@ struct TimelineView: View {
     @State private var pendingDeleteSingleID: String?
     @State private var presentAlbumPicker = false // AC-515 — Add to Album sheet
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
+    /// Stack opened from a stacked tile (grid → stack detail). Nil = no push.
+    @State private var openedStackID: String?
     @State private var scrollPosition = ScrollPosition()
 
     init(
         vm: TimelineViewModel,
+        stacks: StacksViewModel,
         scrollTargetID: Binding<String?> = .constant(nil),
         scrollTargetDay: Binding<String?> = .constant(nil)
     ) {
         _vm = State(initialValue: vm)
+        self.stacks = stacks
         _scrollTargetID = scrollTargetID
         _scrollTargetDay = scrollTargetDay
     }
@@ -211,6 +218,9 @@ struct TimelineView: View {
                 // xmark + favorite/delete/add-to-album controls.
                 .toolbar(vm.selectionMode ? .visible : .hidden, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
+            }
+            .navigationDestination(item: $openedStackID) { stackId in
+                StackDetailView(stackId: stackId, vm: stacks)
             }
             .sensoryFeedback(.selection, trigger: vm.selectionMode)
             .sensoryFeedback(.selection, trigger: lastSelectionTick)
@@ -436,6 +446,10 @@ struct TimelineView: View {
                 if vm.selectionMode {
                     vm.toggleSelection(id: item.id)
                     lastSelectionTick &+= 1
+                } else if let stackId = item.stackId {
+                    // The bucket holds only stack primaries: opening the flat
+                    // pager here would skip the photos behind the cover.
+                    openedStackID = stackId
                 } else {
                     openViewer(for: item)
                 }

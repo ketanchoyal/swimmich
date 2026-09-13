@@ -108,6 +108,26 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
+    /// Server shape of the `stack` column (`withStacked=true`): a `[stackId,
+    /// assetCount]` tuple per row, count serialized as a *string*, `null` for a
+    /// row that isn't a stack cover. Pinned against the literal wire JSON —
+    /// the Swift-side fixture can't catch a decoding mismatch.
+    func test_stacks_columnDecodesServerTuple() throws {
+        let json = #"{"id":["cover","solo"],"ownerId":["o","o"],"ratio":[1.0,1.0],"isFavorite":[false,false],"visibility":["timeline","timeline"],"isTrashed":[false,false],"isImage":[true,true],"thumbhash":[null,null],"createdAt":["c","c"],"fileCreatedAt":["f","f"],"localOffsetHours":[0,0],"duration":[null,null],"livePhotoVideoId":[null,null],"projectionType":[null,null],"stack":[["stack-0001","3"],null]}"#
+            .data(using: .utf8)!
+
+        let decoded = try JSONDecoder.immich.decode(TimeBucketAssetResponseDto.self, from: json)
+        XCTAssertEqual(decoded.stack, [["stack-0001", "3"], nil])
+
+        let items = AssetReactItem.zip(decoded)
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0].stackId, "stack-0001")
+        XCTAssertEqual(items[0].stackCount, 3)
+        XCTAssertEqual(items[0].stackedExtraCount, 2)
+        XCTAssertTrue(items[0].isStacked)
+        XCTAssertFalse(items[1].isStacked, "a null cell is a photo standing on its own")
+    }
+
     // AC-310: BulkIdsDto + TrashResponseDto round-trip.
     func test_AC_310_trashDtos() throws {
         let bulk = BulkIdsDto(ids: ["a", "b"])

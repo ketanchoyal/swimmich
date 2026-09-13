@@ -14,6 +14,7 @@ struct ProfileView: View {
     @State var duplicates: DuplicatesViewModel
     @State var people: PeopleViewModel
     @State var tags: TagsViewModel
+    @State var stacks: StacksViewModel
     @State var admin: AdminViewModel
 
     var body: some View {
@@ -63,6 +64,12 @@ struct ProfileView: View {
                         TagsView(vm: tags)
                     } label: {
                         Label("Tags", systemImage: "tag")
+                    }
+
+                    NavigationLink {
+                        StackView(vm: stacks)
+                    } label: {
+                        Label("Stacks", systemImage: "square.stack.3d.down.right")
                     }
                 } header: {
                     Text("Management")

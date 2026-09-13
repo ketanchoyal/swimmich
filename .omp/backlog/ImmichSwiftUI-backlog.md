@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **692 tests** (mesurée le 2026-09-10, TEST SUCCEEDED).
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **719 tests** (mesurée le 2026-09-13, TEST SUCCEEDED).
 
 ---
 
@@ -30,7 +30,7 @@
 | 6 | **Shared Links Enriched** | P3 | AC-3400–3409 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | getPublic, uploadTo, checkPW | 0/7 | 0/10 AC |
 | 7 | **Offline Download** | P4 | AC-3500–3508 | .omp/offline-download/ | Voir §2.7 | 🟡 Plan | — (FileManager) | 0/8 | 0/9 AC |
 | 8 | **Widgets Home Screen** | P5 | AC-3600–3608 | .omp/widgets-homescreen/ | Voir §2.8 | 🟡 Plan | — (WidgetKit) | 0/4 | 0/9 AC |
-| 9 | **Stacks UI** | P3 | AC-3700–3708 | .omp/stacks-ui/ | Voir §2.9 | 🟡 Plan | — (100% wire) | 0/6 | 0/9 AC |
+| 9 | **Stacks UI** | P3 | AC-3700–3709 | .omp/stacks-ui/ | Voir §2.9 | ✅ Terminé | — (100% wire) | 13 + 7 + 3 + 1 | 10/10 AC |
 | 10 | **i18n Completing** | P5 | AC-3800–3807 | .omp/i18n/ | Voir §2.10 | 🟡 Plan | — (localisation) | 0/3 | 0/8 AC |
 | 11 | **Backup — Live Photos** | P2 | AC-LP01–LP07 | .omp/backup-auto/backup-live-photos.specs.md | Voir §2.11 | ✅ Terminé | — (updateAsset wire) | 11 | 7/7 AC |
 | 12 | **Backup — Album Scoping** | P2 | AC-AS01–AS08 | .omp/backup-auto/backup-album-scoping.specs.md | Voir §2.12 | ✅ Terminé | — | 5 + 3 | 8/8 AC |
@@ -351,41 +351,49 @@ Téléchargement d'assets pour consultation hors-ligne. Cache FileManager local,
 
 ---
 
-### 2.9. Stacks UI (P3)
+### 2.9. Stacks UI (P3) — ✅ Terminé (2026-09-13)
 
 **Fichier spec** : `.omp/stacks-ui/stacks-ui.specs.md`
 **Card AC** : `.opencode/scratch/stacks-ui.acceptance.md`
 **UI brief** : `.omp/stacks-ui/stacks-ui.ui.md`
-**AC Cards** : AC-3700 – AC-3708
+**AC Cards** : AC-3700 – AC-3709
 **Phase** : P3 — Social
 
-#### Objectif
-Gestion complète des stacks photos : vue dédiée dans Me hub, StackSheet amélioré dans le viewer, groupement par stack dans le timeline. Endpoints 100% wire.
+#### Résultat (2026-09-13)
+AC-3700 – AC-3709 **PASS** (10/10, checks rejoués depuis la carte). Suite complète **719 tests, TEST SUCCEEDED** (iPhone 17, baseline mesurée 695 avant implémentation). Vérification d'exécution réelle : XCUITest `ImmichRenderScreenshots/test_03_stacksBadgeDetailAndHub` — badge de pile sur la tuile du timeline → tap → détail de la pile → retour → hub «Me» → «Stacks» liste la pile (captures `/tmp/shot-11-timeline-stack-badge.png`, `/tmp/shot-12-stack-detail.png`, `/tmp/shot-15-stacks-hub.png`).
 
-#### Points d'entrée
-- `StacksViewModel` (Features/Stacks/) — loadStacks, createStack, deleteStack, updatePrimary, removeAssetFromStack
-- `StackView` (Features/Stacks/) — Liste stacks + FAB "+" + nav vers StackDetailView
-- `StackDetailView` (Features/Stacks/) — Primary asset (large) + autres assets + setPrimary + removeFromStack
-- `CreateStackSheet` (Features/Stacks/) — Choose photos + optional name + CTA Create
-- `StackSheet` (PhotoViewer) — Tous les assets du stack, "Set as primary", "Remove from stack"
-- `TimelineView` — withStacked: true → composite thumbnail + "+N" badge
+#### Livré
+- **NEW** `Sources/Features/Stacks/StacksViewModel.swift` — liste + CRUD (`loadStacks`, `loadStack`, `createStack`, `deleteStack`, `updatePrimary`, `removeAssetFromStack`) + flux de création (picker paginé via `searchMetadata`, sélection, `canLoadMoreAssets`)
+- **NEW** `Sources/Features/Stacks/StackView.swift` — liste (couverture + compte + «Cover: fichier»), création, swipe «Unstack», navigation vers le détail. Pas de `NavigationStack` propre (poussée depuis la sheet «Me», TagsView pattern)
+- **NEW** `Sources/Features/Stacks/StackDetailView.swift` — couverture en grand, autres membres, «Make cover», «Remove from stack», «Unstack» (confirmation), tap → viewer **sur les membres** (pas le timeline plat)
+- **NEW** `Sources/Features/Stacks/CreateStackSheet.swift` — grille multi-sélection (≥2), compteur + règle explicite, **pas de champ «nom»** (le serveur n'en accepte pas)
+- `AssetReactItem` — `stack` documenté (tuple wire `[stackId, count]`, count sérialisé en **chaîne**) + `stackId`, `stackCount`, `stackedExtraCount` ; `isStacked` teste l'id, plus la vacuité
+- `TimelineViewModel` — `withStacked = true` sur les 6 appels ; `stackSelected()` ordonne les ids selon la grille (le `Set` n'a pas d'ordre et le serveur fait du 1er id la couverture) ; la corbeille reste en `nil`
+- `AssetThumbnailCell` — badge de pile avec icône + `+N` (`stackedExtraCount`), un seul élément d'accessibilité («3 photos in a stack», `identifier: stackBadge`)
+- `TimelineView` — `navigationDestination(item:)` : une tuile empilée ouvre le détail de la pile au lieu du pager plat
+- `ProfileView` — lien «Stacks» dans la section Management ; `DependencyContainer.makeStacksViewModel()` ; VM unique partagé entre le timeline et le hub (`RootView`)
+- `StackSheet` (PhotoViewer) **inchangée** : elle faisait déjà couverture/membre/dissolution (c'était l'AC-3704 d'origine, déjà PASS avant implémentation)
+- Tests (+24) : `StacksViewModelTests` (13), transport des 7 routes/paramètres stacks (`ImmichAPIClientTests`), timeline stacking (3 dans `TimelineViewModelTests`), décodage du tuple wire (`DTOEncodingTests`)
+
+#### Écarts vs la carte d'origine (tous corrigés dans la carte)
+1. AC-3704 était **déjà PASS en pré-état** (la `StackSheet` existante) → réécrit sur le routage du tap timeline.
+2. AC-3705 grepait `withStacked` dans `TimelineView.swift` (où il n'existe pas) → repointé sur le VM + le badge.
+3. AC-3703 exigeait un champ nom de pile que l'API n'a pas → retiré.
+4. AC-3708 bornait la suite à `-ge 200` pour une baseline de 695 → recalé.
+
+#### Pièges à retenir
+- `withStacked` **retire** les non-primaires du bucket (filtre `NOT EXISTS stack.primaryAssetId != asset.id` côté serveur) : toute vue qui l'active doit router le tap vers la pile, sinon ces photos sont inatteignables.
+- Le compteur du tuple est une **chaîne** et inclut la couverture → `stack.count` vaut toujours 2, le badge lit `Int(stack[1]) - 1`.
+- Un `.accessibilityLabel` posé sur un conteneur **fusionne** ses enfants : le texte du badge disparaît de l'arbre XCUITest (utiliser `children: .ignore` + `identifier`).
+- La 1re rangée du timeline vit sous le header de date flottant ; le hub «Me» est une `Form` paresseuse (rows sous le pli absents de l'arbre) → le harnais UI doit scroller avant d'assertir.
 
 #### Endpoint API
-- 7 endpoints déjà wire : searchStacks, createStack, getStack, updateStack, deleteStack, addAssetToStack, removeAssetFromStack
+- 7 endpoints déjà wire, aucun ajout : `searchStacks`, `createStack`, `getStack`, `updateStack`, `deleteStack`, `removeAssetFromStack` (+ `addAssetToStack`, toujours sans appelant — l'ajout d'un asset à une pile existante n'est pas exposé par l'UI)
 
-#### Étapes d'implémentation
-1. Créer `StacksViewModel` dans `Sources/Features/Stacks/`
-2. Créer `StackView` — liste + FAB + navigation
-3. Créer `StackDetailView` — primary + other assets
-4. Créer `CreateStackSheet` — photo picker + name
-5. Étendre `StackSheet` (PhotoViewer) — setPrimary + removeAssetFromStack par asset
-6. Intégrer `withStacked: true` dans `TimelineView` — groupement visuel
-7. Ajouter link "Stacks" dans `ProfileView`
-8. Tests ≥5
-
-#### Tests attendus
-- `Tests/StacksViewModelTests.swift` ≥5 tests : loadStacks, create, delete, updatePrimary, removeAsset
-- Regression : suite ≥ baseline
+#### Suivi (non bloquant)
+- `addAssetToStack` (`POST /api/assets/:stackId/assets`) reste **sans appelant** : l'UI sait créer une pile et en retirer des membres, pas en ajouter à une pile existante. À ouvrir comme item dédié si le besoin apparaît.
+- `TrashViewModel` continue de demander la liste plate (`withStacked: nil`) — volontaire : la corbeille doit montrer chaque asset.
+- Le harnais UI dépend d'un stub local `/tmp/immich_stub_stacks.py` (comme le reste du fichier) : il se skippe sans lui.
 
 ---
 
@@ -683,7 +691,7 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 ### Checklist commune à TOUTES les features
 
 - [ ] `xcodebuild build` réussit sans warning nouveau
-- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 692 tests
+- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 719 tests
 - [ ] Mock dans `MockImmichClient` mis à jour
 - [ ] `DependencyContainer` injecte le nouveau ViewModel
 - [ ] `ProfileView` navigation mise à jour si feature ajoutée
@@ -700,16 +708,9 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 **Shared Links Enriched** : 3 nouvelles méthodes + `ExternalLinkPreviewView.swift` + `UploadFromLinkView.swift`
 **Offline Download** : `OfflineAssetStore.swift` + `OfflineDownloadViewModel.swift` + `OfflineAssetsView.swift`
 **Widgets** : 3 Widget + `WidgetDataProvider.swift` + ImmichWidgetsBundle
-**Stacks UI** : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift`
+**Stacks UI** : ✅ terminé (719 tests verts, 10/10 AC PASS le 2026-09-13). Fichiers : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift` (`Sources/Features/Stacks/`) ; `withStacked = true` dans `TimelineViewModel` + badge `+N` dans `AssetThumbnailCell` + routage du tap vers la pile dans `TimelineView` ; lien «Stacks» dans `ProfileView`. ⚠ `StackSheet` (PhotoViewer) est **inchangée** — elle faisait déjà couverture/membre/dissolution ; l'AC d'origine qui la visait était déjà PASS avant implémentation.
 **i18n** : Localizable.xcstrings ≥200 clés + tous les Views migrés + `LanguageSettingsView.swift` + `AppDateFormat.swift`
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés ; OAuth2 UI ✅ clôturé : 8/8 AC PASS, carte/spec/UI brief réécrits sur la surface réelle, fuite de `isLoading` corrigée — baseline 214 → 692 tests).*
-t + `WidgetDataProvider.swift` + ImmichWidgetsBundle
-**Stacks UI** : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift`
-**i18n** : Localizable.xcstrings ≥200 clés + tous les Views migrés + `LanguageSettingsView.swift` + `AppDateFormat.swift`
-
----
-
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-10 (Backup Auto ✅ clôturé : 5 suites P2 implémentées, AC-LP/AS/LR/NP/LO PASS + AC-BK01..BK10 et AC-1040..1056 re-vérifiés ; OAuth2 UI ✅ clôturé : 8/8 AC PASS, carte/spec/UI brief réécrits sur la surface réelle, fuite de `isLoading` corrigée — baseline 214 → 692 tests).*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 (Stacks UI ✅ clôturé : 10/10 AC PASS, carte AC réécrite sur la surface réelle + harnais XCUITest de bout en bout — baseline 695 → 719 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`).*

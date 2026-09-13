@@ -195,4 +195,74 @@ final class ImmichRenderScreenshots: XCTestCase {
         sleep(3)
         shot("09-albums")
     }
+
+    /// Stacks (gap #1) against a stub that returns one 3-photo stack: the
+    /// timeline tile must show the stack badge, tapping it must open the stack
+    /// detail (the bucket carries only the cover), and the «Me» hub must list
+    /// the same stack.
+    ///
+    /// Needs the stacks stub, which also serves the timeline bucket:
+    ///
+    ///     python3 /tmp/immich_stub_stacks.py 8421
+    func test_03_stacksBadgeDetailAndHub() throws {
+        setProvider("auto")
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(5)
+        shot("10-timeline")
+
+        // 3 members → the cover advertises the 2 photos behind it.
+        let badge = app.descendants(matching: .any).matching(identifier: "stackBadge").firstMatch
+        for _ in 0..<4 where !badge.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(badge.waitForExistence(timeout: 20),
+                      "stack badge missing on the cover tile (withStacked column not rendered)")
+        shot("11-timeline-stack-badge")
+
+        badge.tap()
+        XCTAssertTrue(app.staticTexts["Cover"].waitForExistence(timeout: 15),
+                      "tapping a stacked tile did not open the stack detail")
+        sleep(2)
+        shot("12-stack-detail")
+
+        // Back out of the pushed detail (the timeline hides its bar in browse
+        // mode, so this also proves the destination puts a back affordance up).
+        let back = app.navigationBars.firstMatch.buttons.firstMatch
+        if back.waitForExistence(timeout: 5) {
+            shot("13-stack-detail-back-button")
+            back.tap()
+        } else {
+            app.swipeRight()
+        }
+        sleep(2)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(4)
+
+        // The Management section sits below Storage, past the first screenful —
+        // a Form only publishes what it has rendered.
+        let stacksRow = app.buttons["Stacks"]
+        for _ in 0..<4 where !stacksRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        shot("14-profile-me")
+        XCTAssertTrue(stacksRow.waitForExistence(timeout: 10), "Stacks row missing in the Me hub")
+        stacksRow.tap()
+        sleep(3)
+        shot("15-stacks-hub")
+        XCTAssertTrue(app.staticTexts["3 photos"].waitForExistence(timeout: 15),
+                      "the hub did not list the stack")
+    }
 }

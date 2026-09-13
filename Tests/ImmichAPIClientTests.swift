@@ -647,6 +647,141 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(body["codeVerifier"] as? String, "verifier-1")
     }
 
+    // MARK: - Stacks (gap #1)
+
+    /// The routes were pinned by names in the acceptance card; these four
+    /// exercise them on a recorded transport so a wrong path or verb fails the
+    /// suite instead of silently 404ing a live server (the OAuth-route defect
+    /// this repo shipped once already).
+    func test_stacks_searchStacksHitsGetStacks() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id":"s1","primaryAssetId":"a1","assets":[]}]
+        """.data(using: .utf8)!
+
+        let stacks = try await client.searchStacks(primaryAssetId: nil)
+
+        XCTAssertEqual(stacks.map(\.id), ["s1"])
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/stacks")
+        XCTAssertEqual(captured.url?.query, nil, "no filter unless asked")
+    }
+
+    func test_stacks_searchStacksEncodesPrimaryAssetFilter() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+
+        _ = try await client.searchStacks(primaryAssetId: "asset-9")
+
+        let query = CapturingURLProtocol.lastRequest?.url?.query ?? ""
+        XCTAssertTrue(query.contains("primaryAssetId=asset-9"))
+    }
+
+    func test_stacks_createPostsAssetIds() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id":"s1","primaryAssetId":"a1","assets":[]}
+        """.data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 201
+
+        let stack = try await client.createStack(assetIds: ["a1", "a2"])
+
+        XCTAssertEqual(stack.id, "s1")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/stacks")
+        XCTAssertEqual(try decodedBody()["assetIds"] as? [String], ["a1", "a2"])
+    }
+
+    func test_stacks_updatePrimaryPutsStacksId() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id":"s1","primaryAssetId":"a2","assets":[]}
+        """.data(using: .utf8)!
+
+        let stack = try await client.updateStack(id: "s1", primaryAssetId: "a2")
+
+        XCTAssertEqual(stack.primaryAssetId, "a2")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/stacks/s1")
+        XCTAssertEqual(try decodedBody()["primaryAssetId"] as? String, "a2")
+    }
+
+    func test_stacks_deleteRemovesStack() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.deleteStack(id: "s1")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/stacks/s1")
+    }
+
+    func test_stacks_removeAssetHitsStackAssetsAnd() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.removeAssetFromStack(stackId: "s1", assetId: "a2")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/stacks/s1/assets/a2")
+    }
+
+    /// `withStacked` is the switch that collapses stacks server-side — the
+    /// timeline must send `true`, not only check the box in the query builder.
+    func test_stacks_timelineRequestsStackedPrimaries() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+
+        _ = try await client.getTimeBuckets(
+            isFavorite: nil, isTrashed: nil, personId: nil,
+            withPartners: nil, visibility: nil, withStacked: true
+        )
+        let bucketsQuery = CapturingURLProtocol.lastRequest?.url?.query ?? ""
+        XCTAssertTrue(bucketsQuery.contains("withStacked=true"))
+
+        CapturingURLProtocol.nextData = """
+        {"id":[],"ownerId":[],"ratio":[],"isFavorite":[],"visibility":[],"isTrashed":[],
+         "isImage":[],"thumbhash":[],"createdAt":[],"fileCreatedAt":[],"localOffsetHours":[],
+         "duration":[],"livePhotoVideoId":[],"projectionType":[],"stack":[]}
+        """.data(using: .utf8)!
+
+        _ = try await client.getTimeBucket(
+            timeBucket: "2024-07-01", personId: nil,
+            withPartners: nil, visibility: nil, withStacked: true
+        )
+        let bucketQuery = CapturingURLProtocol.lastRequest?.url?.query ?? ""
+        XCTAssertTrue(bucketQuery.contains("withStacked=true"))
+    }
+
     /// RFC 7636: S256 challenge is base64url(SHA256(verifier)) with no padding,
     /// and stays stable for a given verifier.
     func test_pkceChallengeIsS256OfVerifier() {

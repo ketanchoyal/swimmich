@@ -81,6 +81,7 @@ private struct AuthenticatedRoot: View {
     @State private var memories: MemoriesViewModel
     @State private var duplicates: DuplicatesViewModel
     @State private var tags: TagsViewModel
+    @State private var stacks: StacksViewModel
     @State private var admin: AdminViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
@@ -103,13 +104,14 @@ private struct AuthenticatedRoot: View {
         _memories = State(initialValue: container.makeMemoriesViewModel())
         _duplicates = State(initialValue: container.makeDuplicatesViewModel())
         _tags = State(initialValue: container.makeTagsViewModel())
+        _stacks = State(initialValue: container.makeStacksViewModel())
         _admin = State(initialValue: container.makeAdminViewModel())
     }
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
-                TimelineView(vm: timeline, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
+                TimelineView(vm: timeline, stacks: stacks, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
             }
             Tab("Memories", systemImage: "sparkles.rectangle.stack", value: RootTab.memories) {
                 MemoriesView(vm: memories)
@@ -170,7 +172,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, admin: admin)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, admin: admin)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

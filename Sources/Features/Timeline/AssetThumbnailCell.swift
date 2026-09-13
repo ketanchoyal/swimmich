@@ -121,9 +121,10 @@ struct AssetThumbnailCell: View {
         }
     }
 
-    /// 360° pill + stack badge — top-leading, stacked vertically when both
-    /// apply (rare). The stack badge marks assets that belong to a stack
-    /// (gap #1, Photos parity).
+    /// 360° pill + stack cover — top-leading, stacked vertically when both
+    /// apply (rare). A stacked tile is the stack's **cover**: the badge carries
+    /// how many photos sit behind it (gap #1, Photos parity), since `withStacked`
+    /// keeps only the primary in the bucket.
     @ViewBuilder
     private var topLeadingBadges: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -132,12 +133,30 @@ struct AssetThumbnailCell: View {
             }
             if asset.isStacked {
                 badge {
-                    Image(systemName: "square.stack.fill")
+                    HStack(spacing: 3) {
+                        Image(systemName: "square.stack.fill").font(.system(size: 8)) // DS-exempt: badge micro-glyph §8.6
+                        if let extra = asset.stackedExtraCount, extra > 0 {
+                            Text("+\(extra)").monospacedDigit()
+                        }
+                    }
                 }
+                // One element, one sentence: the glyph and the count are a
+                // single piece of information, not two.
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier("stackBadge")
+                .accessibilityLabel(accessibilityStackLabel)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(4)
+    }
+
+    /// Spoken form of the stack badge ("5 photos in a stack").
+    private var accessibilityStackLabel: String {
+        guard let count = asset.stackCount else { return String(localized: "In a stack") }
+        return count == 1
+            ? String(localized: "1 photo in a stack")
+            : String(localized: "\(count) photos in a stack")
     }
 
     /// Video play + duration — bottom-trailing. Hidden in selection mode:

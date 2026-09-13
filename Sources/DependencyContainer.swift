@@ -126,6 +126,10 @@ final class DependencyContainer {
         TagsViewModel(client: client as any ImmichClient)
     }
 
+    func makeStacksViewModel() -> StacksViewModel {
+        StacksViewModel(client: client as any ImmichClient)
+    }
+
     func makeAdminViewModel() -> AdminViewModel {
         AdminViewModel(client: client as any ImmichClient)
     }
