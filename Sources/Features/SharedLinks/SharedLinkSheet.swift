@@ -84,31 +84,42 @@ struct SharedLinkSheet: View {
         }
     }
 
+    /// Hairline between two rows of the "New Link" card.
+    ///
+    /// Drawn explicitly instead of with `Divider()`: SwiftUI silently dropped a
+    /// `Divider()` placed after the password `Toggle` in this very VStack (the
+    /// rendered card had 3 rules for 4 in the code), so the card's rhythm cannot
+    /// be handed to a `Divider()`. Same reasoning as `LoginScreen.orRule`.
+    private var cardRule: some View {
+        Rectangle()
+            .fill(Color.separatorPV)
+            .frame(height: 1)
+    }
+
     private var createSection: some View {
         Section {
-            // Three groups, one rule between each — the card pattern of
-            // `ServerInfoCard`: the padding lives on the VStack, so every rule
-            // is inset to the row content instead of spanning the card edge to
-            // edge. A plain `Divider()` per row both ran full width (the rows
-            // inset themselves, the divider did not) and one of them silently
-            // never rendered — SwiftUI dropped the rule between the password
-            // toggle and the custom-URL row — so the card's rhythm disagreed
-            // with its own code. Grouping makes it deterministic.
+            // Card of rows with a hairline between each — the house pattern
+            // (`ServerInfoCard`, `PVInputGroup`): the horizontal padding lives on
+            // this VStack and the vertical padding on each row, so every rule is
+            // inset to the row content rather than spanning the card edge to edge.
+            // Rows use `s12` vertically, the padding `InfoRow` uses, so the card
+            // breathes like the other cards in the app.
             VStack(spacing: PVSpacing.s0) {
                 TextField("Description (optional)", text: $description)
                     .padding(.vertical, PVSpacing.s12)
 
-                Divider()
+                cardRule
 
-                // Options. One group on purpose: a toggle is not separated from
-                // the field it reveals, and the slug and the expiry are the two
-                // halves of the same setting (how the link is reached).
                 Toggle("Password protect", isOn: $usePassword)
-                    .padding(.vertical, PVSpacing.s8)
+                    .padding(.vertical, PVSpacing.s12)
                 if usePassword {
+                    cardRule
                     SecureField("Password", text: $password)
                         .padding(.vertical, PVSpacing.s12)
                 }
+
+                cardRule
+
                 HStack(spacing: 0) {
                     if !slug.isEmpty {
                         Text("/s/")
@@ -122,10 +133,12 @@ struct SharedLinkSheet: View {
                 }
                 .padding(.vertical, PVSpacing.s12)
 
-                SharedLinkExpiryPicker(date: $expiresAt)
-                    .padding(.vertical, PVSpacing.s8)
+                cardRule
 
-                Divider()
+                SharedLinkExpiryPicker(date: $expiresAt)
+                    .padding(.vertical, PVSpacing.s12)
+
+                cardRule
 
                 Button {
                     Task {
@@ -152,6 +165,17 @@ struct SharedLinkSheet: View {
             .background(Color(uiColor: .secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
             .listRowBackground(Color.clear)
+            // The List draws two different rules around this row, and both read
+            // as a stray line under the card (measured on a rendered sheet: the
+            // row separator lands ~2.5pt below the card's bottom edge and spans
+            // exactly the card's width, because it inherits the row insets).
+            //   - `.listRowSeparator` — the hairline at the bottom of the row;
+            //   - `.listSectionSeparator` — the line at the section boundary,
+            //     plus the one under the section header, above the card.
+            // The card carries its own rules; the list adds nothing
+            // (`SharedLinkRow` hides its own for the same reason).
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
             .listRowInsets(EdgeInsets(
                 top: PVSpacing.s4,
                 leading: PVSpacing.s16,
@@ -202,6 +226,7 @@ struct SharedLinkSheet: View {
                     }
                 }
                 .tint(.red)
+                .listSectionSeparator(.hidden)
             }
         }
     }
@@ -209,7 +234,9 @@ struct SharedLinkSheet: View {
 
 #if DEBUG
 // Layout review surface for this sheet — it is otherwise reachable only through
-// a live album detail flow. Renders the "New Link" card plus one existing link.
+// a live album detail flow. Renders the "New Link" card plus one existing link
+// directly (not inside a `.sheet`): that is the faithful context, and it is the
+// one whose pixels were measured when tuning the card's rules and spacing.
 #Preview("Shared link sheet") {
     let vm = AlbumDetailViewModel(client: DependencyContainer.shared.client, albumId: "preview")
     vm.sharedLinks = [

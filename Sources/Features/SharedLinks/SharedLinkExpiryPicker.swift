@@ -76,12 +76,44 @@ struct SharedLinkExpiryPicker: View {
     }
 
     var body: some View {
-        Picker("Expiration", selection: $selection) {
-            ForEach(Selection.allCases, id: \.self) { option in
-                option.label.tag(option)
+        // A VStack, not a bare tuple: the body returns two siblings (the picker
+        // and, below it, the custom date picker or the resolved moment) and the
+        // card's VStack has zero spacing — so without this they were glued to
+        // each other.
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
+            // The label goes through an explicit `Text` on purpose: this
+            // project's string extractor does not pick up a `Picker` or
+            // `DatePicker` *title*, so `Picker("Expiration", …)` /
+            // `DatePicker("Expiry date", …)` never reach
+            // `Resources/Localizable.xcstrings` (verified in the extractor's own
+            // per-file output, where every `Text` literal of this file appears
+            // and neither title does).
+            Picker(selection: $selection) {
+                ForEach(Selection.allCases, id: \.self) { option in
+                    option.label.tag(option)
+                }
+            } label: {
+                Text("Expiration")
+            }
+            .accessibilityIdentifier("sharedLinkExpiryPicker")
+
+            if selection == .custom, let current = date {
+                DatePicker(
+                    selection: Binding(get: { current }, set: { date = $0 }),
+                    in: Date()...,
+                    displayedComponents: [.date, .hourAndMinute]
+                ) {
+                    Text("Expiry date")
+                }
+            } else if let current = date {
+                // A preset was chosen: state the resulting moment, so the choice
+                // is verifiable rather than implied.
+                Text("Expires \(current.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.textSecondaryPV)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .accessibilityIdentifier("sharedLinkExpiryPicker")
         .onChange(of: selection) { _, newValue in
             switch newValue {
             case .never:
@@ -95,21 +127,6 @@ struct SharedLinkExpiryPicker: View {
                     date = Date().addingTimeInterval(seconds)
                 }
             }
-        }
-
-        if selection == .custom, let current = date {
-            DatePicker(
-                "Expiry date",
-                selection: Binding(get: { current }, set: { date = $0 }),
-                in: Date()...,
-                displayedComponents: [.date, .hourAndMinute]
-            )
-        } else if let current = date {
-            // A preset was chosen: state the resulting moment, so the choice is
-            // verifiable rather than implied.
-            Text("Expires \(current.formatted(date: .abbreviated, time: .shortened))")
-                .font(.pvCaption)
-                .foregroundStyle(Color.textSecondaryPV)
         }
     }
 }
