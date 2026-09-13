@@ -47,18 +47,25 @@ struct SharedLinkExpiryPicker: View {
             }
         }
 
-        var label: LocalizedStringKey {
+        /// The row's title. A `@ViewBuilder` switch of `Text` literals rather
+        /// than a computed `LocalizedStringKey`: a key produced by a switch
+        /// expression (or a ternary) is invisible to Xcode's string extractor,
+        /// so those keys get pruned from the catalog and never reach
+        /// translators. Each literal sits in a `Text(...)` call the extractor
+        /// can see.
+        @ViewBuilder
+        var label: some View {
             switch self {
-            case .never: "Never"
-            case .thirtyMinutes: "30 minutes"
-            case .oneHour: "1 hour"
-            case .sixHours: "6 hours"
-            case .oneDay: "1 day"
-            case .sevenDays: "7 days"
-            case .thirtyDays: "30 days"
-            case .ninetyDays: "90 days"
-            case .oneYear: "1 year"
-            case .custom: "Custom…"
+            case .never: Text("Never")
+            case .thirtyMinutes: Text("30 minutes")
+            case .oneHour: Text("1 hour")
+            case .sixHours: Text("6 hours")
+            case .oneDay: Text("1 day")
+            case .sevenDays: Text("7 days")
+            case .thirtyDays: Text("30 days")
+            case .ninetyDays: Text("90 days")
+            case .oneYear: Text("1 year")
+            case .custom: Text("Custom…")
             }
         }
     }
@@ -71,7 +78,7 @@ struct SharedLinkExpiryPicker: View {
     var body: some View {
         Picker("Expiration", selection: $selection) {
             ForEach(Selection.allCases, id: \.self) { option in
-                Text(option.label).tag(option)
+                option.label.tag(option)
             }
         }
         .accessibilityIdentifier("sharedLinkExpiryPicker")

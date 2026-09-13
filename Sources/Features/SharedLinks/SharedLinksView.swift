@@ -357,17 +357,25 @@ struct CreateSharedLinkSheet: View {
         NavigationStack {
             Group {
                 if let created {
+                    // Each title literal sits in its own `navigationTitle` call:
+                    // a ternary's strings are invisible to the extractor.
                     readyPanel(for: created)
+                        .navigationTitle("Link ready")
                 } else {
                     form
+                        .navigationTitle("New Shared Link")
                 }
             }
-            .navigationTitle(created == nil ? "New Shared Link" : "Link ready")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(created == nil ? "Cancel" : "Done") { dismiss() }
-                        .accessibilityIdentifier(created == nil ? "cancelCreateSharedLink" : "closeSharedLinkSheet")
+                    if created == nil {
+                        Button("Cancel") { dismiss() }
+                            .accessibilityIdentifier("cancelCreateSharedLink")
+                    } else {
+                        Button("Done") { dismiss() }
+                            .accessibilityIdentifier("closeSharedLinkSheet")
+                    }
                 }
                 if created == nil {
                     ToolbarItem(placement: .confirmationAction) {
@@ -446,8 +454,13 @@ struct CreateSharedLinkSheet: View {
                     copiedTick &+= 1
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { didCopyLink = false }
                 } label: {
-                    Label(didCopyLink ? "Copied" : "Copy link",
-                          systemImage: didCopyLink ? "checkmark" : "doc.on.doc")
+                    // Two literal labels instead of one ternary: `Label(didCopyLink
+                    // ? "Copied" : "Copy link", …)` produces no extractable string.
+                    if didCopyLink {
+                        Label("Copied", systemImage: "checkmark")
+                    } else {
+                        Label("Copy link", systemImage: "doc.on.doc")
+                    }
                 }
                 .buttonStyle(PVPrimaryButtonStyle())
                 .accessibilityIdentifier("sharedLinkReadyCopy")

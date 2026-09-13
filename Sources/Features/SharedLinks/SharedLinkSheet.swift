@@ -86,21 +86,29 @@ struct SharedLinkSheet: View {
 
     private var createSection: some View {
         Section {
+            // Three groups, one rule between each — the card pattern of
+            // `ServerInfoCard`: the padding lives on the VStack, so every rule
+            // is inset to the row content instead of spanning the card edge to
+            // edge. A plain `Divider()` per row both ran full width (the rows
+            // inset themselves, the divider did not) and one of them silently
+            // never rendered — SwiftUI dropped the rule between the password
+            // toggle and the custom-URL row — so the card's rhythm disagreed
+            // with its own code. Grouping makes it deterministic.
             VStack(spacing: PVSpacing.s0) {
                 TextField("Description (optional)", text: $description)
-                    .padding(.horizontal, PVSpacing.s16)
                     .padding(.vertical, PVSpacing.s12)
+
                 Divider()
+
+                // Options. One group on purpose: a toggle is not separated from
+                // the field it reveals, and the slug and the expiry are the two
+                // halves of the same setting (how the link is reached).
                 Toggle("Password protect", isOn: $usePassword)
-                    .padding(.horizontal, PVSpacing.s16)
                     .padding(.vertical, PVSpacing.s8)
                 if usePassword {
-                    Divider()
                     SecureField("Password", text: $password)
-                        .padding(.horizontal, PVSpacing.s16)
                         .padding(.vertical, PVSpacing.s12)
                 }
-                Divider()
                 HStack(spacing: 0) {
                     if !slug.isEmpty {
                         Text("/s/")
@@ -112,13 +120,13 @@ struct SharedLinkSheet: View {
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("sharedLinkSlugField")
                 }
-                .padding(.horizontal, PVSpacing.s16)
                 .padding(.vertical, PVSpacing.s12)
-                Divider()
+
                 SharedLinkExpiryPicker(date: $expiresAt)
-                    .padding(.horizontal, PVSpacing.s16)
                     .padding(.vertical, PVSpacing.s8)
+
                 Divider()
+
                 Button {
                     Task {
                         await vm.createSharedLink(
@@ -138,8 +146,9 @@ struct SharedLinkSheet: View {
                 }
                 .disabled(vm.isLoading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(PVSpacing.s16)
+                .padding(.vertical, PVSpacing.s16)
             }
+            .padding(.horizontal, PVSpacing.s16)
             .background(Color(uiColor: .secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: PVRadius.lg, style: .continuous))
             .listRowBackground(Color.clear)
@@ -197,3 +206,21 @@ struct SharedLinkSheet: View {
         }
     }
 }
+
+#if DEBUG
+// Layout review surface for this sheet — it is otherwise reachable only through
+// a live album detail flow. Renders the "New Link" card plus one existing link.
+#Preview("Shared link sheet") {
+    let vm = AlbumDetailViewModel(client: DependencyContainer.shared.client, albumId: "preview")
+    vm.sharedLinks = [
+        SharedLinkResponseDto(
+            id: "link-1", description: "Trip", password: nil, userId: "owner", key: "a2V5",
+            type: .album, createdAt: "2026-01-01T00:00:00.000Z", expiresAt: nil,
+            assets: [], album: nil, allowUpload: false, allowDownload: true,
+            showMetadata: true, slug: "trip-2026"
+        )
+    ]
+    return SharedLinkSheet(vm: vm)
+        .environment(DependencyContainer.shared.makeAuthViewModel())
+}
+#endif
