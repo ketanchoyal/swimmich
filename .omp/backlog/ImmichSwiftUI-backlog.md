@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **719 tests** (mesurée le 2026-09-13, TEST SUCCEEDED).
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **724 tests** (mesurée le 2026-09-13, TEST SUCCEEDED).
 
 ---
 
@@ -356,44 +356,46 @@ Téléchargement d'assets pour consultation hors-ligne. Cache FileManager local,
 **Fichier spec** : `.omp/stacks-ui/stacks-ui.specs.md`
 **Card AC** : `.opencode/scratch/stacks-ui.acceptance.md`
 **UI brief** : `.omp/stacks-ui/stacks-ui.ui.md`
-**AC Cards** : AC-3700 – AC-3709
+**AC Cards** : AC-3700 – AC-3711
 **Phase** : P3 — Social
 
 #### Résultat (2026-09-13)
-AC-3700 – AC-3709 **PASS** (10/10, checks rejoués depuis la carte). Suite complète **719 tests, TEST SUCCEEDED** (iPhone 17, baseline mesurée 695 avant implémentation). Vérification d'exécution réelle : XCUITest `ImmichRenderScreenshots/test_03_stacksBadgeDetailAndHub` — badge de pile sur la tuile du timeline → tap → détail de la pile → retour → hub «Me» → «Stacks» liste la pile (captures `/tmp/shot-11-timeline-stack-badge.png`, `/tmp/shot-12-stack-detail.png`, `/tmp/shot-15-stacks-hub.png`).
+AC-3700 – AC-3711 **PASS** (12/12, checks rejoués depuis la carte). Suite complète **724 tests, TEST SUCCEEDED** (iPhone 17, baseline mesurée 695 avant implémentation). Vérification d'exécution réelle, 3 scénarios XCUITest contre un stub Immich local : badge de pile → détail → hub ; **ajout d'une photo à une pile existante** (couverture conservée, nouvel id suivi) ; création d'une pile depuis le hub. Captures : `/tmp/shot-1{1,2,5,9}-*.png`, `/tmp/shot-2{0,1,2}-*.png`.
 
 #### Livré
-- **NEW** `Sources/Features/Stacks/StacksViewModel.swift` — liste + CRUD (`loadStacks`, `loadStack`, `createStack`, `deleteStack`, `updatePrimary`, `removeAssetFromStack`) + flux de création (picker paginé via `searchMetadata`, sélection, `canLoadMoreAssets`)
-- **NEW** `Sources/Features/Stacks/StackView.swift` — liste (couverture + compte + «Cover: fichier»), création, swipe «Unstack», navigation vers le détail. Pas de `NavigationStack` propre (poussée depuis la sheet «Me», TagsView pattern)
-- **NEW** `Sources/Features/Stacks/StackDetailView.swift` — couverture en grand, autres membres, «Make cover», «Remove from stack», «Unstack» (confirmation), tap → viewer **sur les membres** (pas le timeline plat)
-- **NEW** `Sources/Features/Stacks/CreateStackSheet.swift` — grille multi-sélection (≥2), compteur + règle explicite, **pas de champ «nom»** (le serveur n'en accepte pas)
-- `AssetReactItem` — `stack` documenté (tuple wire `[stackId, count]`, count sérialisé en **chaîne**) + `stackId`, `stackCount`, `stackedExtraCount` ; `isStacked` teste l'id, plus la vacuité
-- `TimelineViewModel` — `withStacked = true` sur les 6 appels ; `stackSelected()` ordonne les ids selon la grille (le `Set` n'a pas d'ordre et le serveur fait du 1er id la couverture) ; la corbeille reste en `nil`
-- `AssetThumbnailCell` — badge de pile avec icône + `+N` (`stackedExtraCount`), un seul élément d'accessibilité («3 photos in a stack», `identifier: stackBadge`)
-- `TimelineView` — `navigationDestination(item:)` : une tuile empilée ouvre le détail de la pile au lieu du pager plat
-- `ProfileView` — lien «Stacks» dans la section Management ; `DependencyContainer.makeStacksViewModel()` ; VM unique partagé entre le timeline et le hub (`RootView`)
-- `StackSheet` (PhotoViewer) **inchangée** : elle faisait déjà couverture/membre/dissolution (c'était l'AC-3704 d'origine, déjà PASS avant implémentation)
-- Tests (+24) : `StacksViewModelTests` (13), transport des 7 routes/paramètres stacks (`ImmichAPIClientTests`), timeline stacking (3 dans `TimelineViewModelTests`), décodage du tuple wire (`DTOEncodingTests`)
+- **NEW** `Sources/Features/Stacks/StacksViewModel.swift` — liste, `loadStack`, CRUD, `addPhotos`, flux de picker partagé (pagination `searchMetadata`, `orderedSelection`)
+- **NEW** `StackView.swift` — liste (couverture + compte + «Cover: fichier»), création, swipe «Unstack», navigation. Pas de `NavigationStack` propre
+- **NEW** `StackDetailView.swift` — couverture, «Make cover», «Remove from stack», **«Add photos»**, «Unstack» (confirmation), viewer sur les membres ; `stackId` **mutable** (l'ajout change l'id côté serveur)
+- **NEW** `StackPhotoPicker.swift` — grille multi-sélection paginée, **partagée** par `CreateStackSheet` et `AddToStackSheet`, avec `excluding:` pour ne pas reproposer les membres
+- **NEW** `CreateStackSheet.swift` / `AddToStackSheet.swift` — coquilles minces autour du picker
+- `AssetReactItem` — `stackId`, `stackCount`, `stackedExtraCount` ; commentaire du champ `stack` corrigé (tuple wire, count en **chaîne**, couverture incluse)
+- `TimelineViewModel` — `withStacked = true` sur les 6 appels ; `stackSelected()` ordonne par position dans la grille (le 1er id devient la couverture) ; corbeille laissée en `nil`
+- `AssetThumbnailCell` — badge de pile `+N`, un seul élément d'accessibilité
+- `TimelineView` — `navigationDestination(item:)` : une tuile empilée ouvre le détail de la pile, pas le pager plat
+- `ProfileView` / `DependencyContainer` / `RootView` — lien «Stacks», `makeStacksViewModel()`, VM unique partagé timeline + hub
+- Tests (+29 unitaires, +3 scénarios XCUITest) : `StacksViewModelTests` (18), routes stacks (7), timeline stacking (3), décodage du tuple wire (1)
 
-#### Écarts vs la carte d'origine (tous corrigés dans la carte)
-1. AC-3704 était **déjà PASS en pré-état** (la `StackSheet` existante) → réécrit sur le routage du tap timeline.
-2. AC-3705 grepait `withStacked` dans `TimelineView.swift` (où il n'existe pas) → repointé sur le VM + le badge.
-3. AC-3703 exigeait un champ nom de pile que l'API n'a pas → retiré.
-4. AC-3708 bornait la suite à `-ge 200` pour une baseline de 695 → recalé.
+#### Ajouter une photo à une pile — le contrat réel
+**Aucune route n'ajoute un asset à une pile.** Vérifié sur l'OpenAPI publié (`main` : 7 opérations ; `v1.135.0` : 6) et sur `server/src/controllers/stack.controller.ts` : la surface est `GET/POST /stacks`, `GET/PUT/DELETE /stacks/{id}`, `DELETE /stacks/{id}/assets/{assetId}`. Le `POST /api/assets/:stackId/assets` que ce backlog annonçait **n'existe pas** (il a été retiré de la table de référence).
 
-#### Pièges à retenir
-- `withStacked` **retire** les non-primaires du bucket (filtre `NOT EXISTS stack.primaryAssetId != asset.id` côté serveur) : toute vue qui l'active doit router le tap vers la pile, sinon ces photos sont inatteignables.
-- Le compteur du tuple est une **chaîne** et inclut la couverture → `stack.count` vaut toujours 2, le badge lit `Int(stack[1]) - 1`.
-- Un `.accessibilityLabel` posé sur un conteneur **fusionne** ses enfants : le texte du badge disparaît de l'arbre XCUITest (utiliser `children: .ignore` + `identifier`).
-- La 1re rangée du timeline vit sous le header de date flottant ; le hub «Me» est une `Form` paresseuse (rows sous le pli absents de l'arbre) → le harnais UI doit scroller avant d'assertir.
+Le chemin sanctionné est le contrat de fusion de `POST /api/stacks` (« If any of the provided asset IDs are primary assets of an existing stack, the existing stack will be merged into the newly created stack »). `StackRepository.create` l'implémente en cherchant les piles possédées dont la `primaryAssetId` figure dans le payload, en absorbant **tous** leurs membres, en supprimant ces piles, puis en insérant une pile neuve avec `primaryAssetId = assetIds[0]` et en re-parentant chaque asset collecté. Trois conséquences encodées dans `StacksViewModel.addPhotos` :
+1. la **couverture courante doit ouvrir le payload** (`assetIds[0]` devient la primaire — poster les nouvelles photos d'abord volerait la couverture) ;
+2. **l'id de la pile change** (suppression + réinsertion) : la méthode renvoie le nouvel id et `StackDetailView` le suit, sinon l'écran pointe une pile morte ;
+3. un asset n'appartient qu'à **une** pile : une photo déjà empilée est déplacée, et choisir la couverture d'une autre pile fusionne toute cette pile (comportement documenté du serveur).
 
-#### Endpoint API
-- 7 endpoints déjà wire, aucun ajout : `searchStacks`, `createStack`, `getStack`, `updateStack`, `deleteStack`, `removeAssetFromStack` (+ `addAssetToStack`, toujours sans appelant — l'ajout d'un asset à une pile existante n'est pas exposé par l'UI)
+#### Pièges rencontrés
+- **Le tap de la grille du picker ne sélectionnait rien** : `AssetThumbnailCell` porte son propre `onTapGesture`, qui gagne sur l'action d'un `Button` englobant et **avale** le tap. La grille s'affichait, ne sélectionnait jamais. Corrigé en passant `onTap:` à la cellule ; le défaut touchait aussi `CreateStackSheet` depuis sa livraison — seul un test d'exécution pouvait le voir.
+- **Les libellés de CTA sont localisés** (« Create » → « Créer ») : les tests UI visent des `accessibilityIdentifier`, jamais le texte affiché.
+- Un `.accessibilityLabel` posé sur un conteneur **fusionne** ses enfants (le `+2` du badge disparaissait de l'arbre XCUITest → `children: .ignore` + `identifier`).
+- La 1re rangée du timeline vit sous le header de date flottant, et le hub «Me» est une `Form` paresseuse : le harnais UI scrolle avant d'assertir.
+- Côté stub : un tableau `ratio` plus court que `id` fait rendre un **timeline vide** (garde-fou FM-1 d'`AssetReactItem.zip`), et l'état serveur survit d'un test à l'autre sans `GET /__reset`.
 
 #### Suivi (non bloquant)
-- `addAssetToStack` (`POST /api/assets/:stackId/assets`) reste **sans appelant** : l'UI sait créer une pile et en retirer des membres, pas en ajouter à une pile existante. À ouvrir comme item dédié si le besoin apparaît.
-- `TrashViewModel` continue de demander la liste plate (`withStacked: nil`) — volontaire : la corbeille doit montrer chaque asset.
-- Le harnais UI dépend d'un stub local `/tmp/immich_stub_stacks.py` (comme le reste du fichier) : il se skippe sans lui.
+- `TrashViewModel` demande toujours la liste plate (`withStacked: nil`) — volontaire : la corbeille doit montrer chaque asset.
+- Le harnais UI dépend d'un stub local `/tmp/immich_stub_stacks.py` : il se skippe sans lui.
+
+#### Endpoint API
+- 6 routes déjà wire, **aucun ajout** : `searchStacks`, `createStack` (qui sert aussi à **étendre** une pile par fusion), `getStack`, `updateStack`, `deleteStack`, `removeAssetFromStack`.
 
 ---
 
@@ -663,12 +665,11 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 | POST | /api/shared-links | createSharedLink() | Shared links |
 | DELETE | /api/shared-links/:id | deleteSharedLink() | Shared links |
 | GET | /api/stacks | searchStacks() | Stacks |
-| POST | /api/stacks | createStack() | Stacks |
+| POST | /api/stacks | createStack() | Stacks — **sert aussi à étendre une pile** (contrat de fusion, cf. §2.9) |
 | GET | /api/stacks/:id | getStack() | Stacks |
-| PATCH | /api/stacks/:id | updateStack() | Stacks |
+| PUT | /api/stacks/:id | updateStack() | Stacks |
 | DELETE | /api/stacks/:id | deleteStack() | Stacks |
 | DELETE | /api/stacks/:id/assets/:assetId | removeAssetFromStack() | Stacks |
-| POST | /api/assets/:stackId/assets | addAssetToStack() | Stacks |
 | GET | /api/assets/:id/original | downloadAsset() | Offline |
 
 ### Endpoints manquants vs Flutter
@@ -684,6 +685,8 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 
 **Champs manquants (pas des endpoints)** — `POST /api/assets` n'envoie ni `deviceAssetId` ni `deviceId` (`ImmichAPIClient.swift:480-491`). Corrigé par §2.13 ; prérequis de toute réconciliation par appareil.
 
+**Endpoints fantômes retirés** — `POST /api/assets/:stackId/assets` était listé ici comme « addAssetToStack ». Il **n'existe pas** : l'OpenAPI publié ne l'expose ni sur `main` (7 opérations `stacks`) ni sur `v1.135.0` (6), et `server/src/controllers/stack.controller.ts` ne déclare aucun ajout de membre. Étendre une pile = `POST /api/stacks` avec la couverture **en tête** du payload (contrat de fusion — cf. §2.9). Corollaire de méthode : une route recopiée de mémoire dans un backlog finit par être crue ; chaque endpoint cité doit être adossé à l'OpenAPI du serveur.
+
 ---
 
 ## Checklists de vérification
@@ -691,7 +694,7 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 ### Checklist commune à TOUTES les features
 
 - [ ] `xcodebuild build` réussit sans warning nouveau
-- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 719 tests
+- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 724 tests
 - [ ] Mock dans `MockImmichClient` mis à jour
 - [ ] `DependencyContainer` injecte le nouveau ViewModel
 - [ ] `ProfileView` navigation mise à jour si feature ajoutée
@@ -708,9 +711,9 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 **Shared Links Enriched** : 3 nouvelles méthodes + `ExternalLinkPreviewView.swift` + `UploadFromLinkView.swift`
 **Offline Download** : `OfflineAssetStore.swift` + `OfflineDownloadViewModel.swift` + `OfflineAssetsView.swift`
 **Widgets** : 3 Widget + `WidgetDataProvider.swift` + ImmichWidgetsBundle
-**Stacks UI** : ✅ terminé (719 tests verts, 10/10 AC PASS le 2026-09-13). Fichiers : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift` (`Sources/Features/Stacks/`) ; `withStacked = true` dans `TimelineViewModel` + badge `+N` dans `AssetThumbnailCell` + routage du tap vers la pile dans `TimelineView` ; lien «Stacks» dans `ProfileView`. ⚠ `StackSheet` (PhotoViewer) est **inchangée** — elle faisait déjà couverture/membre/dissolution ; l'AC d'origine qui la visait était déjà PASS avant implémentation.
+**Stacks UI** : ✅ terminé (724 tests verts, 12/12 AC PASS le 2026-09-13). Fichiers : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `StackPhotoPicker.swift` + `CreateStackSheet.swift` + `AddToStackSheet.swift` (`Sources/Features/Stacks/`) ; `withStacked = true` dans `TimelineViewModel` + badge `+N` dans `AssetThumbnailCell` + routage du tap vers la pile dans `TimelineView` ; lien «Stacks» dans `ProfileView`. ⚠ `StackSheet` (PhotoViewer) est **inchangée** — elle faisait déjà couverture/membre/dissolution ; l'AC d'origine qui la visait était déjà PASS avant implémentation. ⚠ **Aucune route n'ajoute un asset à une pile** : `addPhotos` étend une pile en re-postant `POST /api/stacks` avec la couverture en tête (contrat de fusion), ce qui **change l'id de la pile** — l'écran doit suivre le nouvel id. ⚠ Le tap d'une grille de vignettes passe par `onTap:` d'`AssetThumbnailCell` : l'envelopper dans un `Button` **avale** le tap (défaut silencieux, invisible aux tests unitaires).
 **i18n** : Localizable.xcstrings ≥200 clés + tous les Views migrés + `LanguageSettingsView.swift` + `AppDateFormat.swift`
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 (Stacks UI ✅ clôturé : 10/10 AC PASS, carte AC réécrite sur la surface réelle + harnais XCUITest de bout en bout — baseline 695 → 719 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`).*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 (Stacks UI ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`).*

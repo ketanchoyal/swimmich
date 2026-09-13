@@ -61,6 +61,17 @@ final class ImmichRenderScreenshots: XCTestCase {
         XCTAssertEqual(body, "{\"provider\": \"\(mode)\"}")
     }
 
+    /// Puts the stacks stub back to its initial state (one 3-photo stack).
+    /// Best-effort: the plain OAuth stub has no such route, and those tests
+    /// never look at stacks.
+    private func resetStacks() {
+        var request = URLRequest(url: URL(string: "\(stub)/__reset")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.signal() }.resume()
+        _ = done.wait(timeout: .now() + 6)
+    }
+
     /// Waits for any button whose label contains `text` and taps it.
     ///
     /// Case-sensitive on purpose: the software keyboard's return key is
@@ -206,6 +217,7 @@ final class ImmichRenderScreenshots: XCTestCase {
     ///     python3 /tmp/immich_stub_stacks.py 8421
     func test_03_stacksBadgeDetailAndHub() throws {
         setProvider("auto")
+        resetStacks()
         app.launch()
         if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
             walkOnboardingToLogin()
@@ -264,5 +276,161 @@ final class ImmichRenderScreenshots: XCTestCase {
         shot("15-stacks-hub")
         XCTAssertTrue(app.staticTexts["3 photos"].waitForExistence(timeout: 15),
                       "the hub did not list the stack")
+    }
+
+    /// Adding photos to an existing stack. There is no add-asset route on the
+    /// server: the app re-posts `POST /api/stacks` with the stack's current
+    /// cover first, which makes the server merge it — **and return a new stack
+    /// id**. The stub models that faithfully (the old id 404s), so this test
+    /// fails if the detail screen keeps holding the id it was pushed with.
+    ///
+    /// Needs the stacks stub: `python3 /tmp/immich_stub_stacks.py 8421`
+    func test_04_addPhotosToExistingStack() throws {
+        setProvider("auto")
+        resetStacks()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(5)
+
+        let badge = app.descendants(matching: .any).matching(identifier: "stackBadge").firstMatch
+        shot("16-timeline")
+        for _ in 0..<4 where !badge.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(badge.waitForExistence(timeout: 20), "stack badge missing")
+        badge.tap()
+
+        // The stack the stub started with: aaaa-01.jpg on the cover.
+        XCTAssertTrue(app.staticTexts["aaaa-01.jpg"].waitForExistence(timeout: 15),
+                      "stack detail did not open")
+        shot("17-stack-before-add")
+
+        let addPhotos = app.buttons["addPhotosToStack"]
+        XCTAssertTrue(addPhotos.waitForExistence(timeout: 10), "no 'Add photos' entry point")
+        addPhotos.tap()
+
+        // bbbb-09.jpg belongs to no stack, so it is the photo to add. It sits
+        // behind the stack's own members, which the picker leaves out.
+        let candidate = app.descendants(matching: .any)
+            .matching(identifier: "pickerAsset_bbbbbbbb-2222-4222-8222-000000000009")
+            .firstMatch
+        for _ in 0..<5 where !candidate.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(candidate.waitForExistence(timeout: 15), "pickable photo missing from the grid")
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "pickerAsset_aaaaaaaa-1111-4111-8111-000000000002")
+            .firstMatch.exists,
+            "a photo already in the stack must not be offered again")
+        candidate.tap()
+        shot("18-add-to-stack-picker")
+
+        // Identifiers, not labels: the CTA's label is localized ("Créer"/"Add"
+        // depending on the catalog), the identifier is not.
+        let add = app.buttons["confirmAddToStack"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "Add CTA missing")
+        XCTAssertTrue(add.isEnabled, "tapping a photo did not select it")
+        add.tap()
+        sleep(4)
+
+        // The server re-created the stack under a new id: the screen must have
+        // followed it, kept the cover, and gained the member.
+        XCTAssertTrue(app.staticTexts["bbbb-09.jpg"].waitForExistence(timeout: 20),
+                      "the added photo is not in the stack (detail screen stranded on the dead id?)")
+        XCTAssertTrue(app.staticTexts["aaaa-01.jpg"].exists, "the cover changed")
+        shot("19-stack-after-add")
+
+        let back = app.navigationBars.firstMatch.buttons.firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "no back button on the stack detail")
+        back.tap()
+        sleep(2)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(4)
+        let stacksRow = app.buttons["Stacks"]
+        for _ in 0..<4 where !stacksRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(stacksRow.waitForExistence(timeout: 10), "Stacks row missing in the Me hub")
+        stacksRow.tap()
+        sleep(3)
+        shot("20-stacks-hub-after-add")
+
+        XCTAssertTrue(app.staticTexts["4 photos"].waitForExistence(timeout: 15),
+                      "the hub still shows the stack it had before the add")
+    }
+
+    /// Creating a stack from the hub. Kept as its own flow because the picker is
+    /// where a silent regression hides: `AssetThumbnailCell` carries its own
+    /// `onTapGesture`, so wrapping it in a `Button` swallows every tap — the
+    /// grid then renders perfectly and selects nothing.
+    ///
+    /// Needs the stacks stub: `python3 /tmp/immich_stub_stacks.py 8421`
+    func test_05_createStackFromHub() throws {
+        setProvider("auto")
+        resetStacks()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(4)
+        let stacksRow = app.buttons["Stacks"]
+        for _ in 0..<4 where !stacksRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(stacksRow.waitForExistence(timeout: 10), "Stacks row missing in the Me hub")
+        stacksRow.tap()
+        sleep(3)
+
+        let plus = app.buttons["newStackButton"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "no create button in the hub")
+        plus.tap()
+        sleep(3)
+
+        let first = app.descendants(matching: .any)
+            .matching(identifier: "pickerAsset_cccccccc-3333-4333-8333-000000000001").firstMatch
+        let second = app.descendants(matching: .any)
+            .matching(identifier: "pickerAsset_cccccccc-3333-4333-8333-000000000002").firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15), "picker did not load")
+
+        // The CTA stays disabled until 2 photos are picked (the server's
+        // minimum), so a tap that fails to register shows up there — which is
+        // exactly how the swallowed-tap defect surfaced.
+        first.tap()
+        second.tap()
+        shot("21-create-stack-picker")
+
+        let create = app.buttons["confirmCreateStack"]
+        XCTAssertTrue(create.waitForExistence(timeout: 10), "Create CTA missing")
+        XCTAssertTrue(create.isEnabled, "tapping photos did not select them (2 needed)")
+        create.tap()
+        sleep(4)
+        shot("22-stacks-hub-after-create")
+
+        XCTAssertTrue(app.staticTexts["2 photos"].waitForExistence(timeout: 15),
+                      "the new stack is not in the hub")
     }
 }

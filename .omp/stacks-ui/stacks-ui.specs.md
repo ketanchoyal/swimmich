@@ -1,6 +1,6 @@
 # Task: stacks-ui
 
-> **Révision 2026-09-13 — implémenté et clôturé. La carte `.opencode/scratch/stacks-ui.acceptance.md` (AC-3700…3709, 10/10 PASS) fait foi ; ce document est conservé comme plan d'origine, avec les corrections ci-dessous.**
+> **Révision 2026-09-13 — implémenté et clôturé. La carte `.opencode/scratch/stacks-ui.acceptance.md` (AC-3700…3711, 12/12 PASS) fait foi ; ce document est conservé comme plan d'origine, avec les corrections ci-dessous.**
 >
 > Ce qui, dans ce plan, ne correspondait pas au dépôt :
 > 1. **Pas de nom de pile.** `StackCreateDto` = `{ assetIds: [String] }`, min 2 (`server/src/dtos/stack.dto.ts`) : le serveur n'accepte aucun nom. `CreateStackSheet` n'a donc **aucun champ texte**.
@@ -8,8 +8,10 @@
 > 3. **`withStacked` n'est pas un simple « include ».** Vérifié dans `server/src/repositories/asset.repository.ts` (`getTimeBucket`) : quand il est vrai, le serveur **exclut du bucket tous les non-primaires** d'une pile et n'émet la colonne `stack` que dans ce cas, sous forme de tuples `[stackId, assetCount]` — **count sérialisé en chaîne et couverture incluse**. Conséquences encodées dans le code : le badge lit `Int(stack[1]) - 1` (jamais `stack.count`, toujours 2), et une tuile empilée **ouvre la pile** au lieu du pager plat (sinon ses membres sont inatteignables).
 > 4. **Le groupement visuel n'est pas côté client.** Le serveur ne renvoie que la couverture : il n'y a rien à grouper dans le bucket, seulement un compteur à afficher et un tap à router. `TimelineView` n'a donc pas de logique de regroupement, contrairement à l'étape 4 du plan.
 > 5. **`TimelineView` garde son `NavigationStack`** ; `StackView` n'en a pas (elle est poussée depuis la sheet «Me», comme `TagsView`). L'UI brief montrait l'inverse — ne pas le suivre. Les `glassEffectID`/`glassEffectTransition` proposés par l'UI brief n'ont pas été introduits : le dépôt n'en utilise nulle part.
+> 6. **« Ajouter un asset à une pile » n'a aucune route dédiée.** Vérifié sur l'OpenAPI publié (`main` : 7 opérations ; `v1.135.0` : 6) et sur `stack.controller.ts` — le `POST /api/assets/:stackId/assets` de ce plan **n'existe pas**. L'ajout passe par le contrat de fusion de `POST /api/stacks` : payload avec la **couverture en tête**, réponse portant un **id neuf** que l'app doit suivre. `StackPhotoPicker` (grille partagée) + `CreateStackSheet` + `AddToStackSheet` couvrent création et extension.
+> 7. **Un tap de grille ne doit pas être enveloppé dans un `Button`** : `AssetThumbnailCell` porte son propre `onTapGesture`, qui gagne et avale le tap. Le picker passe par `onTap:`.
 >
-> Résultat : 719 tests TEST SUCCEEDED (baseline 695) ; `Sources/Features/Stacks/` = `StacksViewModel`, `StackView`, `StackDetailView`, `CreateStackSheet` ; harnais XCUITest de bout en bout `ImmichRenderScreenshots/test_03_stacksBadgeDetailAndHub`.
+> Résultat : 724 tests TEST SUCCEEDED (baseline 695) ; `Sources/Features/Stacks/` = `StacksViewModel`, `StackView`, `StackDetailView`, `StackPhotoPicker`, `CreateStackSheet`, `AddToStackSheet` ; 3 scénarios XCUITest de bout en bout (badge→détail→hub, ajout à une pile, création depuis le hub).
 
 **Objectif** : Implémenter la gestion complète des stacks de photos (parité Flutter). Les endpoints stacks sont tous wire (7 méthodes : search/create/get/update/delete/removeAsset) et `StackSheet` existe dans le viewer, mais il n'y a pas de navigation dédiée ni de gestion full-stack. Le Flutter a un flux de stacking automatique + une gestion manuelle.
 

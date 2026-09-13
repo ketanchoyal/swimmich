@@ -1,29 +1,34 @@
 # Task: stacks-ui
 
-Status: done — 10/10 AC PASS (2026-09-13). Suite complète **719 tests, TEST SUCCEEDED** (iPhone 17, baseline mesurée 695 avant implémentation) ; harnais XCUITest de bout en bout `ImmichRenderScreenshots/test_03_stacksBadgeDetailAndHub` vert (badge de pile → détail → hub «Me», captures `/tmp/shot-1{1,2,5}-*.png`).
+Status: done — **12/12 AC PASS** (2026-09-13). Suite complète **724 tests, TEST SUCCEEDED** (iPhone 17, baseline mesurée 695 avant implémentation) ; 3 scénarios XCUITest de bout en bout verts sur les piles : `test_03_stacksBadgeDetailAndHub` (badge → détail → hub), `test_04_addPhotosToExistingStack` (ajout d'une photo, couverture conservée, nouvel id suivi), `test_05_createStackFromHub` (création depuis le hub).
 
 ## Résultat (2026-09-13)
 
 | AC | Résultat | Preuve |
 |----|----------|--------|
-| AC-3700 | PASS | `StacksViewModel` + 5 méthodes ; `StacksViewModelTests` (13 tests) |
+| AC-3700 | PASS | `StacksViewModel` + 5 méthodes ; `StacksViewModelTests` |
 | AC-3701 | PASS | `StackView` (sans `NavigationStack` propre) + `CreateStackSheet` + swipe Unstack |
 | AC-3702 | PASS | `StackDetailView` : cover, set primary, remove, unstack, viewer sur les membres |
 | AC-3703 | PASS | `CreateStackSheet` : multi-sélection, seuil 2, aucun champ de nom (le serveur n'en accepte pas) |
 | AC-3704 | PASS | `TimelineView` : `navigationDestination(item:)` → `StackDetailView` pour une tuile empilée |
 | AC-3705 | PASS | `TimelineViewModel.withStacked = true` (6 sites) + badge `stackCount` dans `AssetThumbnailCell` |
 | AC-3706 | PASS | Lien «Stacks» dans la section Management de `ProfileView` |
-| AC-3707 | PASS | `Tests/StacksViewModelTests.swift` — 13 tests |
-| AC-3708 | PASS | 719 tests, TEST SUCCEEDED |
+| AC-3707 | PASS | `Tests/StacksViewModelTests.swift` |
+| AC-3708 | PASS | 724 tests, TEST SUCCEEDED |
 | AC-3709 | PASS | 7 tests de transport sur les routes stacks (`ImmichAPIClientTests`) + XCUITest de bout en bout |
+| AC-3710 | PASS | `addPhotos` : aucune route « add » n'existe ; la pile est étendue en re-postant `POST /api/stacks` avec la couverture en tête ; le nouvel id est adopté par l'écran (XCUITest 04) |
+| AC-3711 | PASS | le tap dans la grille du picker sélectionne réellement (XCUITest 05 : 2 tuiles cochées → CTA «Créer» actif → pile créée) |
 
-**Tests ajoutés (24)** : `StacksViewModelTests` (13), `ImmichAPIClientTests` stacks (7 : search, filtre `primaryAssetId`, create, update primary, delete, remove-asset, `withStacked=true` sur les deux endpoints timeline), `TimelineViewModelTests` stacks (3 : flag demandé, mapping du tuple, ordre de `stackSelected`), `DTOEncodingTests` (1 : décodage du tuple `[stackId, count]` depuis le JSON wire).
+**Tests ajoutés (29 unitaires + 3 scénarios XCUITest)** : `StacksViewModelTests` 18 (liste, CRUD, picker, `orderedSelection`, 4 sur `addPhotos`), `ImmichAPIClientTests` 7 sur les routes stacks (search, filtre `primaryAssetId`, create, update primary, delete, remove-asset, `withStacked=true` sur les deux endpoints timeline), `TimelineViewModelTests` 3 (flag demandé, mapping du tuple, ordre de `stackSelected`), `DTOEncodingTests` 1 (décodage du tuple `[stackId, count]` depuis le JSON wire). Côté XCUITest : badge→détail→hub, ajout à une pile, création depuis le hub.
 
 **Pièges rencontrés et corrigés**
-1. **`accessibilityLabel` sur le badge masquait son texte.** Poser un label sur le HStack du badge faisait disparaître le `+2` de l'arbre d'accessibilité (les enfants sont fusionnés sous le label du conteneur) — l'assertion XCUITest ne trouvait plus rien alors que le badge s'affichait. Correctif : `.accessibilityElement(children: .ignore)` + `.accessibilityIdentifier("stackBadge")` + label parlant («3 photos in a stack»). Un seul élément, une seule phrase.
-2. **La 1re rangée du timeline vit sous le header de date flottant** : la capture du badge y est illisible. Le harnais UI scrolle donc jusqu'au badge (et, de fait, prouve qu'il apparaît au défilement).
-3. **`grep -q` sur un mot présent dans un commentaire** : le check «pas de NavigationStack» échouait à cause du commentaire de doc de la vue. Les checks visent désormais la déclaration (`NavigationStack {`).
-4. **Le hub «Me» est une `Form` paresseuse** : les rows sous le pli n'existent pas dans l'arbre d'accessibilité — le harnais scrolle avant d'assertir.
+1. **Le tap de la grille du picker ne sélectionnait rien.** `AssetThumbnailCell` porte son propre `onTapGesture` ; l'envelopper dans un `Button` fait gagner le geste descendant, qui **avale** le tap — la grille s'affichait parfaitement et ne sélectionnait jamais. Correctif : le tap passe par `onTap:` de la cellule (comme dans `TimelineView`). Touchait aussi `CreateStackSheet` depuis sa livraison : aucun test ne l'avait exercée, seul un test d'exécution la voyait. D'où AC-3711.
+2. **Les libellés de CTA sont localisés** («Create» → «Créer» au catalogue) : les tests UI visent des `accessibilityIdentifier`, jamais le texte affiché.
+3. **`accessibilityLabel` sur le badge masquait son texte.** Poser un label sur le HStack du badge faisait disparaître le `+2` de l'arbre d'accessibilité (les enfants sont fusionnés sous le label du conteneur) — l'assertion XCUITest ne trouvait plus rien alors que le badge s'affichait. Correctif : `.accessibilityElement(children: .ignore)` + `.accessibilityIdentifier("stackBadge")` + label parlant («3 photos in a stack»).
+4. **La 1re rangée du timeline vit sous le header de date flottant** : la capture du badge y est illisible. Le harnais UI scrolle donc jusqu'au badge.
+5. **`grep -q` sur un mot présent dans un commentaire** : le check «pas de NavigationStack» échouait à cause du commentaire de doc de la vue. Les checks visent la déclaration (`NavigationStack {`).
+6. **Le hub «Me» est une `Form` paresseuse** : les rows sous le pli n'existent pas dans l'arbre d'accessibilité — le harnais scrolle avant d'assertir.
+7. **Stub de test = piège symétrique** : un `ratio` de 8 entrées pour 9 assets faisait rendre un timeline **vide** (garde-fou FM-1 d'`AssetReactItem.zip`, qui retourne `[]` sur des longueurs incohérentes) — un bug de stub facile à confondre avec un bug d'app. Le stub a aussi gagné un `GET /__reset`, l'état serveur survivant d'un test à l'autre.
 
 > **Révision 2026-09-13 — la carte d'origine était dérivée par rapport au dépôt.**
 > Checks rejoués verbatim avant réécriture :
@@ -39,7 +44,7 @@ Status: done — 10/10 AC PASS (2026-09-13). Suite complète **719 tests, TEST S
 
 **Hypothèses** (vérifiées dans le dépôt et contre `immich-app/immich@main`) :
 - `StackResponseDto { id, primaryAssetId, assets: [AssetResponseDto] }`, `StackCreateDto { assetIds }` (min 2, **pas de nom**), `StackUpdateDto { primaryAssetId? }` — `Sources/Core/Types/DTOs.swift:185-208`.
-- 6 routes wire de bout en bout : `ImmichClient.swift:128-134` → `ImmichAPIClient.swift:366-390` (`GET/POST /api/stacks`, `GET/PUT/DELETE /api/stacks/{id}`, `DELETE /api/stacks/{id}/assets/{assetId}`). `searchStacks` et `addAssetToStack` n'ont **aucun appelant** ; `getStack`/`updateStack`/`deleteStack`/`removeAssetFromStack` ne sont appelés que par `StackSheet.swift`.
+- 6 routes wire de bout en bout : `ImmichClient.swift:128-134` → `ImmichAPIClient.swift:366-390` (`GET/POST /api/stacks`, `GET/PUT/DELETE /api/stacks/{id}`, `DELETE /api/stacks/{id}/assets/{assetId}`). ⚠ **Aucune route n'ajoute un asset à une pile** — vérifié sur l'OpenAPI publié (`main` et `v1.135.0` : 7 puis 6 opérations, jamais d'ajout) et sur `stack.controller.ts` ; le `POST /api/assets/:stackId/assets` du backlog était inventé. L'ajout se fait par le **contrat de fusion de `POST /api/stacks`** (voir AC-3710).
 - `withStacked: Bool?` déjà sérialisé (`ImmichAPIClient.swift:116,131`) ; les 6 sites du timeline passent `nil` (`TimelineViewModel.swift:154,171,197,206,227,243`) et les 3 de la corbeille aussi (`TrashViewModel.swift:38,54,76` — **à laisser tels quels** : la corbeille doit montrer tous les assets).
 - **Sémantique réelle de la colonne `stack`** (`TimeBucketAssetResponseDto.swift` côté serveur : `([string, string] | null)[]`) : chaque cellule est `["<stackId>", "<count>"]` ou `null`, et **le count inclut la primaire**. Le commentaire d'origine d'`AssetReactItem.swift:32-33` (« Ids of the other assets ») était faux : `stack.count` vaut toujours 2, le `+N` du badge doit lire `Int(stack[1]) - 1`.
 - `AssetThumbnailCell` a déjà un emplacement de badge (`topLeadingBadges`, l.128-138) et un helper de capsule `.ultraThinMaterial` (`badge(_:)`, l.178).
@@ -143,9 +148,10 @@ Post-state attendu: PASS
 ```
 ### AC-3708 [type: regression]
 Assertion: suite complète ≥ baseline mesurée avant implémentation (695 tests, `ImmichSwiftUITests`) et TEST SUCCEEDED.
-Check post-impl: sh -c 'grep -qE "TEST SUCCEEDED" /tmp/immich_stacks_test.log && n=$(grep -oE "Executed [0-9]+ tests" /tmp/immich_stacks_test.log | grep -oE "[0-9]+" | sort -n | tail -1); test "$n" -ge 695 && echo PASS || echo FAIL'
+Check post-impl: sh -c 'grep -qE "TEST SUCCEEDED" /tmp/immich_stacks_test.log && n=$(grep -oE "Executed [0-9]+ tests" /tmp/immich_stacks_test.log | grep -oE "[0-9]+" | sort -n | tail -1); test "$n" -ge 724 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (log absent)
 Post-state attendu: PASS
+Note: le check lit le log de la suite complète rejouée après le dernier changement de code (719 puis 724 tests) ; la borne suit le compte réel, pas un chiffre rond (l'original portait `-ge 200` pour une baseline de 695).
 ```
 
 ```
@@ -153,5 +159,22 @@ Post-state attendu: PASS
 Assertion: les 5 routes stacks sont exercées sur un transport asservi (méthode + chemin + corps réels), pas seulement greppées — leçon OAuth-404 (un AC de grep ne prouve pas qu'un enchaînement réseau fonctionne).
 Check post-impl: sh -c 'f=Tests/ImmichAPIClientTests.swift; for t in test_stacks_searchStacksHitsGetStacks test_stacks_createPostsAssetIds test_stacks_updatePrimaryPutsStacksId test_stacks_deleteRemovesStack test_stacks_removeAssetHitsStackAssetsAnd test_stacks_timelineRequestsStackedPrimaries; do grep -qE "$t" "$f" || { echo FAIL-$t; exit 1; }; done; grep -qE "Executed [0-9]+ tests" /tmp/immich_stacks_test.log && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (aucun test stack dans ImmichAPIClientTests)
+Post-state attendu: PASS
+```
+
+```
+### AC-3710 [type: new — ajouter des photos à une pile existante]
+Assertion: `addPhotos` étend une pile sans route dédiée : le payload de `POST /api/stacks` porte la couverture **en tête** (le serveur fait de `assetIds[0]` la primaire, et fusionne toute pile dont la primaire figure dans la liste), l'id renvoyé est adopté (le serveur supprime/réinsère, donc l'id change), et l'écran suit ce nouvel id.
+Check post-impl: sh -c 'v=Sources/Features/Stacks/StacksViewModel.swift; d=Sources/Features/Stacks/StackDetailView.swift; a=Sources/Features/Stacks/AddToStackSheet.swift; t=Tests/StacksViewModelTests.swift; grep -qE "func addPhotos" "$v" && grep -qE "createStack\(assetIds: \[primaryAssetId\]" "$v" && grep -qE "var stackId: String|private var stackId" "$d" && grep -qE "onExtended" "$a" && grep -qE "test_addPhotos_postsCurrentCoverFirst" "$t" && grep -qE "test_addPhotos_returnsNewIdAndDropsDeadRow" "$t" && echo PASS || echo FAIL'
+Pre-state attendu: FAIL (aucune méthode d'ajout ; l'hypothèse « addAssetToStack existe » était fausse — aucune route serveur ne l'expose)
+Post-state attendu: PASS
+Note: le nom d'origine `addAssetToStack` (route `POST /api/assets/:stackId/assets`) décrit une route INEXISTANTE. Le contrat réel est la fusion de `POST /api/stacks` : `StackRepository.create` cherche les piles possédées dont la primaire est dans le payload, absorbe TOUS leurs membres, supprime ces piles, insère une pile neuve avec `primaryAssetId = assetIds[0]` et re-parente chaque asset. D'où : couverture en tête (sinon elle est volée), id neuf à suivre (sinon l'écran pointe une pile morte), et un asset n'appartenant qu'à une seule pile (une photo déjà empilée est déplacée).
+```
+
+```
+### AC-3711 [type: new — le picker sélectionne réellement]
+Assertion: un tap dans la grille du picker sélectionne la photo (la cellule porte son propre `onTapGesture` qui avale le tap d'un `Button` englobant) et le CTA de création s'active à 2 sélections puis crée la pile.
+Check post-impl: sh -c 'p=Sources/Features/Stacks/StackPhotoPicker.swift; c=Sources/Features/Stacks/CreateStackSheet.swift; u=UITests/ImmichRenderScreenshots.swift; grep -qE "onTap: \{ vm.toggleSelection" "$p" && ! grep -qE "Button \{" "$p" && grep -qE "confirmCreateStack" "$c" && grep -qE "test_05_createStackFromHub" "$u" && grep -qE "pickerAsset_" "$p" && echo PASS || echo FAIL'
+Pre-state attendu: FAIL (grille enveloppée dans un `Button` : tap avalé, sélection morte — défaut présent depuis la première livraison de `CreateStackSheet`, invisible à tout test sauf exécution)
 Post-state attendu: PASS
 ```

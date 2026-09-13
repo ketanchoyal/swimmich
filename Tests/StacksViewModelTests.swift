@@ -163,13 +163,13 @@ final class StacksViewModelTests: XCTestCase {
     // MARK: - Create picker
 
     @MainActor
-    func test_beginCreateFlow_loadsFirstPageAndClearsSelection() async {
+    func test_beginPicking_loadsFirstPageAndClearsSelection() async {
         let mock = MockImmichClient()
         mock.searchMetadataResponse = searchPage(ids: ["a1", "a2", "a3"], nextPage: nil)
         let vm = StacksViewModel(client: mock)
         vm.selectedIds = ["stale"]
 
-        await vm.beginCreateFlow()
+        await vm.beginPicking()
 
         XCTAssertEqual(vm.recentAssets.map(\.id), ["a1", "a2", "a3"])
         XCTAssertTrue(vm.selectedIds.isEmpty, "reopening the picker must not resurrect an old selection")
@@ -181,7 +181,7 @@ final class StacksViewModelTests: XCTestCase {
         let mock = MockImmichClient()
         mock.searchMetadataResponse = searchPage(ids: ["a1", "a2"], nextPage: "2")
         let vm = StacksViewModel(client: mock)
-        await vm.beginCreateFlow()
+        await vm.beginPicking()
         XCTAssertTrue(vm.canLoadMoreAssets)
 
         // Second page repeats a1 (the library can shift between pages).
@@ -203,5 +203,88 @@ final class StacksViewModelTests: XCTestCase {
 
         vm.toggleSelection(id: "a1")
         XCTAssertEqual(vm.selectedIds, ["a2"])
+    }
+
+    /// The selection must reach the wire in grid order: `POST /api/stacks` makes
+    /// the first id the cover, and `Set` iteration order is not stable.
+    @MainActor
+    func test_orderedSelection_followsGridOrderNotSetOrder() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = searchPage(ids: ["newest", "middle", "oldest"], nextPage: nil)
+        let vm = StacksViewModel(client: mock)
+        await vm.beginPicking()
+
+        vm.toggleSelection(id: "oldest")
+        vm.toggleSelection(id: "newest")
+
+        XCTAssertEqual(vm.orderedSelection, ["newest", "oldest"])
+    }
+
+    // MARK: - Adding photos to an existing stack
+
+    /// No "add asset to stack" route exists, so extending a stack re-posts
+    /// `POST /api/stacks`. The stack's **current cover must lead the payload**:
+    /// the server makes `assetIds[0]` the primary, so putting the new photos
+    /// first would silently steal the cover.
+    @MainActor
+    func test_addPhotos_postsCurrentCoverFirst() async {
+        let mock = MockImmichClient()
+        let vm = StacksViewModel(client: mock)
+
+        _ = await vm.addPhotos(toStackId: "s1", primaryAssetId: "cover", assetIds: ["x", "y"])
+
+        XCTAssertEqual(mock.lastCreateStackIds, ["cover", "x", "y"])
+    }
+
+    /// `StackRepository.create` deletes the old stack and inserts a new one, so
+    /// the id always changes — the caller has to follow it, and the hub must stop
+    /// showing the dead row.
+    @MainActor
+    func test_addPhotos_returnsNewIdAndDropsDeadRow() async {
+        let mock = MockImmichClient()
+        mock.stacksResponse = [stack(id: "old", primary: "cover", members: ["cover", "a2"])]
+        let vm = StacksViewModel(client: mock)
+        await vm.loadStacks()
+
+        // What the server holds once the merge landed: `old` deleted, `new` in
+        // its place with the extra member.
+        mock.createStackResponse = stack(id: "new", primary: "cover", members: ["cover", "a2", "x"])
+        mock.stacksResponse = [stack(id: "new", primary: "cover", members: ["cover", "a2", "x"])]
+
+        let newID = await vm.addPhotos(toStackId: "old", primaryAssetId: "cover", assetIds: ["x"])
+
+        XCTAssertEqual(newID, "new")
+        XCTAssertEqual(vm.selectedStack?.id, "new", "the detail screen follows the new id")
+        XCTAssertEqual(vm.selectedStack?.assets.count, 3)
+        XCTAssertEqual(vm.selectedStack?.primaryAssetId, "cover", "the cover is untouched")
+        XCTAssertEqual(vm.stacks.map(\.id), ["new"], "the stale row is gone")
+    }
+
+    /// Re-posting a photo the stack already holds would re-create it for
+    /// nothing; the cover alone is a 1-id payload the server rejects.
+    @MainActor
+    func test_addPhotos_onlyTheCoverIsNotSent() async {
+        let mock = MockImmichClient()
+        let vm = StacksViewModel(client: mock)
+
+        let result = await vm.addPhotos(toStackId: "s1", primaryAssetId: "cover", assetIds: ["cover"])
+
+        XCTAssertNil(result)
+        XCTAssertNil(mock.lastCreateStackIds)
+        XCTAssertEqual(mock.requestCount, 0)
+    }
+
+    @MainActor
+    func test_addPhotos_failureKeepsStackAndReportsError() async {
+        let mock = MockImmichClient()
+        mock.stacksError = APIError.serverError(400, "nope")
+        let vm = StacksViewModel(client: mock)
+        vm.selectedStack = stack(id: "old", primary: "cover", members: ["cover", "a2"])
+
+        let result = await vm.addPhotos(toStackId: "old", primaryAssetId: "cover", assetIds: ["x"])
+
+        XCTAssertNil(result, "the sheet stays open on failure")
+        XCTAssertEqual(vm.selectedStack?.id, "old", "and the screen still shows the stack")
+        XCTAssertEqual(vm.errorMessage?.contains("nope"), true)
     }
 }

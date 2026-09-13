@@ -59,6 +59,7 @@ struct StackView: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("Create stack")
+                .accessibilityIdentifier("newStackButton")
             }
         }
         .task { await vm.loadStacks() }

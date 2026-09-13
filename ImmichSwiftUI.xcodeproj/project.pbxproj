@@ -141,6 +141,7 @@
 		8589CDFBD9C8472915191C9F /* RoadTripCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C897C83B34BE9893378A750 /* RoadTripCameraTests.swift */; };
 		862A11D53CD87486D727AF07 /* CreateStackSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842F2EECEF261D29C4944347 /* CreateStackSheet.swift */; };
 		868F0AB18E97FD3429CCEEED /* MockVideoPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8986002366C2702829706FC4 /* MockVideoPlaybackEngine.swift */; };
+		89D608A1E1BF4BBC3FEBE85F /* StackPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B6C4A7C8BFCD930E4D9B69 /* StackPhotoPicker.swift */; };
 		8A91C57C6944A15ECD9BD44F /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130BE9D32671473FA29EB7A9 /* WelcomeScreen.swift */; };
 		8B4896FDF52F8BA65A804DC7 /* CreateAlbumSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E30393E5D0F3117FF5809E /* CreateAlbumSheet.swift */; };
 		8B5C2E2B72F838414A1D0C28 /* MemoriesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5C44DF36B05BC76C36E75F /* MemoriesViewModelTests.swift */; };
@@ -194,6 +195,7 @@
 		BC6D4CFA04387B619E5FE15E /* SaveToLibraryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977D2E1498D30444B68605D /* SaveToLibraryViewModelTests.swift */; };
 		BD4E535E5AA824D16B2AEA08 /* TrashViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B5BD84EE20FE5F940590F6 /* TrashViewModel.swift */; };
 		BDE4ABBCEBB4D02970CF6606 /* ExifDisplayFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8203F1AF23108DC7982903E9 /* ExifDisplayFormatter.swift */; };
+		BE99C642918D1FD0FF340460 /* AddToStackSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0876D980FBEECE9CE66D233 /* AddToStackSheet.swift */; };
 		C07A98D608A0E44577FACF28 /* PhotoEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED9968C2C247474C961C93E /* PhotoEditorView.swift */; };
 		C101BE12B0150C035F54F42C /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74FC2CEA7163ACEC2AD3E0BF /* AdminView.swift */; };
 		C20BD89431DEE3CB9B644D43 /* ActivityFeedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB2CD4E4F56AD17B42E74B4 /* ActivityFeedSheet.swift */; };
@@ -467,6 +469,7 @@
 		A209D6F5145826565E20912D /* VideoPlaybackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlaybackViewModel.swift; sourceTree = "<group>"; };
 		A322597C0C9ED21D0C0717E9 /* AlbumShareViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumShareViewModel.swift; sourceTree = "<group>"; };
 		A38EABF5B50A56174DFB661B /* StacksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksViewModel.swift; sourceTree = "<group>"; };
+		A3B6C4A7C8BFCD930E4D9B69 /* StackPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPhotoPicker.swift; sourceTree = "<group>"; };
 		A3D85870B2F48236E874B09C /* SearchModeGlassBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchModeGlassBar.swift; sourceTree = "<group>"; };
 		A557E6E89A1B0868B3957EC3 /* TimelineSectionBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSectionBuilderTests.swift; sourceTree = "<group>"; };
 		A6A6A461BD50BD1BE66AAD1D /* MemoryMomentPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryMomentPresentationTests.swift; sourceTree = "<group>"; };
@@ -509,6 +512,7 @@
 		CFA6FBC8A7F984464229A078 /* RoadTripCar3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripCar3D.swift; sourceTree = "<group>"; };
 		D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreImpl.swift; sourceTree = "<group>"; };
 		D083424E27645D19C36429E6 /* ImmichWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ImmichWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0876D980FBEECE9CE66D233 /* AddToStackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddToStackSheet.swift; sourceTree = "<group>"; };
 		D35F391869581ADE91FD15DA /* MemoriesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoriesViewModel.swift; sourceTree = "<group>"; };
 		D37B48023693A06697A69CA9 /* RoadTripCluster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripCluster.swift; sourceTree = "<group>"; };
 		D4A67C215509CC4179DD4F57 /* View+Shadow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Shadow.swift"; sourceTree = "<group>"; };
@@ -1047,8 +1051,10 @@
 		DFE66088CB15815963905F3F /* Stacks */ = {
 			isa = PBXGroup;
 			children = (
+				D0876D980FBEECE9CE66D233 /* AddToStackSheet.swift */,
 				842F2EECEF261D29C4944347 /* CreateStackSheet.swift */,
 				0B951CDF4C6CA41ADFC0E2DF /* StackDetailView.swift */,
+				A3B6C4A7C8BFCD930E4D9B69 /* StackPhotoPicker.swift */,
 				A38EABF5B50A56174DFB661B /* StacksViewModel.swift */,
 				17321C4D31FF3D22836928FA /* StackView.swift */,
 			);
@@ -1357,6 +1363,7 @@
 				C20BD89431DEE3CB9B644D43 /* ActivityFeedSheet.swift in Sources */,
 				113635EEC04CEDB4D595041E /* ActivityFeedViewModel.swift in Sources */,
 				2AD9509697C5557D06BA5633 /* AddToAlbumPickerSheet.swift in Sources */,
+				BE99C642918D1FD0FF340460 /* AddToStackSheet.swift in Sources */,
 				D7DDEC5B91B9082C0BBBAD3E /* AdjustDateSheet.swift in Sources */,
 				846E8F4FACDC021346A1AC90 /* AdjustLocationSheet.swift in Sources */,
 				C101BE12B0150C035F54F42C /* AdminView.swift in Sources */,
@@ -1493,6 +1500,7 @@
 				2A29772FBD6556CF1869BE80 /* SlideshowViewModel.swift in Sources */,
 				5D31EBE0C6ABA95E8674A5A7 /* Spacing+PhotoVault.swift in Sources */,
 				A566553BA77373342DFF4FCA /* StackDetailView.swift in Sources */,
+				89D608A1E1BF4BBC3FEBE85F /* StackPhotoPicker.swift in Sources */,
 				126F79FEA792844499226FC8 /* StackSheet.swift in Sources */,
 				564D15978CEDB0298F318D7C /* StackView.swift in Sources */,
 				A58C2668C6B29C0620B3D902 /* StacksViewModel.swift in Sources */,

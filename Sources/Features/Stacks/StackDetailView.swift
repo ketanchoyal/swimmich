@@ -8,14 +8,23 @@ import SwiftUI
 /// Pushed onto an existing `NavigationStack` — declares none of its own.
 struct StackDetailView: View {
     /// Server id of the stack. Held rather than the DTO so the screen survives
-    /// a reload of the list it was pushed from.
-    let stackId: String
+    /// a reload of the list it was pushed from — and **mutable**, because
+    /// adding photos re-creates the stack server-side and hands back a new id
+    /// (see `StacksViewModel.addPhotos`); a fixed id would strand this screen on
+    /// a stack that no longer exists.
+    @State private var stackId: String
     @Bindable var vm: StacksViewModel
 
     @Environment(AuthViewModel.self) private var auth
     @State private var viewerItem: PhotoViewerItem?
     @State private var confirmingUnstack = false
     @State private var deletingMemberID: String?
+    @State private var showingAddPhotos = false
+
+    init(stackId: String, vm: StacksViewModel) {
+        _stackId = State(initialValue: stackId)
+        self.vm = vm
+    }
 
     var body: some View {
         Group {
@@ -38,6 +47,19 @@ struct StackDetailView: View {
         .navigationTitle("Stack")
         .navigationBarTitleDisplayMode(.inline)
         .task { await vm.loadStack(id: stackId) }
+        .sheet(isPresented: $showingAddPhotos) {
+            if let stack = vm.selectedStack {
+                AddToStackSheet(
+                    stackId: stack.id,
+                    primaryAssetId: stack.primaryAssetId,
+                    existingAssetIds: Set(stack.assets.map(\.id)),
+                    vm: vm
+                ) { newID in
+                    // The server re-created the stack: follow it.
+                    stackId = newID
+                }
+            }
+        }
         .confirmationDialog("Unstack these photos?", isPresented: $confirmingUnstack, titleVisibility: .visible) {
             Button("Unstack", role: .destructive) {
                 Task { await vm.deleteStack(id: stackId) }
@@ -73,6 +95,17 @@ struct StackDetailView: View {
                         memberRow(member, in: stack, isPrimary: false)
                     }
                 }
+            }
+
+            Section {
+                Button {
+                    showingAddPhotos = true
+                } label: {
+                    Label("Add photos", systemImage: "plus")
+                }
+                .accessibilityIdentifier("addPhotosToStack")
+            } footer: {
+                Text("Adding re-creates the stack on the server, so this stack gets a new id. A photo that already belongs to another stack moves into this one.")
             }
 
             Section {
