@@ -112,3 +112,19 @@ Check post-impl: sh -c 'grep -q "TEST SUCCEEDED" /tmp/immich_offline_test_summar
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
+
+---
+
+## Révision 2026-09-13 — préparation d'implémentation
+
+Carte de référence : `.opencode/scratch/offline-download.acceptance.md` (réécrite, AC-3500–AC-3512). La carte d'origine (AC-OF01–AC-OF07) ne mesurait que la **présence de mots** dans des fichiers (`grep -q`), ne bornait la régression qu'à `-ge 200` pour une baseline réelle de **805**, et laissait hors périmètre ce qui fait marcher la fonctionnalité. Corrections :
+
+1. **Répertoire de cache : `Application Support/OfflineAssets/`, pas `.cachesDirectory`.** La spec d'origine suivait `Caches` ; l'OS purge ce répertoire sous pression disque — un asset annoncé « disponible hors-ligne » disparaîtrait sans prévenir. Précédent du dépôt : `EditStateStore` écrit sous Application Support. Contenu : `index.json` (`[CachedAssetInfo]`) + `<assetId>.<ext>`.
+2. **Le rendu hors-ligne est une étape du chemin image, pas un effet de bord.** `AuthenticatedAsyncImage` (3 étages : NSCache → URLCache → réseau) gagne un étage 0 optionnel `localFileURL: URL?` — sans lui, le store n'est qu'une liste de tailles et l'objectif « consultation hors-ligne » n'est pas atteint. Les fichiers locaux sont servis via `ImageDownsampler` (ImageIO, 2048 px) : décoder un original de 12 Mpx par cellule de grille est exclu.
+3. **Téléchargement en flux.** `URLSession.bytes(for:)` → `<id>.<ext>.partial` → `moveItem` atomique, progression depuis `Content-Length` (retour à une barre indéterminée si absent). `SaveToLibraryViewModel` matérialise l'original en `Data` parce qu'il le remet au partage système ; un cache de vidéos ne peut pas.
+4. **État UI via `OfflineAssetIndex`** (`@MainActor @Observable`, injecté dans l'environnement depuis `AuthenticatedRoot`) : `AssetThumbnailCell` a 6 sites d'instanciation, un paramètre à propager serait oublié à l'un d'eux. Un `actor` n'est pas lisible depuis un `body`.
+5. **Politique de limite explicite** : `UserDefaults` `offlineMaxSize` (défaut 5 Go) ; refus avant téléchargement si la taille annoncée dépasse la limite ; après écriture, éviction des plus anciens (`cachedAt`), jamais l'asset courant.
+6. **Réconciliation d'index** : à la lecture, entrées sans fichier retirées, fichiers sans entrée adoptés (taille/date des attributs) — un crash en cours d'écriture ne doit pas laisser un « en cache » pointant un fichier absent.
+7. **API** : l'URL est construite par `ImmichAssetURL.original(assetId:baseURL:)` (précédent `SaveToLibraryViewModel.transferOriginal()`), `GET /api/assets/{id}/original` existant vérifié sur l'OpenAPI `main` (`operationId: downloadAsset`, `application/octet-stream`). `dto.originalPath` n'est qu'une string opaque (« Original file path ») et n'est pas utilisée par le dépôt. `client.getAsset(id:)` sert au nom de fichier (`originalFileName`), au type (`type == "VIDEO"`) et à la taille (`fileSizeInByte`).
+8. **Périmètre refusé** : sync automatique, chiffrement, reprise de téléchargement interrompu.
+9. **i18n** : les chaînes neuves sont ajoutées à la main au catalogue (EN + FR). Ne jamais committer `Resources/Localizable.xcstrings` régénéré par un build Xcode incrémental — une extraction partielle supprime des clés valides.

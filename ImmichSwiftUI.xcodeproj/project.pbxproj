@@ -71,6 +71,7 @@
 		2F68BDD218095E9AB4C6DA7F /* MockLocationGeocoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE9F6765E7DE075925A62C0 /* MockLocationGeocoding.swift */; };
 		312590E3329FDAC93C3365F5 /* PhotoLibraryChangeMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4721C774902CF432EA1D4A /* PhotoLibraryChangeMonitorTests.swift */; };
 		312C6108E79DED9F8D17BEFF /* RoadTripSmoothPathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C62D363214447C0DD053D77F /* RoadTripSmoothPathTests.swift */; };
+		32DA0757617E602B6B277FB2 /* immich_stub_shared_link_viewer.py in Resources */ = {isa = PBXBuildFile; fileRef = FDE53ED2DD3C1FD0C04F4DB9 /* immich_stub_shared_link_viewer.py */; };
 		3624B2A08F9652A63ED13453 /* PhotoLibraryChangeMonitoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEFE4EBF848A641180419217 /* PhotoLibraryChangeMonitoring.swift */; };
 		3670AD015A2E270961800429 /* TimelineGridZoom.swift in Sources */ = {isa = PBXBuildFile; fileRef = B401D9CEED0EFFEE799E61F1 /* TimelineGridZoom.swift */; };
 		37547BE769BDC8B23CD020E3 /* CountryFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB6D635F0CFE068BCCC41652 /* CountryFlag.swift */; };
@@ -98,6 +99,7 @@
 		4FBC62D884D7E5BFC7E4D209 /* ImmichSharedKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 43EFADF0DFF6B6F100CC9AED /* ImmichSharedKit.framework */; };
 		5257FD93BBB1F2AEBE24BAE2 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3CC41BE0841865DDCC77FE /* TimelineView.swift */; };
 		530A9E7B091A9DB6B665EF3C /* Font+PhotoVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEDA23BA168C2F6954C5CE05 /* Font+PhotoVault.swift */; };
+		54771F5F040924CAA348FD5B /* SharedLinkViewerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAED9946CE0FAEDE581A583E /* SharedLinkViewerViewModel.swift */; };
 		54C2F7EB6719891AEF726BBB /* AlbumsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 484079900F41D46E0DC1B904 /* AlbumsTests.swift */; };
 		54E8A6D7CCCCC08D9D51DFF5 /* TagsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FC730DA036DF7E108203F2D /* TagsViewModel.swift */; };
 		55DDF4399AE03D9CFBF101BF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8E81A210D26A501C1F68C961 /* Assets.xcassets */; };
@@ -150,6 +152,7 @@
 		8589CDFBD9C8472915191C9F /* RoadTripCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C897C83B34BE9893378A750 /* RoadTripCameraTests.swift */; };
 		862A11D53CD87486D727AF07 /* CreateStackSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842F2EECEF261D29C4944347 /* CreateStackSheet.swift */; };
 		868F0AB18E97FD3429CCEEED /* MockVideoPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8986002366C2702829706FC4 /* MockVideoPlaybackEngine.swift */; };
+		877969EB33DC0167152D4B6E /* SharedLinkViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CECF6B45B0DE5651C9B54AD /* SharedLinkViewerView.swift */; };
 		8A91C57C6944A15ECD9BD44F /* WelcomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130BE9D32671473FA29EB7A9 /* WelcomeScreen.swift */; };
 		8B4896FDF52F8BA65A804DC7 /* CreateAlbumSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E30393E5D0F3117FF5809E /* CreateAlbumSheet.swift */; };
 		8B5C2E2B72F838414A1D0C28 /* MemoriesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE5C44DF36B05BC76C36E75F /* MemoriesViewModelTests.swift */; };
@@ -251,6 +254,7 @@
 		FA0F379058F7F36B1286500E /* BackupLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A5D83E8660196C54EDD2C7 /* BackupLiveActivity.swift */; };
 		FB09A45000B8937B945F5826 /* DateHeaderFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60290B25870E4D7852401377 /* DateHeaderFormatter.swift */; };
 		FBE69C14AEF84665BFAE2744 /* SearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5F55B65296B83E9775A933 /* SearchViewModelTests.swift */; };
+		FBE8BDF18212EE959AAF72F0 /* SharedLinkViewerViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6591BB643B56627A46F0E697 /* SharedLinkViewerViewModelTests.swift */; };
 		FD76418DA93C59C24B69C915 /* ActivityFeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A58694C1512E94C9B889525 /* ActivityFeedViewModelTests.swift */; };
 		FE1DB9771F8B3F4EBF88890D /* LocationGeocodingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDDC77DDD11CB5C7E3E91324 /* LocationGeocodingService.swift */; };
 		FE878E244F2125507ECDCB36 /* PVStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B50D4A922CF1A0C2F3FD209 /* PVStatusBadge.swift */; };
@@ -383,6 +387,7 @@
 		33EA8E8D8936DDE9AB9F62C5 /* ImmichSwiftUI.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ImmichSwiftUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A58694C1512E94C9B889525 /* ActivityFeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeedViewModelTests.swift; sourceTree = "<group>"; };
 		3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockImmichClient.swift; sourceTree = "<group>"; };
+		3CECF6B45B0DE5651C9B54AD /* SharedLinkViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinkViewerView.swift; sourceTree = "<group>"; };
 		3DE9F6765E7DE075925A62C0 /* MockLocationGeocoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLocationGeocoding.swift; sourceTree = "<group>"; };
 		3EC78285FAB5C905FDF433E4 /* RoadTripClustererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripClustererTests.swift; sourceTree = "<group>"; };
 		3F0380C7550B8A39C96AE6C6 /* AlbumDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailView.swift; sourceTree = "<group>"; };
@@ -418,6 +423,7 @@
 		639141A9091A124F02DBF401 /* MapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewModel.swift; sourceTree = "<group>"; };
 		63CF2BFC32B58F397F6B134B /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		654AB8ED31CB6A932F118512 /* RealtimeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeService.swift; sourceTree = "<group>"; };
+		6591BB643B56627A46F0E697 /* SharedLinkViewerViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinkViewerViewModelTests.swift; sourceTree = "<group>"; };
 		65ECCF88213FA8062877A5A2 /* BackupLedgerStoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupLedgerStoring.swift; sourceTree = "<group>"; };
 		66B5BD84EE20FE5F940590F6 /* TrashViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashViewModel.swift; sourceTree = "<group>"; };
 		6830A8811F3EA14B31E082DC /* BackupNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupNotificationService.swift; sourceTree = "<group>"; };
@@ -577,8 +583,10 @@
 		F80FD6981E52BFE70CD4EB69 /* EditStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditStateStore.swift; sourceTree = "<group>"; };
 		F954E1666928C1815BF89BEC /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		FA093EC6B585CA727A510320 /* EditState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditState.swift; sourceTree = "<group>"; };
+		FAED9946CE0FAEDE581A583E /* SharedLinkViewerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedLinkViewerViewModel.swift; sourceTree = "<group>"; };
 		FDA5FDA4F292DCC9D90AC9CA /* immich_stub_partners.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = immich_stub_partners.py; sourceTree = "<group>"; };
 		FDDC77DDD11CB5C7E3E91324 /* LocationGeocodingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationGeocodingService.swift; sourceTree = "<group>"; };
+		FDE53ED2DD3C1FD0C04F4DB9 /* immich_stub_shared_link_viewer.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = immich_stub_shared_link_viewer.py; sourceTree = "<group>"; };
 		FDF9477BF83A0859F5128F11 /* PVHeaderBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVHeaderBadge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -861,6 +869,7 @@
 				9C5F55B65296B83E9775A933 /* SearchViewModelTests.swift */,
 				CC47202EF0B825AE28A0D96F /* SharedLinksViewModelTests.swift */,
 				45352507F68A640ADC56331D /* SharedLinkURLTests.swift */,
+				6591BB643B56627A46F0E697 /* SharedLinkViewerViewModelTests.swift */,
 				A801FF1E7288B5773621C293 /* SlideshowViewModelTests.swift */,
 				9EFC8C3ED07A3BD31DC643A8 /* StacksViewModelTests.swift */,
 				0029D378F6FF45BF15234C6F /* StorageStatsViewModelTests.swift */,
@@ -925,6 +934,8 @@
 				CAC538A722DBF17EF78BA473 /* SharedLinkSheet.swift */,
 				DA4C06CAD8C011DCEB7B782C /* SharedLinksView.swift */,
 				ED83254B66ED0E84314CD3F1 /* SharedLinksViewModel.swift */,
+				3CECF6B45B0DE5651C9B54AD /* SharedLinkViewerView.swift */,
+				FAED9946CE0FAEDE581A583E /* SharedLinkViewerViewModel.swift */,
 			);
 			path = SharedLinks;
 			sourceTree = "<group>";
@@ -1020,6 +1031,7 @@
 			children = (
 				CFAA656D3A00CC43F26BF6B2 /* immich_stub_memories.py */,
 				FDA5FDA4F292DCC9D90AC9CA /* immich_stub_partners.py */,
+				FDE53ED2DD3C1FD0C04F4DB9 /* immich_stub_shared_link_viewer.py */,
 				DB7F67B8B6D1869797CBD1B7 /* immich_stub_shared_links.py */,
 			);
 			path = stubs;
@@ -1324,6 +1336,7 @@
 			files = (
 				BAB66B7B11651448F6CC4648 /* immich_stub_memories.py in Resources */,
 				A8E6691882D082D9A5F3E53F /* immich_stub_partners.py in Resources */,
+				32DA0757617E602B6B277FB2 /* immich_stub_shared_link_viewer.py in Resources */,
 				04DFCD43FE2FF24449114F7B /* immich_stub_shared_links.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1400,6 +1413,7 @@
 				BC6D4CFA04387B619E5FE15E /* SaveToLibraryViewModelTests.swift in Sources */,
 				FBE69C14AEF84665BFAE2744 /* SearchViewModelTests.swift in Sources */,
 				7B1531BEEA6BDDE32D6F0263 /* SharedLinkURLTests.swift in Sources */,
+				FBE8BDF18212EE959AAF72F0 /* SharedLinkViewerViewModelTests.swift in Sources */,
 				6100C7C94C2DC129CF421141 /* SharedLinksViewModelTests.swift in Sources */,
 				3F35237B5AA429E083ECB3ED /* SlideshowViewModelTests.swift in Sources */,
 				8D839C92FC345147FE371F4C /* StacksViewModelTests.swift in Sources */,
@@ -1571,6 +1585,8 @@
 				5BC30EBFBD2714B2191AE004 /* SharedLinkExpiryPicker.swift in Sources */,
 				AD37DE25A2020AF9419421E9 /* SharedLinkSheet.swift in Sources */,
 				B2D919D9DF224DA1CD5BA517 /* SharedLinkURL.swift in Sources */,
+				877969EB33DC0167152D4B6E /* SharedLinkViewerView.swift in Sources */,
+				54771F5F040924CAA348FD5B /* SharedLinkViewerViewModel.swift in Sources */,
 				F8E91DBF4819C91FA290723A /* SharedLinksView.swift in Sources */,
 				3BF7016C945AF0500CF26931 /* SharedLinksViewModel.swift in Sources */,
 				B9D7D9DE441E402A624D2332 /* SlideshowView.swift in Sources */,

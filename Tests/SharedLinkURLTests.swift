@@ -64,4 +64,60 @@ final class SharedLinkURLTests: XCTestCase {
             "https://photos.example.com/share/a2V5"
         )
     }
+
+    // MARK: - Reading a link someone sent you (issue #22)
+
+    /// The server's own key format: 50 random bytes, base64url — the shape is
+    /// what lets a pasted token be read as a key rather than a slug.
+    private let key = "wJalrXUtnFEMI7K7MDENGbPxRfiCYEXAMPLEKEY_0123456789-abcdef"
+
+    func test_reference_readsTheKeyFromASharePath() {
+        XCTAssertEqual(
+            SharedLinkURL.reference(from: "https://photos.example.com/share/\(key)"),
+            .init(host: "photos.example.com", credential: .key(key))
+        )
+    }
+
+    func test_reference_readsTheSlugFromAnSPath() {
+        XCTAssertEqual(
+            SharedLinkURL.reference(from: "https://photos.example.com/s/trip-2026"),
+            .init(host: "photos.example.com", credential: .slug("trip-2026"))
+        )
+    }
+
+    /// A slug always wins on the server side too (`Route.viewSharedLink`), so a
+    /// path that carries both markers is read by its first one.
+    func test_reference_takesTheFirstMarkerSegments() {
+        XCTAssertEqual(
+            SharedLinkURL.reference(from: "https://photos.example.com/s/trip-2026/photos")?.credential,
+            .slug("trip-2026")
+        )
+    }
+
+    /// What a chat app hands over when the scheme got lost on copy.
+    func test_reference_acceptsASchemeLessLink() {
+        XCTAssertEqual(
+            SharedLinkURL.reference(from: "photos.example.com/s/trip-2026"),
+            .init(host: "photos.example.com", credential: .slug("trip-2026"))
+        )
+    }
+
+    /// A bare pasted token: long base64url is the key, a short word is a slug.
+    func test_reference_disambiguatesABareToken() {
+        XCTAssertEqual(SharedLinkURL.reference(from: key), .init(host: nil, credential: .key(key)))
+        XCTAssertEqual(SharedLinkURL.reference(from: " trip-2026 "), .init(host: nil, credential: .slug("trip-2026")))
+        // A slug that happens to be long but is not base64url is still a slug.
+        XCTAssertEqual(
+            SharedLinkURL.reference(from: String(repeating: "a", count: 48) + "!")?.credential,
+            .slug(String(repeating: "a", count: 48) + "!")
+        )
+    }
+
+    func test_reference_rejectsTextWithoutACredential() {
+        XCTAssertNil(SharedLinkURL.reference(from: ""))
+        XCTAssertNil(SharedLinkURL.reference(from: "   "))
+        XCTAssertNil(SharedLinkURL.reference(from: "https://photos.example.com/"))
+        XCTAssertNil(SharedLinkURL.reference(from: "https://photos.example.com/albums/123"))
+        XCTAssertNil(SharedLinkURL.reference(from: "photos.example.com"))
+    }
 }

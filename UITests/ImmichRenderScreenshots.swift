@@ -208,7 +208,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         sleep(4)
         shot("08-timeline-relaunch")
 
-        app.tabBars.buttons["Albums"].tap()
+        app.tabBars.buttons["Albums"].firstMatch.tap()
         sleep(3)
         shot("09-albums")
     }
@@ -812,6 +812,156 @@ final class ImmichRenderScreenshots: XCTestCase {
         shot("38-memories-empty")
     }
 
+    /// Public shared-link viewer (issue #22) against a committed stub. Five
+    /// things can only be seen by running the app:
+    ///
+    /// 1. a link received as a URL addresses the right credential — the `/s/<slug>`
+    ///    path must go out as `slug=`, not as a guessed key;
+    /// 2. no visitor request carries a bearer token, even though the app is
+    ///    signed in — an accidental `Authorization` would read the link as its
+    ///    owner (the stub logs the header);
+    /// 3. a protected link refuses until the password is exchanged, and what
+    ///    makes the next visit succeed is the **cookie** the login returned: the
+    ///    stub gates `/shared-links/me` on it, exactly like
+    ///    `SharedLinkService.getMine`, so a viewer that dropped the cookie would
+    ///    stay stuck on the prompt;
+    /// 4. an album link's photos come from `POST /search/metadata` with
+    ///    `albumIds` — an unfiltered search is a 400 under shared-link auth;
+    /// 5. `allowUpload: false` reads as read-only with no add-photos button, and
+    ///    a revoked slug lands on the dead-link state instead of an error alert.
+    ///
+    /// Needs the viewer stub (committed):
+    ///
+    ///     python3 UITests/stubs/immich_stub_shared_link_viewer.py 8421
+    func test_SLV_viewer() throws {
+        let protectedLink = "\(stub)/s/trip-2026"
+        let readOnlyLink = "\(stub)/s/open-link"
+        let revokedLink = "\(stub)/s/gone-2026"
+        let stubAlbum = "22222222-2222-4222-8222-000000000002"
+
+        setProvider("auto")
+        resetSharedLinkViewer()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        openSharedTab()
+        openSharedLinkViewer()
+        shot("69-shared-link-entry")
+        pasteSharedLink(protectedLink)
+        shot("70-shared-link-password")
+
+        // MARK: A protected link asks for its password
+
+        let passwordField = app.secureTextFields["sharedLinkViewerPassword"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 20),
+                      "the password-protected link did not stop at the prompt")
+
+        // Wrong password first: the refusal must stay on the prompt.
+        passwordField.tap()
+        passwordField.typeText("nope")
+        app.buttons["submitSharedLinkPassword"].tap()
+        sleep(3)
+        XCTAssertTrue(app.staticTexts["That password is not right."].waitForExistence(timeout: 15),
+                      "a wrong password must be reported inline")
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "the prompt must stay put")
+
+        // The real password — and the cookie it returns is what unlocks the visit.
+        retype(passwordField, replacing: 4, with: "hunter2")
+        app.buttons["submitSharedLinkPassword"].tap()
+        sleep(4)
+
+        let title = app.staticTexts["sharedLinkViewerTitle"]
+        XCTAssertTrue(title.waitForExistence(timeout: 20), "the link did not open after the password")
+        XCTAssertEqual(title.label, "Stub Album")
+
+        let subtitle = app.staticTexts["sharedLinkViewerSubtitle"]
+        XCTAssertTrue(subtitle.label.contains("3 photos"),
+                      "the album link's count must come from the search — got \(subtitle.label)")
+        XCTAssertTrue(subtitle.label.contains("You can add photos"),
+                      "allowUpload true must be stated — got \(subtitle.label)")
+
+        XCTAssertTrue(firstSharedLinkAsset().waitForExistence(timeout: 20),
+                      "the album link's photos are not in the grid")
+        shot("71-shared-link-opened")
+
+        assertStubVisitedSharedLink(method: "POST", path: "/api/shared-links/login", password: "hunter2",
+                                    slug: "trip-2026")
+        assertStubVisitedSharedLink(method: "GET", path: "/api/shared-links/me", cookie: false,
+                                    slug: "trip-2026")
+        assertStubSearchedSharedAlbum(albumId: stubAlbum)
+        assertStubLoadedSharedThumbnail(slug: "trip-2026")
+
+        // MARK: Pull-to-refresh is the visit that needs the cookie
+
+        // Opening the link a second time re-reads it, and *that* read only
+        // passes because the client kept the cookie the login handed out — the
+        // stub gates `/me` on it, like `SharedLinkService.getMine`. A dropped
+        // cookie would bounce the viewer back to the password prompt.
+        // A deliberate slow pull: `swipeDown()` is too fast to cross the
+        // refresh threshold, and `.refreshable` is a drag, not a flick.
+        let grid = app.scrollViews.firstMatch
+        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+            .press(forDuration: 0.3,
+                   thenDragTo: grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
+                   withVelocity: .slow,
+                   thenHoldForDuration: 0.6)
+        sleep(4)
+        XCTAssertTrue(app.staticTexts["sharedLinkViewerTitle"].waitForExistence(timeout: 20),
+                      "refreshing the link must not send the visitor back to the password prompt")
+        XCTAssertFalse(app.secureTextFields["sharedLinkViewerPassword"].exists,
+                       "the cookie is what keeps the visit unlocked")
+        assertStubVisitedSharedLink(method: "GET", path: "/api/shared-links/me", cookie: true,
+                                    slug: "trip-2026")
+
+        // MARK: A photo opens full screen
+
+        firstSharedLinkAsset().tap()
+        let pagerClose = app.buttons["closeSharedLinkPager"]
+        XCTAssertTrue(pagerClose.waitForExistence(timeout: 20), "tapping a photo must open it full screen")
+        shot("72-shared-link-photo")
+        pagerClose.tap()
+        sleep(2)
+
+        // MARK: A link that forbids uploads
+
+        app.buttons["closeSharedLinkViewer"].tap()
+        sleep(2)
+        openSharedLinkViewer()
+        pasteSharedLink(readOnlyLink)
+
+        let readOnlySubtitle = app.staticTexts["sharedLinkViewerSubtitle"]
+        XCTAssertTrue(readOnlySubtitle.waitForExistence(timeout: 20), "the open link did not load")
+        XCTAssertTrue(readOnlySubtitle.label.contains("Read only"),
+                      "allowUpload false must read as read-only — got \(readOnlySubtitle.label)")
+        XCTAssertFalse(app.buttons["addPhotoToSharedLink"].exists,
+                       "a link that forbids uploads must not offer one")
+        XCTAssertTrue(firstSharedLinkAsset().waitForExistence(timeout: 20),
+                      "an individual link's inline assets are not in the grid")
+        assertStubLoadedSharedThumbnail(slug: "open-link")
+        shot("73-shared-link-readonly")
+
+        // MARK: A revoked link
+
+        app.buttons["closeSharedLinkViewer"].tap()
+        sleep(2)
+        openSharedLinkViewer()
+        pasteSharedLink(revokedLink)
+
+        let deadLink = app.descendants(matching: .any)
+            .matching(identifier: "sharedLinkViewerDeadLink").firstMatch
+        XCTAssertTrue(deadLink.waitForExistence(timeout: 20),
+                      "a revoked slug must land on the dead-link state")
+        shot("74-shared-link-dead")
+    }
+
     /// One picker cell, by the identity the grid gives it.
     private func pickerAsset(_ assetId: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "pickerAsset_\(assetId)").firstMatch
@@ -936,15 +1086,165 @@ final class ImmichRenderScreenshots: XCTestCase {
 
     /// The "Shared" tab, whichever language the catalog resolves it in
     /// ("Shared" → "Partagé" in `fr`). Falls back to tab position so the
-    /// scenario never depends on the simulator's locale.
+    /// scenario never depends on the simulator's locale. `firstMatch` for the
+    /// reason spelled out on `openMemoriesTab`.
     private func openSharedTab() {
         for label in ["Shared", "Partagé"] {
-            let tab = app.tabBars.buttons[label]
+            let tab = app.tabBars.buttons[label].firstMatch
             if tab.waitForExistence(timeout: 5) {
                 tab.tap()
                 return
             }
         }
         app.tabBars.buttons.element(boundBy: 3).tap()
+    }
+
+    // MARK: - Shared-link viewer (issue #22)
+
+    /// Same `/__reset` route, stated for the viewer stub: it restores the three
+    /// links (protected, open, revoked) and empties the request log.
+    private func resetSharedLinkViewer() {
+        resetStacks()
+    }
+
+    private func openSharedLinkViewer() {
+        let entry = app.buttons["openSharedLinkViewer"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15), "no entry point in the Shared toolbar")
+        entry.tap()
+        XCTAssertTrue(app.textFields["sharedLinkViewerField"].waitForExistence(timeout: 15),
+                      "the viewer did not present")
+    }
+
+    /// Types a received link into the viewer's field and opens it.
+    private func pasteSharedLink(_ link: String) {
+        let field = app.textFields["sharedLinkViewerField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 15), "no link field")
+        field.tap()
+        field.typeText(link)
+        app.buttons["openSharedLink"].tap()
+        sleep(3)
+    }
+
+    /// Replaces a field's content. Select-all + delete is flaky on a
+    /// `SecureField`, so the existing characters are removed one by one.
+    private func retype(_ element: XCUIElement, replacing count: Int, with text: String) {
+        element.tap()
+        if count > 0 {
+            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: count))
+        }
+        element.typeText(text)
+    }
+
+    /// One grid cell of the viewer's asset grid. The stub hands out per-run asset
+    /// ids (a disk-cached thumbnail would otherwise hide the image request), so
+    /// cells are addressed by identifier prefix rather than by a fixed id.
+    private func firstSharedLinkAsset() -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "sharedLinkAsset_"))
+            .firstMatch
+    }
+
+    /// One entry of the viewer stub's visitor log — what the app actually sent,
+    /// including whether it carried the login cookie or a bearer token.
+    private struct VisitorRequest: Decodable {
+        let method: String
+        let path: String
+        let credential: String?
+        let slug: String?
+        let key: String?
+        let cookie: Bool?
+        let authorization: Bool?
+        let password: String?
+        let albumIds: [String]?
+    }
+
+    private func visitorRequests() -> [VisitorRequest] {
+        var request = URLRequest(url: URL(string: "\(stub)/__requests")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__requests")
+        return (try? JSONDecoder().decode([VisitorRequest].self, from: Data(body.utf8))) ?? []
+    }
+
+    private func describeVisits(_ visits: [VisitorRequest]) -> String {
+        visits.map { visit in
+            "\(visit.method) \(visit.path) slug=\(visit.slug ?? "-") key=\(visit.key ?? "-") "
+                + "cookie=\(visit.cookie.map(String.init) ?? "-") auth=\(visit.authorization.map(String.init) ?? "-") "
+                + "password=\(visit.password ?? "-") albumIds=\(visit.albumIds ?? [])"
+        }.joined(separator: "\n")
+    }
+
+    /// The stub's log grows as the app makes its requests, and an assertion that
+    /// reads it the instant a cell appears can beat the image load — so wire
+    /// assertions poll briefly instead of assuming the request already landed.
+    private func pollVisits(
+        until predicate: ([VisitorRequest]) -> Bool,
+        timeout: TimeInterval = 15
+    ) -> [VisitorRequest] {
+        let deadline = Date().addingTimeInterval(timeout)
+        var visits = visitorRequests()
+        while !predicate(visits), Date() < deadline {
+            sleep(1)
+            visits = visitorRequests()
+        }
+        return visits
+    }
+
+    /// Proves a visit happened with the expected cookie state, and that no visit
+    /// ever carried a bearer token: the app is signed in, so an accidental
+    /// `Authorization` would silently read the link as its owner.
+    private func assertStubVisitedSharedLink(
+        method: String,
+        path: String,
+        cookie: Bool? = nil,
+        password: String? = nil,
+        slug: String? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        func matches(_ visit: VisitorRequest) -> Bool {
+            visit.method == method && visit.path == path
+                && (cookie == nil || visit.cookie == cookie)
+                && (password == nil || visit.password == password)
+                && (slug == nil || visit.slug == slug)
+        }
+        let visits = pollVisits { $0.contains(where: matches) }
+        XCTAssertTrue(visits.contains(where: matches),
+                      "no \(method) \(path) cookie=\(cookie.map(String.init) ?? "-") "
+                      + "password=\(password ?? "-") slug=\(slug ?? "-") on the wire — got:\n\(describeVisits(visits))",
+                      file: file, line: line)
+        XCTAssertFalse(visits.contains { $0.authorization == true },
+                       "a shared link is read as a visitor — no visit may carry a bearer token",
+                       file: file, line: line)
+    }
+
+    /// An album link's grid can only come from `POST /search/metadata` with an
+    /// `albumIds` filter — the server 400s an unfiltered search under
+    /// shared-link auth.
+    private func assertStubSearchedSharedAlbum(albumId: String, file: StaticString = #filePath, line: UInt = #line) {
+        func matches(_ visit: VisitorRequest) -> Bool {
+            visit.method == "POST" && visit.path == "/api/search/metadata" && visit.albumIds == [albumId]
+        }
+        let visits = pollVisits { $0.contains(where: matches) }
+        XCTAssertTrue(visits.contains(where: matches),
+                      "the album link's photos did not come from an albumIds search — got:\n\(describeVisits(visits))",
+                      file: file, line: line)
+    }
+
+    /// The photos themselves are public reads: each thumbnail must be requested
+    /// with the link's credential in its URL, or a visitor gets empty tiles.
+    private func assertStubLoadedSharedThumbnail(slug: String, file: StaticString = #filePath, line: UInt = #line) {
+        func matches(_ visit: VisitorRequest) -> Bool {
+            visit.path.hasSuffix("/thumbnail") && visit.slug == slug
+        }
+        let visits = pollVisits { $0.contains(where: matches) }
+        XCTAssertTrue(visits.contains(where: matches),
+                      "the grid never loaded a thumbnail with the link's credential — got:\n\(describeVisits(visits))",
+                      file: file, line: line)
     }
 }

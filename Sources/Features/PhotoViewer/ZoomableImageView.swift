@@ -21,6 +21,9 @@ struct ZoomableImageView: View {
     var onSingleTap: () -> Void = {}
     /// Reports the current scale so the parent can gate swipe-to-dismiss.
     var onZoomChange: (CGFloat) -> Void = { _ in }
+    /// Public-link scope (issue #22): the visitor's credential goes in the
+    /// fullsize image URL instead of a bearer header.
+    var sharedLink: SharedLinkCredential? = nil
 
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
@@ -38,7 +41,7 @@ struct ZoomableImageView: View {
             // so a content-sized `.fit` image would sit at the top, not centered.
             // The frame fills the page and centers the fitted image in both axes.
             let base = AuthenticatedAsyncImage(
-                url: asset.thumbnailURL(base: baseURL, size: .fullsize),
+                url: asset.thumbnailURL(base: baseURL, size: .fullsize, sharedLink: sharedLink),
                 token: token,
                 contentMode: .fit
             )

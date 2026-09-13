@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **724 tests** (mesurée le 2026-09-13, TEST SUCCEEDED).
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **805 tests** (mesurée le 2026-09-13, TEST SUCCEEDED). Chaque scénario XCUITest exige *son* stub sur le port 8421 : la régression se compte sur la suite unitaire (`-only-testing:ImmichSwiftUITests`).
 
 ---
 
@@ -37,6 +37,7 @@
 | 13 | **Backup — Ledger Reconciliation** | P2 | AC-LR01–LR08 | .omp/backup-auto/backup-ledger-reconciliation.specs.md | Voir §2.13 | ✅ Terminé | — (bulk-upload-check wire) | 13 | 8/8 AC |
 | 14 | **Backup — Network Policy** | P2 | AC-NP01–NP07 | .omp/backup-auto/backup-network-policy.specs.md | Voir §2.14 | ✅ Terminé | — | 7 | 7/7 AC |
 | 15 | **Backup — Library Observer** | P2 | AC-LO01–LO08 | .omp/backup-auto/backup-library-observer.specs.md | Voir §2.15 | ✅ Terminé | — (PhotosKit) | 6 | 7/8 AC (LO08 manuel) |
+| 16 | **Shared Link Viewer** (issue #22) | P3 | AC-4000–4005 | — (feature neuve, sans parité Flutter) | Voir §2.16 | ✅ Terminé | — (100% wire) | 6 + 20 + 1 XCUITest | 6/6 AC |
 
 **Legend** :
 - 🔴 **Pending** — Spéc existante, pas de card AC générée
@@ -324,35 +325,42 @@ Aucun endpoint manquant : les 3 routes annoncées ici (`public/:slug`, `:slug/as
 **Fichier spec** : `.omp/offline-download/offline-download.specs.md`
 **Card AC** : `.opencode/scratch/offline-download.acceptance.md`
 **UI brief** : `.omp/offline-download/offline-download.ui.md`
-**AC Cards** : AC-3500 – AC-3508
+**AC Cards** : AC-3500 – AC-3512 (carte révisée le 2026-09-13)
 **Phase** : P4 — Discovery
 
 #### Objectif
-Téléchargement d'assets pour consultation hors-ligne. Cache FileManager local, indicator de disponibilité offline, gestion de la taille de cache.
+Téléchargement d'assets pour consultation hors-ligne. Cache fichiers durable sous Application Support, **restitution réelle sans réseau** (viewer + grille + timeline), indicateur de disponibilité offline, gestion de la taille de cache.
 
 #### Points d'entrée
-- `OfflineAssetStore` (Services) — downloadAsset, getCachedAsset, isCached, removeCachedAsset, clearAllCachedAssets, cachedAssets, CachedAssetInfo
-- `OfflineDownloadViewModel` (Features/Offline/) — cachedAssets, downloadAsset, removeFromOffline, clearAll, cacheUsage
-- `OfflineAssetsView` (Features/Offline/) — asset grid + clear all + storage indicator
-- `PhotoViewer` — "Download for offline" dans share sheet
-- `AssetThumbnailCell` — cached indicator overlay (checkmark circle)
+- `OfflineAssetStore` (Services, `actor`) — `download`, `cachedInfo`, `fileURL`, `allCached`, `isCached`, `totalBytes`, `remove`, `clearAll`, `maxCacheSize`, `CachedAssetInfo`
+- `OfflineAssetIndex` (Features/Offline/, `@Observable`) — état « en cache » lu par les cellules via l'environnement
+- `OfflineDownloadViewModel` (Features/Offline/) — cachedAssets, downloadAsset, removeFromOffline, clearAll, cacheUsage, progression par asset
+- `OfflineAssetsView` (Features/Offline/) — grille d'assets + clear all + jauge d'occupation
+- `AuthenticatedAsyncImage` — étage « fichier local » (c'est le chemin de rendu hors-ligne)
+- `PhotoViewer` — « Download for Offline » / « Remove from Offline » dans le partage
+- `AssetThumbnailCell` — indicateur d'asset en cache (`offlineBadge`)
 
 #### Endpoint API
-- `GET /api/assets/:id/original` — existant (download original file)
+- `GET /api/assets/:id/original` — existant (`operationId: downloadAsset`, `application/octet-stream`) — **vérifié le 2026-09-13** sur l'OpenAPI `main` (`jq '.paths["/assets/{id}/original"]' /tmp/immich-openapi-main.json`). Aucune route « offline » n'existe côté serveur.
 
-#### Étapes d'implémentation
-1. Créer `OfflineAssetStore` — FileManager cache avec maxCacheSize configurable
-2. Créer `OfflineDownloadViewModel` — gestion UI state + download progress
-3. Créer `OfflineAssetsView` — LazyVGrid + storage usage card + clear all
-4. Ajouter "Download for offline" dans `PhotoViewer` share sheet
-5. Ajouter cached indicator dans `AssetThumbnailCell`
-6. Ajouter link "Offline Storage" dans `ProfileView`
-7. Tests ≥8 (Store + ViewModel)
+#### Étapes d'implémentation (révisées le 2026-09-13 — voir la carte AC-3500–AC-3512)
+1. NEW `Sources/Services/OfflineAssetStore.swift` — `actor`, cache fichiers + `index.json` sous **Application Support** (`Caches` est purgeable par l'OS, la spec d'origine se trompait), API `download/cachedInfo/fileURL/allCached/isCached/totalBytes/remove/clearAll/maxCacheSize`, `init(folderURL:)` injectable pour les tests.
+2. NEW `Sources/Services/ImageDownsampler.swift` — ImageIO (`CGImageSourceCreateThumbnailAtIndex`), 2048 px.
+3. EDIT `Sources/Services/AuthenticatedAsyncImage.swift` — étage 0 `localFileURL` : c'est **ce qui rend la consultation hors-ligne réelle** (sans lui le store n'est qu'une liste de tailles).
+4. NEW `Sources/Features/Offline/OfflineAssetIndex.swift` — `@MainActor @Observable`, injecté dans l'environnement (les 6 sites d'`AssetThumbnailCell` ne doivent pas recevoir un paramètre de plus).
+5. NEW `Sources/Features/Offline/OfflineDownloadViewModel.swift` — `cachedAssets`, `cacheUsage`, `maxCacheSize`, `downloadAsset(id:)`, `removeFromOffline(id:)`, `clearAll()`, `load()`, progression par asset.
+6. NEW `Sources/Features/Offline/OfflineAssetsView.swift` — `LazyVGrid` + carte d'occupation (anneau) + suppression par asset + « Clear All » + état vide.
+7. EDIT `Sources/Features/Timeline/AssetThumbnailCell.swift` — badge `offlineBadge` + image servie depuis le fichier local.
+8. EDIT `Sources/Features/PhotoViewer/ZoomableImageView.swift` + `PhotoViewer.swift` — `localFileURL` et section « Offline » du partage.
+9. EDIT `Sources/Features/Profile/ProfileView.swift` — lien « Offline Storage » (section Management).
+10. EDIT `Sources/DependencyContainer.swift` + `Sources/RootView.swift` — instances process-wide + `.environment(offlineIndex)`.
+11. EDIT `Resources/Localizable.xcstrings` — clés EN+FR ajoutées à la main.
 
 #### Tests attendus
-- `Tests/OfflineAssetStoreTests.swift` ≥5 tests : download, cache hit, cache miss, remove, clear, size limit
-- `Tests/OfflineDownloadViewModelTests.swift` ≥3 tests : download progress, remove, clear
-- Regression : suite ≥ baseline
+- `Tests/OfflineAssetStoreTests.swift` ≥7 : write+index, cache hit, cache miss, remove, clearAll, éviction à la limite, réconciliation d'index (+ rendu local sans réseau, progression).
+- `Tests/OfflineDownloadViewModelTests.swift` ≥5 : load, download succès, download échec, remove, clear + `cacheUsage`.
+- `UITests/stubs/immich_stub_offline.py` (committé, self-contained, port 8421) + `test_09_offlineDownload` dans `UITests/ImmichRenderScreenshots.swift` : viewer → « Download for Offline » → badge timeline → écran Offline Storage → suppression.
+- Regression : suite ≥ **805** (baseline mesurée le 2026-09-13, `-only-testing:ImmichSwiftUITests`), TEST SUCCEEDED.
 
 ---
 
@@ -673,6 +681,47 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 
 ---
 
+### 2.16. Shared Link Viewer (P3, issue #22) — ✅ Terminé (2026-09-13)
+
+**Fichier spec** : aucun (feature neuve, hors parité Flutter)
+**Card AC** : `.opencode/scratch/shared-link-viewer.acceptance.md` (AC-4000…AC-4005, réécrite le 2026-09-13 sur le contrat réel puis livrée)
+**Phase** : P3 — Social
+
+#### Résultat (2026-09-13)
+**6/6 AC PASS.** Suite **772 → 805 tests, TEST SUCCEEDED** (iPhone 17, `-only-testing:ImmichSwiftUITests`) + `test_SLV_viewer` de bout en bout contre le stub **committé** `UITests/stubs/immich_stub_shared_link_viewer.py`, vert sur **deux runs consécutifs**.
+
+#### Objectif
+Ouvrir un lien partagé **reçu** : vérifier son mot de passe, parcourir ses photos, et — quand le lien l'autorise — y déposer une photo. Feature neuve : le client Flutter n'a qu'une page liste et une page création/édition, et les trois routes que #17 annonçait pour ce viewer (`/shared-links/public/:slug`, `/:slug/assets`, `/:slug/check-password`) n'existent pas côté serveur.
+
+#### Contrat réel (vérifié le 2026-09-13)
+- `GET /api/shared-links/me?key=<base64url>` **ou** `?slug=<slug>` — auth `sharedLink: true` ; un lien protégé répond **401 `"Password required"`** tant que le cookie de login manque
+- `POST /api/shared-links/login?key=|slug=` body `{password}` → DTO + `Set-Cookie: immich_shared_link_token` ; mauvais mot de passe = 401 `"Invalid password"`
+- `POST /api/search/metadata?key=` avec `albumIds` — **seule** recherche autorisée sous auth partagée (« Shared link access is only allowed in combination with an albumIds filter », `search.service.ts:93`) ; un lien INDIVIDUAL porte ses `assets` dans le DTO
+- `POST /api/assets?key=` (multipart) gardé par `requireUploadAccess` : **401 nu** si `allowUpload` est faux
+
+#### Livré
+- `ImmichAPIClient.sendSharedLinkRaw` — chemin **distinct** : pas de bearer, credential en query, cookie de login rejoué, et 401 qui **n'atteint jamais `authDelegate`** (sinon demander un mot de passe aurait déconnecté l'utilisateur — FM-4)
+- **4 méthodes** sur `ImmichClient` + `ImmichAPIClient` : `getSharedLinkMine`, `loginToSharedLink`, `getSharedLinkAlbumAssets`, `uploadAssetToSharedLink`
+- `SharedLinkCredential` (`key` ou `slug` — le serveur lit l'un **ou** l'autre), `SharedLinkLoginDto`, `ImmichCookie.sharedLinkToken`
+- `SharedLinkURL.reference(from:)` — lit un lien collé (`/s/<slug>`, `/share/<key>`, sans schéma, ou jeton nu désambiguïsé par forme)
+- **NEW** `Sources/Features/SharedLinks/SharedLinkViewerViewModel.swift` + `SharedLinkViewerView.swift` — phases `entry`/`passwordRequired`/`loading`/`opened`/`deadLink`/`failed`, pagination de l'album, upload invité, pager plein écran réutilisant `ZoomableImageView`
+- `AssetThumbnailCell` + `ImmichAssetURL` + `AssetReactItem` gagnent un `sharedLink:` (credential dans l'URL de vignette ; le menu contextuel du propriétaire disparaît pour un visiteur)
+- Entrée : bouton dans la barre de l'onglet Partage → feuille `SharedLinkViewerView`
+
+#### Tests livrés
+- `Tests/ImmichAPIClientTests.swift` : 7 tests `test_SLV_*` (sans bearer, slug, cookie conservé, 401 du lien qui ne déconnecte pas, recherche album, upload multipart, refus d'upload)
+- `Tests/SharedLinkViewerViewModelTests.swift` : 20 tests (entrée, hôte étranger, mot de passe, lien mort, pagination, upload, reset)
+- `Tests/SharedLinkURLTests.swift` : +6 tests de lecture de lien
+- `UITests/ImmichRenderScreenshots.swift/test_SLV_viewer` + stub committé
+- Regression : suite 772 → **805**, TEST SUCCEEDED
+
+#### Pièges
+- **Vignette publique en plein écran** : `size=fullsize` redirige vers `original` (permission `AssetDownload`) — le serveur force `edited = true` sous auth partagée, ce qui neutralise la redirection. Sans cela, les photos d'un lien en lecture seule auraient été cassées.
+- **`AuthenticatedAsyncImage` met les vignettes en cache disque par URL** : avec des ids d'assets fixes, le 2ᵉ run du scénario trouvait les images en cache et la requête prouvant le credential n'était plus émise. Le stub régénère donc ses ids à chaque `/__reset`.
+- **Les stubs frères servent des JPEG que ImageIO ne décode pas** (`immich_stub_memories.py`, `immich_stub_shared_links.py`, octets 1×1) : leurs captures montrent une grille d'images cassées alors que l'app est correcte. Ce stub-ci génère un vrai PNG 8×8.
+
+---
+
 ## Référence API — endpoints ImmichClient
 
 ### Endpoints déjà wire (existants)
@@ -724,9 +773,9 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 
 | # | Endpoint | Feature | Priority |
 |---|----------|---------|----------|
-| 1 | `POST /api/partners` | Partners UI (create) | P3 |
-| 2 | `GET /api/partners?direction=` | Partners UI (directional) | P3 |
-| 3 | `POST /api/users/me/device-token` | Push Notifications | P5 |
+| 1 | `POST /api/users/me/device-token` | Push Notifications | P5 |
+
+Les deux lignes partenaires (1 et 2) étaient listées ici comme manquantes : elles sont **wire depuis le 2026-09-13** (§2.3).
 
 **Champs manquants (pas des endpoints)** — `POST /api/assets` n'envoie ni `deviceAssetId` ni `deviceId` (`ImmichAPIClient.swift:480-491`). Corrigé par §2.13 ; prérequis de toute réconciliation par appareil.
 
@@ -739,7 +788,7 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 ### Checklist commune à TOUTES les features
 
 - [ ] `xcodebuild build` réussit sans warning nouveau
-- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 724 tests
+- [ ] `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — suite ≥ 805 tests (baseline mesurée le 2026-09-13)
 - [ ] Mock dans `MockImmichClient` mis à jour
 - [ ] `DependencyContainer` injecte le nouveau ViewModel
 - [ ] `ProfileView` navigation mise à jour si feature ajoutée

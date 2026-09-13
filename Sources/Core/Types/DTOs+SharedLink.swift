@@ -108,3 +108,33 @@ struct AssetIdsResponseDto: Codable, Equatable {
     let success: Bool
     let error: AssetIdErrorReason?
 }
+
+// MARK: - Visitor side (issue #22 — opening a link someone sent you)
+
+/// How a visitor addresses a shared link on the wire: `?key=<base64url>` for
+/// the random key the server generated, `?slug=<slug>` for the custom slug the
+/// owner chose.
+///
+/// One enum instead of two optionals because the server accepts **either** and
+/// reads the key first (`AuthService.validate`: `query.key` → `validateSharedLinkKey`,
+/// else `query.slug` → `validateSharedLinkSlug`) — a request carrying both or
+/// neither has no meaning, so the type refuses to express it.
+enum SharedLinkCredential: Equatable, Sendable, Hashable {
+    case key(String)
+    case slug(String)
+
+    /// The `key` / `slug` query item every visitor request carries — the
+    /// credential never travels in a header (`ImmichHeader.SharedLinkKey`
+    /// exists server-side, but the query is what the web client uses).
+    var queryItem: URLQueryItem {
+        switch self {
+        case .key(let value): URLQueryItem(name: "key", value: value)
+        case .slug(let value): URLQueryItem(name: "slug", value: value)
+        }
+    }
+}
+
+/// `SharedLinkLoginDto` — body of `POST /api/shared-links/login`.
+struct SharedLinkLoginDto: Codable, Equatable {
+    let password: String
+}

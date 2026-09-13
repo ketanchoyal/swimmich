@@ -116,8 +116,18 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     }
 
     /// Builds the thumbnail URL for this asset against a base server URL.
-    func thumbnailURL(base: URL, size: AssetMediaSize = .thumbnail) -> URL {
-        ImmichAssetURL.thumbnail(assetId: id, thumbhash: thumbhash ?? "", baseURL: base, size: size)
+    ///
+    /// `sharedLink` (issue #22) scopes the URL to a public link: the credential
+    /// travels in the query instead of a bearer header, so a visitor's grid can
+    /// load the same thumbnails the owner sees.
+    func thumbnailURL(base: URL, size: AssetMediaSize = .thumbnail, sharedLink: SharedLinkCredential? = nil) -> URL {
+        ImmichAssetURL.thumbnail(
+            assetId: id,
+            thumbhash: thumbhash ?? "",
+            baseURL: base,
+            size: size,
+            sharedLink: sharedLink
+        )
     }
 
     /// Copy with `isFavorite` overridden (AC-205). Backs optimistic favorite

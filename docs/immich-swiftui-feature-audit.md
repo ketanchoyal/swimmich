@@ -238,7 +238,7 @@
 | **People** | Full CRUD + merge + faces + statistics | `PeopleView.swift` basic list | No person albums grid, no face browsing from timeline |
 | **Memories** | GET /memories wired | Basic tab with OnThisDay cards | No save/unsave, no create memory, no other memory types |
 | **Partners** | Full CRUD wired | Only as DTO + client | No partner-sharing UI tab |
-| **Shared Links** | Full CRUD wired | Shared tab with list | No external link preview, no copy link |
+| **Shared Links** | Full CRUD + visitor routes wired | Shared tab with list, create/edit sheets and the **public viewer** (`SharedLinkViewerView`, entry point in the Shared toolbar) | No download action for a visitor |
 | **Admin** | Full CRUD wired | Admin view | Admin tab only accessible for admin users |
 | **Tags** | Full CRUD + asset tagging wired | Basic list + asset tags sheet | No tag search, no auto-tagging |
 | **OAuth2** | Mobile URL + callback wired | No OAuth button in login | TODO, just DTOs + client |
@@ -482,6 +482,7 @@
 - Search complète (metadata + CLIP + explore + map)
 - Memories / Duplicates / People / Admin / Tags / SharedLinks
 - Backup avec Live Activity (première extension du projet)
+- Visionneuse de lien partagé (visiteur : mot de passe + cookie, grille, upload invité) — feature sans équivalent Flutter
 - Architecture propre, tests, acceptance contracts
 
 **Gaps principaux**:

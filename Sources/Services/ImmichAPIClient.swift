@@ -20,6 +20,15 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     private var _baseURL: URL?
     private var _requestCount: Int = 0
 
+    /// Session cookie returned by `POST /api/shared-links/login`
+    /// (`immich_shared_link_token`), replayed verbatim on later visitor
+    /// requests. Held in memory only: a link's password lives for the length of
+    /// a visit, and a visitor cookie has no business surviving a relaunch.
+    /// One slot is enough — the server validates the token against *its own*
+    /// link id, so a stale token for a previously opened link is simply
+    /// ignored and answered with `"Password required"`.
+    private var _sharedLinkCookie: String?
+
     var requestCount: Int { lock.lock(); defer { lock.unlock() }; return _requestCount }
 
     weak var authDelegate: AuthSessionDelegate?
@@ -269,6 +278,79 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
             path: ImmichAPI.sharedLinks.path("/\(id)/assets"),
             body: AnyEncodable(AssetIdsDto(assetIds: assetIds))
         )
+    }
+
+    // MARK: - Opening a shared link (issue #22 — visitor side)
+
+    func getSharedLinkMine(_ credential: SharedLinkCredential) async throws -> SharedLinkResponseDto {
+        let response = try await sendSharedLinkRaw(
+            .GET,
+            path: ImmichAPI.sharedLinks.path("/me"),
+            credential: credential
+        )
+        return try Self.decode(SharedLinkResponseDto.self, from: response.data)
+    }
+
+    func loginToSharedLink(_ credential: SharedLinkCredential, password: String) async throws -> SharedLinkResponseDto {
+        let response = try await sendSharedLinkRaw(
+            .POST,
+            path: ImmichAPI.sharedLinks.path("/login"),
+            credential: credential,
+            body: AnyEncodable(SharedLinkLoginDto(password: password)),
+            capturesCookie: true
+        )
+        return try Self.decode(SharedLinkResponseDto.self, from: response.data)
+    }
+
+    func getSharedLinkAlbumAssets(
+        _ credential: SharedLinkCredential,
+        albumId: String,
+        page: Int,
+        size: Int
+    ) async throws -> SearchResponseDto {
+        let dto = MetadataSearchDto(albumIds: [albumId], page: page, size: size)
+        let response = try await sendSharedLinkRaw(
+            .POST,
+            path: ImmichAPI.search.path("/metadata"),
+            credential: credential,
+            body: AnyEncodable(dto)
+        )
+        return try Self.decode(SearchResponseDto.self, from: response.data)
+    }
+
+    func uploadAssetToSharedLink(
+        fileURL: URL,
+        filename: String,
+        fileCreatedAt: String,
+        fileModifiedAt: String,
+        checksum: String,
+        deviceAssetId: String,
+        deviceId: String,
+        credential: SharedLinkCredential
+    ) async throws -> AssetMediaResponseDto {
+        // Same field set the server requires of the owner upload
+        // (`AssetMediaCreateDto`: fileCreatedAt / fileModifiedAt / deviceAssetId
+        // / deviceId); the visitor has no say over favorite, visibility or a
+        // Live Photo pair, so those are left out.
+        let multipart = try makeUploadBody(
+            fileURL: fileURL,
+            filename: filename,
+            fields: [
+                ("fileCreatedAt", fileCreatedAt),
+                ("fileModifiedAt", fileModifiedAt),
+                ("deviceAssetId", deviceAssetId),
+                ("deviceId", deviceId)
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: multipart.file) }
+
+        var request = try sharedLinkURLRequest(.POST, path: ImmichAPI.assets.path(""), credential: credential)
+        request.setValue(multipart.contentType, forHTTPHeaderField: ImmichHeader.contentType)
+        request.setValue(checksum, forHTTPHeaderField: ImmichHeader.checksum)
+
+        let (data, response) = try await dispatchUpload(request, fromFile: multipart.file)
+        try Self.validateSharedLinkResponse(response: response, data: data)
+        return try Self.decode(AssetMediaResponseDto.self, from: data)
     }
 
     // MARK: - Tags (gap #2)
@@ -525,6 +607,26 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     // MARK: - Upload
 
+    /// Assembles a multipart/form-data body on disk (asset bytes streamed from
+    /// the file, never held in memory) and returns the temp file plus the
+    /// `Content-Type` boundary that goes with it — shared by the owner upload
+    /// and the guest upload from a shared link. The caller removes the file.
+    private func makeUploadBody(
+        fileURL: URL,
+        filename: String,
+        fields: [(name: String, value: String)]
+    ) throws -> (file: URL, contentType: String) {
+        let multipart = MultipartBody()
+        let bodyURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("immich-upload-\(UUID().uuidString).multipart")
+        try multipart.writeStreamed(
+            fileField: ("assetData", filename, "application/octet-stream", fileURL),
+            fields: fields,
+            to: bodyURL
+        )
+        return (bodyURL, multipart.contentType)
+    }
+
     func uploadAsset(
         fileURL: URL,
         fileCreatedAt: String,
@@ -538,8 +640,6 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         deviceAssetId: String,
         deviceId: String
     ) async throws -> AssetMediaResponseDto {
-        guard let url = resolvedURL(path: ImmichAPI.assets.path("")) else { throw APIError.invalidURL }
-
         var fields: [(name: String, value: String)] = [
             ("fileCreatedAt", fileCreatedAt),
             ("fileModifiedAt", fileModifiedAt),
@@ -555,29 +655,17 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
             fields.append(("livePhotoVideoId", livePhotoVideoId))
         }
 
-        // Assemble the multipart body on disk (asset bytes streamed from the
-        // file, never held in memory), then hand the body file to URLSession
-        // — mirrors the Flutter client's file-based upload.
-        let multipart = MultipartBody()
-        let bodyURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("immich-upload-\(UUID().uuidString).multipart")
-        try multipart.writeStreamed(
-            fileField: ("assetData", filename, "application/octet-stream", fileURL),
-            fields: fields,
-            to: bodyURL
-        )
-        defer { try? FileManager.default.removeItem(at: bodyURL) }
+        let multipart = try makeUploadBody(fileURL: fileURL, filename: filename, fields: fields)
+        defer { try? FileManager.default.removeItem(at: multipart.file) }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = HTTPMethod.POST.rawValue
+        var request = try baseRequest(HTTPMethod.POST, path: ImmichAPI.assets.path(""), query: [], auth: false)
         request.setValue(multipart.contentType, forHTTPHeaderField: ImmichHeader.contentType)
-        request.setValue(ImmichAPI.acceptJSON, forHTTPHeaderField: ImmichHeader.accept)
         request.setValue(checksum, forHTTPHeaderField: ImmichHeader.checksum)
         if let token = token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: ImmichHeader.authorization)
         }
 
-        let (responseData, response) = try await dispatchUpload(request, fromFile: bodyURL)
+        let (responseData, response) = try await dispatchUpload(request, fromFile: multipart.file)
         try validate(response: response, data: responseData)
         return try Self.decode(AssetMediaResponseDto.self, from: responseData)
     }
@@ -604,6 +692,102 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     }
 
     private func sendRaw(_ method: HTTPMethod, path: String, query: [URLQueryItem] = [], auth: Bool, token: String? = nil, body: AnyEncodable?) async throws -> Data {
+        var request = try baseRequest(method, path: path, query: query, auth: auth, token: token)
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: ImmichHeader.contentType)
+            request.httpBody = try JSONEncoder.immich.encode(body)
+        }
+        let (responseData, response) = try await dispatch(request)
+        try validate(response: response, data: responseData)
+        return responseData
+    }
+
+    // MARK: - Shared-link transport (issue #22)
+
+    /// Sends a visitor request: **no bearer**, the credential in the query, and
+    /// the cookie a previous login established.
+    ///
+    /// Deliberately separate from `sendNoAuth` (the pre-login path: ping /
+    /// version / config / login) and from `sendAuthedRaw` (which hard-requires
+    /// a token and would sign the user out here): a 401 on this path says
+    /// something about the *link* — a password is required, the password is
+    /// wrong, the link is revoked or expired — and must never reach
+    /// `authDelegate`, which resets the whole app session (FM-4). Failures
+    /// therefore surface as `.serverError(status, message)` so the caller can
+    /// read the server's own wording (`"Password required"` is the discriminator
+    /// the web client keys off too).
+    @discardableResult
+    private func sendSharedLinkRaw(
+        _ method: HTTPMethod,
+        path: String,
+        credential: SharedLinkCredential,
+        query: [URLQueryItem] = [],
+        body: AnyEncodable? = nil,
+        capturesCookie: Bool = false
+    ) async throws -> (data: Data, response: HTTPURLResponse?) {
+        let request = try sharedLinkURLRequest(method, path: path, credential: credential, query: query, body: body)
+        let (data, response) = try await dispatch(request)
+        try Self.validateSharedLinkResponse(response: response, data: data)
+        if capturesCookie, let http = response as? HTTPURLResponse {
+            storeSharedLinkCookie(from: http)
+        }
+        return (data, response as? HTTPURLResponse)
+    }
+
+    /// Builds the request for a public shared link: credential in the query, no
+    /// `Authorization`, and the login cookie replayed explicitly (rather than
+    /// relying on `URLSession`'s cookie store, whose accept policy is not ours
+    /// to set on the shared session).
+    private func sharedLinkURLRequest(
+        _ method: HTTPMethod,
+        path: String,
+        credential: SharedLinkCredential,
+        query: [URLQueryItem] = [],
+        body: AnyEncodable? = nil
+    ) throws -> URLRequest {
+        var request = try baseRequest(
+            method,
+            path: path,
+            query: query + [credential.queryItem],
+            auth: false
+        )
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: ImmichHeader.contentType)
+            request.httpBody = try JSONEncoder.immich.encode(body)
+        }
+        if let cookie = sharedLinkCookie {
+            request.setValue(cookie, forHTTPHeaderField: ImmichHeader.cookie)
+        }
+        return request
+    }
+
+    private var sharedLinkCookie: String? {
+        lock.lock(); defer { lock.unlock() }; return _sharedLinkCookie
+    }
+
+    /// Keeps the `immich_shared_link_token` cookie out of the `Set-Cookie`
+    /// header. The server accumulates tokens (`SharedLinkController.merge`) and
+    /// answers with one comma-joined cookie, so the whole `name=value` pair is
+    /// kept as-is and replayed verbatim.
+    private func storeSharedLinkCookie(from response: HTTPURLResponse) {
+        let header = response.value(forHTTPHeaderField: "Set-Cookie") ?? ""
+        guard let pair = header.split(separator: ";").first, pair.contains("=") else { return }
+        let trimmed = pair.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("\(ImmichCookie.sharedLinkToken)=") else { return }
+        lock.lock(); _sharedLinkCookie = trimmed; lock.unlock()
+    }
+
+    /// Status handling for the visitor path — see `sendSharedLinkRaw`.
+    private static func validateSharedLinkResponse(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.serverError(http.statusCode, String(data: data, encoding: .utf8))
+        }
+    }
+
+    /// Method + URL + `Accept` (+ `Bearer` when `auth`), with no body: the JSON
+    /// callers and the multipart upload both start from here.
+    private func baseRequest(_ method: HTTPMethod, path: String, query: [URLQueryItem], auth: Bool, token: String? = nil) throws -> URLRequest {
         guard let url = resolvedURL(path: path, query: query) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
@@ -611,14 +795,7 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         if auth, let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: ImmichHeader.authorization)
         }
-        if let body {
-            let data = try JSONEncoder.immich.encode(body)
-            request.setValue("application/json", forHTTPHeaderField: ImmichHeader.contentType)
-            request.httpBody = data
-        }
-        let (responseData, response) = try await dispatch(request)
-        try validate(response: response, data: responseData)
-        return responseData
+        return request
     }
 
     private func dispatch(_ request: URLRequest) async throws -> (Data, URLResponse) {

@@ -624,6 +624,76 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
             ?? assetIds.map { AssetIdsResponseDto(assetId: $0, success: true, error: nil) }
     }
 
+    // MARK: - Opening a shared link (issue #22 — visitor side)
+
+    var sharedLinkMineResponse: SharedLinkResponseDto?
+    var sharedLinkMineError: Error?
+    var sharedLinkLoginResponse: SharedLinkResponseDto?
+    var sharedLinkLoginError: Error?
+    var sharedLinkAlbumAssetsResponse: SearchResponseDto?
+    var sharedLinkAlbumAssetsError: Error?
+    /// Result of a guest upload: the id the server assigned (or an error).
+    var sharedLinkUploadResponse: AssetMediaResponseDto?
+    var sharedLinkUploadError: Error?
+
+    private(set) var sharedLinkMineCredentials: [SharedLinkCredential] = []
+    private(set) var sharedLinkLoginCredentials: [SharedLinkCredential] = []
+    private(set) var sharedLinkLoginPasswords: [String] = []
+    private(set) var sharedLinkAlbumIds: [String] = []
+    private(set) var sharedLinkAlbumPages: [Int] = []
+    private(set) var sharedLinkUploadCredentials: [SharedLinkCredential] = []
+    private(set) var sharedLinkUploadFilenames: [String] = []
+
+    func getSharedLinkMine(_ credential: SharedLinkCredential) async throws -> SharedLinkResponseDto {
+        bump()
+        sharedLinkMineCredentials.append(credential)
+        if let e = globalError ?? sharedLinkMineError { throw e }
+        guard let response = sharedLinkMineResponse else { throw APIError.invalidURL }
+        return response
+    }
+
+    func loginToSharedLink(_ credential: SharedLinkCredential, password: String) async throws -> SharedLinkResponseDto {
+        bump()
+        sharedLinkLoginCredentials.append(credential)
+        sharedLinkLoginPasswords.append(password)
+        if let e = globalError ?? sharedLinkLoginError { throw e }
+        guard let response = sharedLinkLoginResponse else { throw APIError.invalidURL }
+        return response
+    }
+
+    func getSharedLinkAlbumAssets(
+        _ credential: SharedLinkCredential,
+        albumId: String,
+        page: Int,
+        size: Int
+    ) async throws -> SearchResponseDto {
+        bump()
+        _ = credential
+        sharedLinkAlbumIds.append(albumId)
+        sharedLinkAlbumPages.append(page)
+        if let e = globalError ?? sharedLinkAlbumAssetsError { throw e }
+        return sharedLinkAlbumAssetsResponse
+            ?? SearchResponseDto(assets: SearchAssetResponseDto(count: 0, items: [], nextPage: nil))
+    }
+
+    func uploadAssetToSharedLink(
+        fileURL: URL,
+        filename: String,
+        fileCreatedAt: String,
+        fileModifiedAt: String,
+        checksum: String,
+        deviceAssetId: String,
+        deviceId: String,
+        credential: SharedLinkCredential
+    ) async throws -> AssetMediaResponseDto {
+        bump()
+        _ = (fileURL, fileCreatedAt, fileModifiedAt, checksum, deviceAssetId, deviceId)
+        sharedLinkUploadCredentials.append(credential)
+        sharedLinkUploadFilenames.append(filename)
+        if let e = globalError ?? sharedLinkUploadError { throw e }
+        return sharedLinkUploadResponse ?? AssetMediaResponseDto(id: "uploaded", status: "created")
+    }
+
     // MARK: - People (P0 api-surface-expansion)
 
     func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto {

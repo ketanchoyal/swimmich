@@ -44,6 +44,17 @@ enum ImmichHeader {
     static let contentType = "Content-Type"
     static let accept = "Accept"
     static let checksum = "x-immich-checksum"
+    static let cookie = "Cookie"
+}
+
+/// Cookie names the server sets — mirrors `ImmichCookie` in
+/// `server/src/enum.ts`. Only the shared-link one concerns the app: the
+/// auth-token cookie belongs to the web client.
+enum ImmichCookie {
+    /// Session cookie of a password-protected shared link, returned by
+    /// `POST /api/shared-links/login` and required by `GET /api/shared-links/me`
+    /// for the rest of the visit.
+    static let sharedLinkToken = "immich_shared_link_token"
 }
 
 enum AssetMediaSize: String {

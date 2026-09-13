@@ -28,8 +28,16 @@ struct AssetThumbnailCell: View {
     var onRestore: (() -> Void)? = nil
     var onDeletePermanent: (() -> Void)? = nil
 
+    /// Set when the grid shows a **public shared link** (issue #22) instead of
+    /// the signed-in library. Two consequences, one cause: the visitor reads the
+    /// asset without a bearer token, so the credential rides in the thumbnail
+    /// URL, and the owner's actions (favorite / delete / archive) are not the
+    /// visitor's to make — the server would reject them — so the context menu is
+    /// not attached at all.
+    var sharedLink: SharedLinkCredential? = nil
+
     var body: some View {
-        let url = asset.thumbnailURL(base: baseURL)
+        let url = asset.thumbnailURL(base: baseURL, sharedLink: sharedLink)
 
         // Square frame: Color.clear w/ aspectRatio(1,.fit) becomes a perfect
         // square sized to the column width. Image overlays fill + clip.
@@ -61,8 +69,9 @@ struct AssetThumbnailCell: View {
 
         // Context menu suppressed in selection mode: it would compete with the
         // long-press toggle gesture and its actions (delete/restore) make no
-        // sense mid-selection (audit fix).
-        if selectionMode {
+        // sense mid-selection (audit fix). Same for a public shared link — the
+        // actions belong to the owner, not to the visitor.
+        if selectionMode || sharedLink != nil {
             cell
         } else {
             cell.contextMenu {

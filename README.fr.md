@@ -36,7 +36,7 @@ La parité avec le client Flutter est suivie dans [`docs/mobile-features-vs-flut
 | **Recherche** | sémantique (CLIP), visages, lieux (carte), tags, filtres avancés | `Sources/Features/Search/` |
 | **Albums** | CRUD, partage, flux d'activité | `Sources/Features/Albums/` |
 | **Personnes, tags, doublons, corbeille** | gestion des visages, tags, détection de doublons, restauration | `Sources/Features/People/`, `Tags/`, `Duplicates/`, `Trash/` |
-| **Liens partagés** | CRUD, mot de passe, expiration | `Sources/Features/SharedLinks/` |
+| **Liens partagés** | CRUD, mot de passe, expiration, **visionneuse publique** (ouvrir un lien reçu, le déverrouiller, le parcourir, upload invité) | `Sources/Features/SharedLinks/` |
 | **Souvenirs** | « Ce jour-là », visionneuse de moments | `Sources/Features/Memories/` |
 | **Éditeur photo** | recadrage, rotation, édition non destructive | `Sources/Features/Editor/` |
 | **RoadTrip** | lecteur + export d'un film de voyage (ouverture → diaporama → trajet carte) généré depuis un album | `Sources/Features/RoadTrip/` |

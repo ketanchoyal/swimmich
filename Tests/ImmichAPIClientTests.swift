@@ -1076,4 +1076,207 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertFalse(pkce.codeChallenge.contains("/"))
         XCTAssertNotEqual(OAuthPKCE().state, OAuthPKCE().state, "state must be fresh per attempt")
     }
+
+    // MARK: - Opening a shared link (issue #22 — visitor side)
+
+    /// A visitor request must go out **without** a bearer token: the credential
+    /// travels in the query (`?key=`) and the server authenticates on it
+    /// (`AuthService.validate`). Sending `Authorization` here would either fail
+    /// or, worse, silently read the link as the signed-in user.
+    func test_SLV_getMine_sendsKeyWithoutBearer() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "signed-in-token")
+        CapturingURLProtocol.nextData = Self.sharedLinkJSON(key: "a2V5")
+
+        let link = try await client.getSharedLinkMine(.key("a2V5"))
+
+        XCTAssertEqual(link.key, "a2V5")
+        guard let request = CapturingURLProtocol.lastRequest else { return XCTFail("no request captured") }
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.url?.path, "/api/shared-links/me")
+        XCTAssertEqual(request.url?.query, "key=a2V5")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"),
+                     "a shared link is read as a visitor, never as the signed-in session")
+        XCTAssertNil(request.value(forHTTPHeaderField: ImmichHeader.cookie),
+                     "no login has happened yet, so there is no cookie to send")
+    }
+
+    /// A slug link addresses the same route with `slug=` — the credential enum
+    /// decides which one goes out, and the server reads either.
+    func test_SLV_getMine_sendsSlugWhenTheLinkHasOne() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+        CapturingURLProtocol.nextData = Self.sharedLinkJSON(key: "a2V5")
+
+        _ = try await client.getSharedLinkMine(.slug("my-album"))
+
+        XCTAssertEqual(CapturingURLProtocol.lastRequest?.url?.path, "/api/shared-links/me")
+        XCTAssertEqual(CapturingURLProtocol.lastRequest?.url?.query, "slug=my-album")
+    }
+
+    /// The login posts `{password}` and — this is the whole point of the call —
+    /// keeps the session cookie the server answers with, so the *next* request
+    /// can pass `GET /shared-links/me` on a protected link. Without the cookie
+    /// the visit can never get past "Password required" (the web client relies
+    /// on the browser storing exactly this one).
+    func test_SLV_login_postsPasswordAndKeepsCookie() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+        CapturingURLProtocol.nextData = Self.sharedLinkJSON(key: "a2V5")
+        CapturingURLProtocol.nextStatus = 201
+        CapturingURLProtocol.nextHeaders = [
+            "Content-Type": "application/json",
+            "Set-Cookie": "\(ImmichCookie.sharedLinkToken)=tok123; Path=/; HttpOnly; SameSite=Lax"
+        ]
+
+        _ = try await client.loginToSharedLink(.slug("secured"), password: "hunter2")
+
+        guard let loginRequest = CapturingURLProtocol.lastRequest else { return XCTFail("no request captured") }
+        XCTAssertEqual(loginRequest.httpMethod, "POST")
+        XCTAssertEqual(loginRequest.url?.path, "/api/shared-links/login")
+        XCTAssertEqual(loginRequest.url?.query, "slug=secured")
+        XCTAssertNil(loginRequest.value(forHTTPHeaderField: "Authorization"))
+        let body = try decodedBody()
+        XCTAssertEqual(body["password"] as? String, "hunter2")
+
+        CapturingURLProtocol.reset()
+        CapturingURLProtocol.nextData = Self.sharedLinkJSON(key: "a2V5")
+        _ = try await client.getSharedLinkMine(.slug("secured"))
+
+        guard let replay = CapturingURLProtocol.lastRequest else { return XCTFail("no request captured") }
+        XCTAssertEqual(replay.value(forHTTPHeaderField: ImmichHeader.cookie),
+                       "\(ImmichCookie.sharedLinkToken)=tok123",
+                       "the login cookie must be replayed, or the link stays locked")
+        XCTAssertNil(replay.value(forHTTPHeaderField: "Authorization"))
+    }
+
+    /// A 401 on this path is about the *link*, not the session — so it must not
+    /// reach `authDelegate`, which resets the whole app session (FM-4). The raw
+    /// server message is preserved because it is the only way to tell "needs a
+    /// password" from "dead link".
+    func test_SLV_getMine_surfacesTheLinksOwn401WithoutSigningOut() async throws {
+        let spy = UnauthorizedSpy()
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.authDelegate = spy
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "signed-in-token")
+        CapturingURLProtocol.nextStatus = 401
+        CapturingURLProtocol.nextData = #"{"message":"Password required","error":"Unauthorized","statusCode":401}"#
+            .data(using: .utf8)!
+
+        do {
+            _ = try await client.getSharedLinkMine(.key("a2V5"))
+            XCTFail("a 401 must throw")
+        } catch let error as APIError {
+            guard case .serverError(let status, let body) = error else {
+                return XCTFail("expected .serverError, got \(error)")
+            }
+            XCTAssertEqual(status, 401)
+            XCTAssertEqual(SharedLinkViewerViewModel.classify(error), .passwordRequired)
+            XCTAssertTrue(body?.contains("Password required") == true)
+        }
+        XCTAssertEqual(spy.count, 0, "a link's 401 must never sign the user out")
+    }
+
+    /// An album link's assets cannot come from the link DTO — `AlbumResponseDto`
+    /// has no `assets` array — and the server refuses an unfiltered metadata
+    /// search under shared-link auth, so `albumIds` is required, not optional.
+    func test_SLV_albumAssets_searchesByAlbumIdWithKey() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+        CapturingURLProtocol.nextData = #"{"assets":{"count":0,"items":[],"nextPage":null}}"#
+            .data(using: .utf8)!
+
+        _ = try await client.getSharedLinkAlbumAssets(.key("a2V5"), albumId: "alb-1", page: 2, size: 100)
+
+        guard let request = CapturingURLProtocol.lastRequest else { return XCTFail("no request captured") }
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/search/metadata")
+        XCTAssertEqual(request.url?.query, "key=a2V5")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        let body = try decodedBody()
+        XCTAssertEqual(body["albumIds"] as? [String], ["alb-1"])
+        XCTAssertEqual(body["page"] as? Int, 2)
+        XCTAssertEqual(body["size"] as? Int, 100)
+    }
+
+    /// A guest upload is a multipart POST carrying the credential in the query —
+    /// the route the server guards with `requireUploadAccess` (a bare 401 when
+    /// the link has `allowUpload: false`).
+    func test_SLV_upload_postsMultipartWithKeyAndNoBearer() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+        let photo = FileManager.default.temporaryDirectory.appendingPathComponent("slv-\(UUID().uuidString).jpg")
+        try Data("jpeg-bytes".utf8).write(to: photo)
+        defer { try? FileManager.default.removeItem(at: photo) }
+        CapturingURLProtocol.nextData = #"{"id":"asset-new","status":"created"}"#.data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 201
+
+        let uploaded = try await client.uploadAssetToSharedLink(
+            fileURL: photo,
+            filename: "holiday.jpg",
+            fileCreatedAt: "2026-09-13T00:00:00.000Z",
+            fileModifiedAt: "2026-09-13T00:00:00.000Z",
+            checksum: "c2hhMQ==",
+            deviceAssetId: "dev-asset",
+            deviceId: "dev",
+            credential: .key("a2V5")
+        )
+
+        XCTAssertEqual(uploaded.id, "asset-new")
+        guard let request = CapturingURLProtocol.lastRequest else { return XCTFail("no request captured") }
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.path, "/api/assets")
+        XCTAssertEqual(request.url?.query, "key=a2V5")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertTrue(request.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data") == true)
+        XCTAssertEqual(request.value(forHTTPHeaderField: ImmichHeader.checksum), "c2hhMQ==")
+        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
+        XCTAssertTrue(body.contains("name=\"assetData\""))
+        XCTAssertTrue(body.contains("name=\"deviceAssetId\""))
+    }
+
+    /// `requireUploadAccess` answers a bare 401 when the link forbids uploads.
+    func test_SLV_upload_refusalKeepsTheRawStatusForTheCaller() async throws {
+        let client = ImmichAPIClient(session: makeMockedSession())
+        client.configure(baseURL: URL(string: "https://example.com")!, token: nil)
+        let photo = FileManager.default.temporaryDirectory.appendingPathComponent("slv-\(UUID().uuidString).jpg")
+        try Data("jpeg-bytes".utf8).write(to: photo)
+        defer { try? FileManager.default.removeItem(at: photo) }
+        CapturingURLProtocol.nextStatus = 401
+        CapturingURLProtocol.nextData = #"{"message":"Unauthorized","error":"Unauthorized","statusCode":401}"#
+            .data(using: .utf8)!
+
+        do {
+            _ = try await client.uploadAssetToSharedLink(
+                fileURL: photo, filename: "holiday.jpg",
+                fileCreatedAt: "2026-09-13T00:00:00.000Z", fileModifiedAt: "2026-09-13T00:00:00.000Z",
+                checksum: "c2hhMQ==", deviceAssetId: "dev-asset", deviceId: "dev", credential: .key("a2V5")
+            )
+            XCTFail("a 401 must throw")
+        } catch let error as APIError {
+            XCTAssertTrue(SharedLinkViewerViewModel.isUploadRejection(error))
+        }
+    }
+
+    /// Minimal `SharedLinkResponseDto` the visitor routes decode.
+    private static func sharedLinkJSON(key: String) -> Data {
+        """
+        {"id":"link-1","description":"Holidays","password":null,"userId":"owner","key":"\(key)",
+         "type":"ALBUM","createdAt":"2024-01-01T00:00:00.000Z","expiresAt":null,"assets":[],
+         "album":{"id":"alb-1","albumName":"Holidays","description":"","createdAt":"2024-01-01T00:00:00.000Z",
+                  "updatedAt":"2024-01-01T00:00:00.000Z","albumThumbnailAssetId":null,"shared":true,
+                  "hasSharedLink":true,"assetCount":2,"isActivityEnabled":false,"order":null,
+                  "albumUsers":[]},
+         "allowUpload":true,"allowDownload":true,"showMetadata":true,"slug":null}
+        """.data(using: .utf8)!
+    }
+}
+
+/// Counts `didReceiveUnauthorized` notifications so a test can prove a
+/// visitor-side 401 never resets the app session.
+private final class UnauthorizedSpy: AuthSessionDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count = 0
+    var count: Int { lock.lock(); defer { lock.unlock() }; return _count }
+    func didReceiveUnauthorized() { lock.lock(); _count += 1; lock.unlock() }
 }

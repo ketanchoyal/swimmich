@@ -36,7 +36,7 @@ Feature parity with the Flutter client is tracked in [`docs/mobile-features-vs-f
 | **Search** | semantic (CLIP), faces, locations (map), tags, advanced filters | `Sources/Features/Search/` |
 | **Albums** | CRUD, sharing, activity feed | `Sources/Features/Albums/` |
 | **People, Tags, Duplicates, Trash** | face management, tags, duplicate detection, restore | `Sources/Features/People/`, `Tags/`, `Duplicates/`, `Trash/` |
-| **Shared Links** | CRUD, password, expiration | `Sources/Features/SharedLinks/` |
+| **Shared Links** | CRUD, password, expiration, **public viewer** (open a received link, unlock it, browse it, guest upload) | `Sources/Features/SharedLinks/` |
 | **Memories** | "On this day", moments viewer | `Sources/Features/Memories/` |
 | **Photo Editor** | crop, rotate, non-destructive editing | `Sources/Features/Editor/` |
 | **RoadTrip** | reader + export of a travel film (opening → slideshow → map route) generated from an album | `Sources/Features/RoadTrip/` |

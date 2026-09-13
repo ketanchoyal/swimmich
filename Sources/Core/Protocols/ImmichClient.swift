@@ -97,6 +97,57 @@ protocol ImmichClient: AnyObject, Sendable {
     func addAssetsToSharedLink(id: String, assetIds: [String]) async throws -> [AssetIdsResponseDto]
     func deleteSharedLink(id: String) async throws
 
+    // MARK: - Opening a shared link (issue #22 — visitor side)
+    //
+    // These four calls carry no bearer token: the credential goes in the query
+    // (`?key=` / `?slug=`) and the server authenticates the request with
+    // `AuthService.validateSharedLinkKey` / `…Slug`. Their failures are
+    // therefore about the *link* (a password is required, the password is
+    // wrong, the link is revoked or expired, uploads are not allowed) and never
+    // about the signed-in session — see `ImmichAPIClient.sendSharedLinkRaw`.
+
+    /// `GET /api/shared-links/me?key=|slug=` — the link as its owner's browser
+    /// would see it. 401 `"Password required"` means the caller must call
+    /// `loginToSharedLink` first; any other 401 means the link is dead.
+    func getSharedLinkMine(_ credential: SharedLinkCredential) async throws -> SharedLinkResponseDto
+
+    /// `POST /api/shared-links/login?key=|slug=` body `{password}` — exchanges
+    /// the password for the DTO **and** for the session cookie the server sets
+    /// (`immich_shared_link_token`). The client replays that cookie on every
+    /// later visitor request; nothing else makes `getSharedLinkMine` succeed on
+    /// a protected link (the web client navigates again after login and relies
+    /// on exactly this cookie).
+    func loginToSharedLink(_ credential: SharedLinkCredential, password: String) async throws -> SharedLinkResponseDto
+
+    /// `POST /api/search/metadata?key=|slug=` with `albumIds: [albumId]` — how
+    /// an **album** link's assets are listed. `SharedLinkResponseDto.album` has
+    /// no `assets` array (`AlbumResponseDto` never carries one), and the server
+    /// refuses an unfiltered metadata search under shared-link auth
+    /// (`"Shared link access is only allowed in combination with an albumIds
+    /// filter"`). An INDIVIDUAL link needs no call at all: its assets come
+    /// inlined in `getSharedLinkMine`.
+    func getSharedLinkAlbumAssets(
+        _ credential: SharedLinkCredential,
+        albumId: String,
+        page: Int,
+        size: Int
+    ) async throws -> SearchResponseDto
+
+    /// `POST /api/assets?key=|slug=` — a guest upload. The server gates it with
+    /// `requireUploadAccess`: a bare **401** means this link does not allow
+    /// uploads (`allowUpload == false`). The asset lands in the link's album
+    /// (`AssetMediaService.addToSharedLink`).
+    func uploadAssetToSharedLink(
+        fileURL: URL,
+        filename: String,
+        fileCreatedAt: String,
+        fileModifiedAt: String,
+        checksum: String,
+        deviceAssetId: String,
+        deviceId: String,
+        credential: SharedLinkCredential
+    ) async throws -> AssetMediaResponseDto
+
     // MARK: - Tags (gap #2)
     func getAllTags() async throws -> [TagResponseDto]
     func createTag(name: String, color: String?) async throws -> TagResponseDto

@@ -92,6 +92,17 @@ final class DependencyContainer {
         SharedLinksViewModel(client: client as any ImmichClient)
     }
 
+    /// Public shared-link viewer (issue #22). Takes the connected server as an
+    /// argument: the host check and the public-URL builder both need it, and it
+    /// is only known once the app is authenticated.
+    func makeSharedLinkViewerViewModel(baseURL: URL, externalDomain: String) -> SharedLinkViewerViewModel {
+        SharedLinkViewerViewModel(
+            client: client as any ImmichClient,
+            baseURL: baseURL,
+            externalDomain: externalDomain
+        )
+    }
+
     func makeStorageStatsViewModel() -> StorageStatsViewModel {
         StorageStatsViewModel(client: client as any ImmichClient)
     }

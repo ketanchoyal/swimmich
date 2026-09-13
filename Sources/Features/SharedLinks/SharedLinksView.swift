@@ -5,16 +5,26 @@ import SwiftUI
 /// new album-typed shared link. Backed by `SharedLinksViewModel`.
 struct SharedLinksView: View {
     @State var vm: SharedLinksViewModel
+    /// Builds the public viewer's view model when it is presented (issue #22).
+    /// A link visit needs the server the app is connected to, which only exists
+    /// once authenticated — so the factory takes it as an argument rather than
+    /// the container holding a half-built VM.
+    let makeViewer: (_ baseURL: URL, _ externalDomain: String) -> SharedLinkViewerViewModel
     @Environment(AuthViewModel.self) private var auth
     @Environment(AlbumsViewModel.self) private var albumsVM
     @Environment(\.openProfile) private var openProfile
     @State private var presentingCreate = false
+    @State private var presentingViewer = false
     @State private var pendingRevokeId: String?
     @State private var showRevokeConfirm = false
     @State private var editLinkItem: EditLinkItem?
 
-    init(vm: SharedLinksViewModel) {
+    init(
+        vm: SharedLinksViewModel,
+        makeViewer: @escaping (URL, String) -> SharedLinkViewerViewModel
+    ) {
         _vm = State(initialValue: vm)
+        self.makeViewer = makeViewer
     }
 
     var body: some View {
@@ -53,6 +63,14 @@ struct SharedLinksView: View {
             .navigationTitle("Shared")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        presentingViewer = true
+                    } label: {
+                        Label("Open a shared link", systemImage: "link.badge.plus")
+                    }
+                    .accessibilityIdentifier("openSharedLinkViewer")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     ProfileAvatarButton { openProfile() }
                 }
@@ -66,6 +84,14 @@ struct SharedLinksView: View {
             }
             .sheet(isPresented: $presentingCreate) {
                 CreateSharedLinkSheet(vm: vm)
+            }
+            .sheet(isPresented: $presentingViewer) {
+                SharedLinkViewerView(
+                    vm: makeViewer(
+                        auth.baseURL ?? URL(string: "https://example.com")!,
+                        auth.serverConfig?.externalDomain ?? ""
+                    )
+                )
             }
             .sheet(item: $editLinkItem) { item in
                 EditSharedLinkSheet(link: item.link) { dto in

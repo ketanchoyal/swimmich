@@ -69,6 +69,11 @@ struct RootView: View {
 private struct AuthenticatedRoot: View {
     @Environment(AuthViewModel.self) private var auth
 
+    /// Kept (not only consumed in `init`) so a screen can build a view model at
+    /// presentation time — the shared-link viewer needs the connected server,
+    /// which the eager `make*` calls in `init` do not yet know.
+    private let container: DependencyContainer
+
     @State private var timeline: TimelineViewModel
     @State private var trash: TrashViewModel
     @State private var search: SearchViewModel
@@ -93,6 +98,7 @@ private struct AuthenticatedRoot: View {
     @State private var showProfile = false
 
     init(container: DependencyContainer) {
+        self.container = container
         _timeline = State(initialValue: container.makeTimelineViewModel())
         _trash = State(initialValue: container.makeTrashViewModel())
         _search = State(initialValue: container.makeSearchViewModel())
@@ -122,7 +128,12 @@ private struct AuthenticatedRoot: View {
                 AlbumsView(vm: albums)
             }
             Tab("Shared", systemImage: "person.2.fill", value: RootTab.shared) {
-                SharedLinksView(vm: sharedLinks)
+                SharedLinksView(vm: sharedLinks) { baseURL, externalDomain in
+                    container.makeSharedLinkViewerViewModel(
+                        baseURL: baseURL,
+                        externalDomain: externalDomain
+                    )
+                }
             }
             Tab("Search", systemImage: bubbleIcon, value: RootTab.search, role: .search) {
                 SearchView(vm: search, mapVM: map)

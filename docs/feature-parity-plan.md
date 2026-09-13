@@ -50,6 +50,7 @@
 | multi-server | server registry (UserDefaults + per-URL Keychain tokens), switcher UI |
 | widgets-appintents | WidgetKit extension target + AppIntents (backup now, open album) + Spotlight |
 | i18n-catalog | route all hardcoded FR/EN copy through Localizable.xcstrings |
+| shared-link-viewer | *beyond parity* — `GET /shared-links/me?key=|slug=`, `POST /shared-links/login` (cookie), `POST /search/metadata` with `albumIds`, `POST /assets?key=`; no Flutter equivalent. Card: `.opencode/scratch/shared-link-viewer.acceptance.md` |
 | push-notifications | BACKLOG: UNUserNotificationCenter + APNs token → `PUT /notifications`; needs server APNs config |
 
 ## Timeline query-param expansion (needed by P1/P3/P4 — no new bucket plumbing)

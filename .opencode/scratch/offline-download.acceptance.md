@@ -1,114 +1,223 @@
 # Task: offline-download
 
-Status: plan
+Status: plan — **carte RÉVISÉE le 2026-09-13** (la version d'origine datait du 2026-09-09 et était dérivée : tous ses checks étaient des `grep -q` de texte, la cible de régression était bornée à `-ge 200` pour une baseline de 805, et deux décisions structurantes manquaient — voir « Révision » en fin de carte). Non implémenté : aucun fichier `Offline*` n'existe dans `Sources/`.
+
+Issue : [#18](https://github.com/millianlmx/swimmich/issues/18) (P4 — Discovery, projet #2, item 18 `Todo`).
+Spec : `.omp/offline-download/offline-download.specs.md` · UI brief : `.omp/offline-download/offline-download.ui.md`.
 
 ## Plan
 
-**Objectif**: Implémenter le téléchargement d'assets pour consultation hors-ligne. No offline cache dans ImmichSwiftUI actuellement.
+**Objectif** : télécharger les originaux d'assets dans un cache local durable et les **restituer sans réseau** — grille « Offline Storage » + viewer + indicateur sur le timeline + gestion de l'espace occupé. Parité Flutter (Isar), sans nouvelle dépendance.
 
-**Hypothèses** (ground truth vérifié):
-- `SaveToLibraryViewModel` + `SaveToLibraryView` existent (save to system camera roll via PHPhotoLibrary).
-- `PhotoLibraryService` expose saveImage(data:) + saveVideo(at:).
-- `AssetResponseDto` expose `originalPath` (URL pour télécharger).
-- iOS 26 → `FileManager` + `URLCache` pour le cache offline.
-- `PhotoViewer` a un share sheet (save to library + action sheet).
+**Hypothèses — vérifiées dans le dépôt et sur l'OpenAPI du 2026-09-13** :
 
-**Approche retenue**: A — `OfflineAssetStore` basé sur FileManager (pas de nouvelles deps) + `OfflineDownloadViewModel` + `OfflineAssetsView`.
-**B (rejetée)**: GRDB → nouvelle dépendance.
-**C (rejetée)**: Isar → couplage avec Flutter.
-**D (rejetée)**: WKWebsiteDataStore → web-only.
+| Fait | Preuve |
+|---|---|
+| `GET /api/assets/{id}/original` existe (`operationId: downloadAsset`, `application/octet-stream`, params `edited`/`key`/`slug`) | `jq '.paths["/assets/{id}/original"]' /tmp/immich-openapi-main.json` — aucune route fantôme dans cette fiche |
+| Pas de route « offline » côté serveur : tout passe par l'original | 0 opération contenant `offline` dans `paths` de l'OpenAPI `main` |
+| `AssetResponseDto.originalPath` = simple `"Original file path"` (string opaque), et le dépôt ne s'en sert pas | `Sources/Core/Types/DTOs.swift:106` ; précédent : `SaveToLibraryViewModel.transferOriginal()` construit l'URL |
+| Le builder d'URL canonique existe | `ImmichAssetURL.original(assetId:baseURL:sharedLink:)` — `Sources/Services/ImmichAssetURL.swift:36` |
+| Le client expose `getAsset(id:)` (origine du nom de fichier + de la taille) | `Sources/Core/Protocols/ImmichClient.swift:47`, `ImmichAPIClient.swift:146` |
+| Précédent d'un store fichier injectable | `EditStateStore` (actor, Application Support, `init(folderURL:)` pour les tests, tolérance aux entrées absentes) — `Sources/Services/EditStateStore.swift` |
+| `AuthenticatedAsyncImage` a 3 étages (NSCache → URLCache → réseau) et un `url: URL?` **déjà optionnel** | `Sources/Services/AuthenticatedAsyncImage.swift:11-80` |
+| Aucun décodeur local : un fichier n'est jamais lu depuis le disque → le cache offline serait invisible | même fichier |
+| `AssetThumbnailCell` porte déjà des badges `.overlay(alignment:)` + helper capsule `badge(_:)` | `Sources/Features/Timeline/AssetThumbnailCell.swift:37-45,128-138,178` |
+| 6 sites instancient `AssetThumbnailCell` (Timeline, Albums, People, Search, Trash, SharedLinkViewer, AssetMultiSelectGrid) → l'état « en cache » doit venir de l'**environnement**, pas d'un paramètre | `grep -n "AssetThumbnailCell(" Sources` |
+| `ProfileView` reçoit ses VM de `AuthenticatedRoot` et pousse déjà vers 6 hubs (Trash, Backup, Duplicates, People, Tags, Stacks, Partners) | `Sources/Features/Profile/ProfileView.swift:30-90`, `Sources/RootView.swift:88-116,188` |
+| Le viewer partage `PhotoShareSheet` (feuille privée) et sait déjà télécharger l'original (Data en mémoire) | `Sources/Features/PhotoViewer/PhotoViewer.swift:259,907-1204`, `SaveToLibraryViewModel.swift:93-125` |
+| `UserDefaults` sert déjà de réglage persistant pour la backup | `BackupSettingsStore` (même pattern pour `offlineMaxSize`) |
+| Catalogue i18n = 370 clés, langues `en` + `fr` | `jq '.strings\|length' Resources/Localizable.xcstrings` |
 
-**Étapes**:
-1. NEW `OfflineAssetStore.swift` (Services/) — downloadAsset(id:,originalPath:), getCachedAsset(id:), isCached(id:), removeCachedAsset(id:), clearAllCachedAssets(), cachedAssets, CachedAssetInfo, maxCacheSize configurable.
-2. NEW `OfflineDownloadViewModel.swift` (Features/Offline/) — cachedAssets, downloadAsset, removeFromOffline, clearAll, cacheUsage.
-3. NEW `OfflineAssetsView.swift` (Features/Offline/) — Liste cached assets + grid + clear all + storage indicator.
-4. EDIT `PhotoViewer.swift` — Ajouter "Download for offline" dans share sheet + "Available offline" banner + download progress toast.
-5. EDIT `AssetThumbnailCell.swift` — Ajouter cached indicator overlay (glass checkmark circle) si asset isCached.
-6. EDIT `ProfileView.swift` — Ajouter "Offline Storage" navigation link.
-7. Tests — `OfflineAssetStoreTests` +5 (download, cache hit/miss, remove, clear, size limit), `OfflineDownloadViewModelTests` +3.
-8. Build + suite complète.
+**Approche retenue** : A — `OfflineAssetStore` (fichiers + index JSON, zéro dépendance) + lecture locale dans `AuthenticatedAsyncImage`.
+**B rejetée** : GRDB/SQLite → nouvelle dépendance pour une table de N lignes.
+**C rejetée** : Isar → couplage Flutter.
+**D rejetée** : `.cachesDirectory` (spec d'origine) → **le système purge `Caches`** sous pression disque : un asset « disponible hors-ligne » disparaîtrait silencieusement. On écrit sous **Application Support** (précédent `EditStateStore`).
+
+### Répertoire et fichiers sur disque
+
+```
+Application Support/OfflineAssets/
+├── index.json                 # [CachedAssetInfo] — source de vérité des métadonnées
+└── <assetId>.<ext>            # la charge utile (extension via AssetFileTransfer.fileExtension(forMime:))
+```
+L'`assetId` est un UUID : nom de fichier sûr tel quel (même politique que `EditStateStore.fileURL(for:)`).
+
+### Décisions de conception (à ne pas re-débattre à l'implémentation)
+
+1. **Rendu hors-ligne réel = étape 0 dans `AuthenticatedAsyncImage`.** Sans elle, le store n'est qu'une liste de tailles et « consultation hors-ligne » ne marche pas. Nouveau paramètre `localFileURL: URL?` : s'il est fourni et que le fichier existe, l'image est servie depuis le disque **avant** les 3 étages ; le `.task(id:)` est clé sur `localFileURL ?? url`.
+2. **Jamais de décodage plein format dans une grille.** Un original de 12 Mpx décodé par cellule = mémoire et jank. `ImageDownsampler.image(at:maxPixelSize:)` (ImageIO, `CGImageSourceCreateThumbnailAtIndex`) sert les fichiers locaux, `maxPixelSize` 2048 par défaut.
+3. **Téléchargement en flux, jamais en `Data`.** `URLSession.bytes(for:)` → écriture dans `<id>.<ext>.partial`, `moveItem` atomique à la fin. `SaveToLibraryViewModel` matérialise l'original en mémoire parce qu'il l'envoie au partage système ; un cache offline de vidéos ne peut pas se le permettre (précédent : `BackupEngine` « never materializes the whole asset in memory »).
+4. **État « en cache » côté UI = `OfflineAssetIndex` observable en environnement.** Un actor n'est pas lisible de façon synchrone depuis un `body` ; l'index `@MainActor @Observable` publie `Set<String>` + URLs et est alimenté par le store.
+5. **Politique de limite** : `maxCacheSize` (`UserDefaults` clé `offlineMaxSize`, défaut **5 Go**). Un asset dont la taille annoncée dépasse la limite → refus (`OfflineStoreError.exceedsCacheLimit`) **avant** téléchargement. Après écriture, on évince les plus anciens (`cachedAt`) jusqu'à repasser sous la limite, jamais l'asset qui vient d'être écrit.
+6. **Réconciliation d'index** : à la lecture, l'index est confronté au disque (entrée sans fichier → retirée ; fichier sans entrée → adopté avec `size`/`cachedAt` des attributs). Un crash en cours d'écriture ne doit pas produire un « en cache » pointant un fichier absent.
+7. **Périmètre refusé** : sync automatique (la spec dit « manuel »), chiffrement, cache partiel par plage vidéo, reprise de téléchargement interrompu.
+
+### Étapes d'implémentation
+
+1. NEW `Sources/Services/OfflineAssetStore.swift` — `actor OfflineAssetStore` + `struct CachedAssetInfo` + `enum OfflineStoreError`. API : `download(assetID:url:token:fileName:isVideo:ratio:fileCreatedAt:duration:maxCacheSizeHint:onProgress:)`, `cachedInfo(assetID:)`, `fileURL(assetID:)`, `allCached()`, `isCached(assetID:)`, `totalBytes()`, `remove(assetID:)`, `clearAll()`, `maxCacheSize` (`setMaxCacheSize(_:)` applique l'éviction), `init(folderURL:session:fileManager:)`.
+2. NEW `Sources/Services/ImageDownsampler.swift` — `static func image(at:maxPixelSize:) -> UIImage?` (ImageIO).
+3. EDIT `Sources/Services/AuthenticatedAsyncImage.swift` — `localFileURL: URL? = nil`, `localMaxPixelSize: Int = 2048`, étage 0 dans `load()`, clé de `.task`.
+4. NEW `Sources/Features/Offline/OfflineAssetIndex.swift` — `@MainActor @Observable` : `byID: [String: CachedAssetInfo]`, `localURL(for:)`, `isCached(_:)`, `info(_:)`, `refresh(from:)`, `remove(id:)`, `clear()`.
+5. NEW `Sources/Features/Offline/OfflineDownloadViewModel.swift` — `cachedAssets`, `cacheUsage`, `maxCacheSize`, `downloadAsset(id:)`, `removeFromOffline(id:)`, `clearAll()`, `load()`, `isDownloading(_:)`, `progress(for:)`, `errorMessage`, `lastDownloadedID`, `searchQuery` + `filteredAssets`.
+6. NEW `Sources/Features/Offline/OfflineAssetsView.swift` + `OfflineAssetCell` + `StorageUsageCard` (anneau) — `LazyVGrid`, état vide, swipe/context « Remove », « Clear All » avec confirmation, tap → `PhotoViewer`.
+7. EDIT `Sources/Features/Timeline/AssetThumbnailCell.swift` — badge `arrow.down.circle.fill` (identifier `offlineBadge`) sur les assets en cache + `localFileURL` passé à `AuthenticatedAsyncImage`.
+8. EDIT `Sources/Features/PhotoViewer/ZoomableImageView.swift` — paramètre `localFileURL` transmis au même composant.
+9. EDIT `Sources/Features/PhotoViewer/PhotoViewer.swift` — section « Offline » dans `PhotoShareSheet` : « Download for Offline » / « Remove from Offline » + indicateur de progression + pastille « Available offline ».
+10. EDIT `Sources/Features/Profile/ProfileView.swift` — `@State var offline: OfflineDownloadViewModel` + `NavigationLink("Offline Storage")` dans la section Management.
+11. EDIT `Sources/DependencyContainer.swift` — `offlineStore`, `offlineIndex`, `makeOfflineDownloadViewModel()` (instances process-wide : le badge du timeline et l'écran de gestion doivent voir le même index).
+12. EDIT `Sources/RootView.swift` — `@State private var offline`, `.environment(offlineIndex)` + `.environment(offline)` sur la hiérarchie des tabs, `offline: offline` passé à `ProfileView`.
+13. EDIT `Resources/Localizable.xcstrings` — clés EN+FR **ajoutées à la main** (piège : ne jamais committer le catalogue régénéré par un build Xcode incrémental).
+14. NEW `Tests/OfflineAssetStoreTests.swift` (≥7) + `Tests/OfflineDownloadViewModelTests.swift` (≥5).
+15. NEW `UITests/stubs/immich_stub_offline.py` (committé, self-contained, port 8421) + scénario `test_09_offlineDownload` dans `UITests/ImmichRenderScreenshots.swift`.
+16. `xcodegen generate` + suite complète (`-only-testing:ImmichSwiftUITests`) + scénario UI à la main contre le stub.
 
 ## Acceptance Contract
 
 ### Approches candidates
-**A (retenue)**: FileManager cache + OfflineAssetStore. Simple, pas de nouvelles deps, testable.
-**B**: GRDB → nouvelle dépendance.
-**C**: Isar → couplage.
-**D**: WKWebsiteDataStore → web-only.
+**A (retenue)** : `OfflineAssetStore` fichiers + index JSON, lecture locale via `AuthenticatedAsyncImage`, index observable en environnement. Aucune dépendance, testable sans réseau, restitue réellement hors-ligne.
+**B** : GRDB/SQLite → dépendance neuve pour N lignes de métadonnées.
+**C** : Isar → couplage au client Flutter.
+**D** : `.cachesDirectory` + `URLCache` seul → purgeable par l'OS, et `URLCache` ne sert pas une vue sans réseau de façon fiable.
 
 ### Approche retenue + rationale
-**A**. Cache file simple, pas de dépendance externe, compatible tests existants.
+**A**. Le disque est la seule source durable ; l'index JSON est reconstruit au besoin depuis les attributs des fichiers (pas de dualité irréparable).
 
 ### Critères
 
+Chaque check est **exécutable tel quel** depuis la racine du dépôt. Les checks de comportement sont adossés à des tests nommés (lancer la suite d'une classe : `xcodebuild test … -only-testing:ImmichSwiftUITests/<Classe>`), jamais à une simple présence de mot (piège connu : `grep -q` matche aussi un commentaire ; cf. `.opencode/scratch/stacks-ui.acceptance.md` piège 5).
+
 ```
 ### AC-3500 [type: new]
-Assertion: OfflineAssetStore expose downloadAsset(id:,originalPath:), getCachedAsset(id:), isCached(id:), removeCachedAsset(id:), clearAllCachedAssets(), cachedAssets, CachedAssetInfo{id,fileName,cachedAt,size} dans Sources/Services/OfflineAssetStore.swift.
-Check post-impl: sh -c 'f=Sources/Services/OfflineAssetStore.swift; test -f "$f" && grep -qE "func downloadAsset" "$f" && grep -qE "func getCachedAsset" "$f" && grep -qE "func isCached" "$f" && grep -qE "func removeCachedAsset" "$f" && grep -qE "func clearAllCachedAssets" "$f" && grep -qE "CachedAssetInfo" "$f" && echo PASS || echo FAIL'
+Assertion: OfflineAssetStore existe comme actor dans Sources/Services/OfflineAssetStore.swift avec les 9 entrées d'API (download/cachedInfo/fileURL/allCached/isCached/totalBytes/remove/clearAll/maxCacheSize), CachedAssetInfo Codable et une init injectable folderURL:.
+Check post-impl: sh -c 'f=Sources/Services/OfflineAssetStore.swift; test -f "$f" || { echo FAIL; exit; }; s=$(sed -n "/^actor OfflineAssetStore/,/^}/p" "$f"); for d in "func download(" "func cachedInfo(" "func fileURL(" "func allCached(" "func isCached(" "func totalBytes(" "func remove(" "func clearAll(" "maxCacheSize" "init(folderURL"; do printf "%s" "$s" | grep -qE "$d" || { echo "FAIL $d"; exit; }; done; grep -qE "struct CachedAssetInfo: .*Codable" "$f" || { echo FAIL schema; exit; }; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3501 [type: new]
-Assertion: OfflineDownloadViewModel expose cachedAssets, downloadAsset(id:,originalPath:), removeFromOffline(id:), clearAll(), cacheUsage dans Sources/Features/Offline/OfflineDownloadViewModel.swift.
-Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineDownloadViewModel.swift; test -f "$f" && grep -qE "var cachedAssets" "$f" && grep -qE "func downloadAsset" "$f" && grep -qE "func removeFromOffline" "$f" && grep -qE "func clearAll" "$f" && grep -qE "var cacheUsage" "$f" && echo PASS || echo FAIL'
+Assertion: OfflineDownloadViewModel expose cachedAssets, cacheUsage, maxCacheSize, downloadAsset(id:), removeFromOffline(id:), clearAll(), load() dans Sources/Features/Offline/OfflineDownloadViewModel.swift.
+Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineDownloadViewModel.swift; test -f "$f" || { echo FAIL; exit; }; for d in "var cachedAssets" "var cacheUsage" "var maxCacheSize" "func downloadAsset(" "func removeFromOffline(" "func clearAll(" "func load("; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3502 [type: new]
-Assertion: OfflineAssetsView expose asset grid (LazyVGrid), download indicator, storage usage card, clear all dans Sources/Features/Offline/OfflineAssetsView.swift.
-Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineAssetsView.swift; test -f "$f" && grep -qE "cachedAssets" "$f" && grep -qE "removeFromOffline" "$f" && grep -qE "cacheUsage" "$f" && grep -qE "LazyVGrid" "$f" && echo PASS || echo FAIL'
+Assertion: OfflineAssetsView existe avec LazyVGrid, carte d'occupation (anneau), suppression par asset, « Clear All » et état vide dans Sources/Features/Offline/OfflineAssetsView.swift.
+Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineAssetsView.swift; test -f "$f" || { echo FAIL; exit; }; for d in "LazyVGrid" "storageUsageCard" "removeFromOffline" "clearAll" "ContentUnavailableView" "accessibilityIdentifier"; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3503 [type: new]
-Assertion: PhotoViewer expose "Download for offline" dans share sheet/menu contextuel.
-Check post-impl: sh -c 'f=Sources/Features/PhotoViewer/PhotoViewer.swift; grep -qE "downloadForOffline\|Download for Offline\|offline" "$f" && echo PASS || echo FAIL'
+Assertion: le partage du viewer porte l'action offline (« Download for Offline » / « Remove from Offline » + progression) dans Sources/Features/PhotoViewer/PhotoViewer.swift.
+Check post-impl: sh -c 'f=Sources/Features/PhotoViewer/PhotoViewer.swift; for d in "Download for Offline" "Remove from Offline" "downloadAsset" "offlineVM"; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3504 [type: new]
-Assertion: TimelineView / AssetThumbnailCell expose cached indicator overlay (checkmark circle) quand asset.isCached == true.
-Check post-impl: sh -c 'f=Sources/Features/Timeline/AssetThumbnailCell.swift; grep -qE "isCached" "$f" && grep -qE "checkmark" "$f" && echo PASS || echo FAIL'
+Assertion: AssetThumbnailCell affiche un badge d'asset en cache (identifier offlineBadge) alimenté par l'index d'environnement, et rend l'image depuis le fichier local.
+Check post-impl: sh -c 'f=Sources/Features/Timeline/AssetThumbnailCell.swift; for d in "OfflineAssetIndex" "offlineBadge" "localFileURL" "isCached"; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
+Vérification de comportement: scénario XCUITest « test_09_offlineDownload » (badge visible après téléchargement).
 ```
 
 ```
 ### AC-3505 [type: new]
-Assertion: ProfileView expose "Offline Storage" navigation link vers OfflineAssetsView.
-Check post-impl: sh -c 'f=Sources/Features/Profile/ProfileView.swift; grep -qE "Offline" "$f" && grep -qE "OfflineAssetsView" "$f" && echo PASS || echo FAIL'
+Assertion: ProfileView pousse « Offline Storage » vers OfflineAssetsView depuis la section Management.
+Check post-impl: sh -c 'f=Sources/Features/Profile/ProfileView.swift; grep -qE "OfflineAssetsView\(vm:" "$f" && grep -qE "Offline Storage" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3506 [type: new]
-Assertion: OfflineAssetStoreTests expose ≥5 tests (download, cache hit, cache miss, remove, clear, size limit).
-Check post-impl: sh -c 'f=Tests/OfflineAssetStoreTests.swift; test -f "$f" && n=$(grep -cE "func test_" "$f"); test "$n" -ge 5 && echo PASS || echo FAIL'
+Assertion: Tests/OfflineAssetStoreTests.swift couvre au moins 7 cas nommés : write+index, cache hit, cache miss, remove, clearAll, éviction à la limite, réconciliation d'index.
+Check post-impl: sh -c 'f=Tests/OfflineAssetStoreTests.swift; test -f "$f" || { echo FAIL; exit; }; n=$(grep -cE "^\s*func test_" "$f"); test "$n" -ge 7 || { echo "FAIL count=$n"; exit; }; for k in download cacheHit cacheMiss remove clear eviction reconcile; do grep -qiE "func test_.*$k" "$f" || { echo "FAIL $k"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
 
 ```
 ### AC-3507 [type: new]
-Assertion: OfflineDownloadViewModel expose toast de progression pendant le téléchargement avec ProgressView.
-Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineDownloadViewModel.swift; grep -qE "ProgressView\|progress\|Downloading" "$f" && echo PASS || echo FAIL'
+Assertion: la progression est déterminée pendant le téléchargement (octets reçus / Content-Length) et exposée par le VM (progress(for:) + isDownloading(_:)).
+Check post-impl: sh -c 'sh -c "grep -qE \"onProgress\" Sources/Services/OfflineAssetStore.swift && grep -qE \"func progress\\(for\" Sources/Features/Offline/OfflineDownloadViewModel.swift && grep -qE \"func isDownloading\" Sources/Features/Offline/OfflineDownloadViewModel.swift && echo PASS || echo FAIL"'
 Pre-state attendu: FAIL
+Post-state attendu: PASS
+Vérification de comportement: Tests/OfflineAssetStoreTests.test_download_reportsProgress (le stub sert un Content-Length > 0 et le test exige des valeurs strictement croissantes menant à 1.0) + Tests/OfflineDownloadViewModelTests.test_progress_publishesFraction.
+```
+
+```
+### AC-3508 [type: new]
+Assertion: un asset en cache s'affiche SANS réseau — AuthenticatedAsyncImage sert le fichier local (étage 0) et downsampe via ImageDownsampler au lieu de décoder l'original plein format.
+Check post-impl: sh -c 'grep -qE "localFileURL" Sources/Services/AuthenticatedAsyncImage.swift && grep -qE "ImageDownsampler" Sources/Services/AuthenticatedAsyncImage.swift && test -f Sources/Services/ImageDownsampler.swift && echo PASS || echo FAIL'
+Pre-state attendu: FAIL
+Post-state attendu: PASS
+Vérification de comportement: Tests/OfflineAssetStoreTests.test_localImage_rendersWithoutNetwork (URLProtocol qui échoue pour toute requête ; le fichier local doit tout de même produire une UIImage) + ZoomableImageView/AssetThumbnailCell reçoivent localFileURL.
+```
+
+```
+### AC-3509 [type: new]
+Assertion: OfflineDownloadViewModelTests couvre load(), downloadAsset (succès + échec), removeFromOffline, clearAll, cacheUsage — au moins 5 cas nommés.
+Check post-impl: sh -c 'f=Tests/OfflineDownloadViewModelTests.swift; test -f "$f" || { echo FAIL; exit; }; n=$(grep -cE "^\s*func test_" "$f"); test "$n" -ge 5 || { echo "FAIL count=$n"; exit; }; echo PASS'
+Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
 
 ```
-### AC-3508 [type: regression]
-Assertion: Suite complète ≥ baseline, TEST SUCCEEDED.
-Check post-impl: sh -c 'grep -qE "TEST SUCCEEDED" /tmp/immich_offline_test_summary.txt && n=$(grep -oE "Executed [0-9]+ tests" /tmp/immich_offline_test_summary.txt | grep -oE "[0-9]+" | sort -n | tail -1); test "$n" -ge 200 && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
+### AC-3510 [type: regression]
+Assertion: la suite unitaire complète passe, ≥ baseline 805, TEST SUCCEEDED.
+Pré-requis (exécuté en préparation, 2026-09-13):
+  sh -c 'xcodebuild test -project ImmichSwiftUI.xcodeproj -scheme ImmichSwiftUI -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:ImmichSwiftUITests > /tmp/immich_offline_baseline.txt 2>&1; grep -c "Test Case .* passed" /tmp/immich_offline_baseline.txt'
+  → 805 / "** TEST SUCCEEDED **"
+Check post-impl: sh -c 'xcodebuild test -project ImmichSwiftUI.xcodeproj -scheme ImmichSwiftUI -destination "platform=iOS Simulator,name=iPhone 17" -only-testing:ImmichSwiftUITests > /tmp/immich_offline_test_summary.txt 2>&1; n=$(grep -oE "Executed [0-9]+ tests" /tmp/immich_offline_test_summary.txt | grep -oE "[0-9]+" | sort -n | tail -1); grep -q "TEST SUCCEEDED" /tmp/immich_offline_test_summary.txt && test "$n" -ge 805 && echo "PASS ($n)" || echo "FAIL ($n)"'
+Pre-state attendu: PASS sur la baseline (805) — le critère porte sur la suite APRÈS implémentation : ≥ 805 + tests neufs, TEST SUCCEEDED.
+Post-state attendu: PASS avec n ≥ 817 (805 + ≥12 tests neufs)
+```
+
+```
+### AC-3511 [type: new]
+Assertion: les chaînes d'UI neuves sont au catalogue avec leur traduction FR (« Offline Storage », « Download for Offline », « Remove from Offline », « Available offline », « Clear All Offline Photos », « No offline photos »), et le catalogue n'a pas été régénéré par un build Xcode incrémental.
+Check post-impl: sh -c 'f=Resources/Localizable.xcstrings; for k in "Offline Storage" "Download for Offline" "Remove from Offline" "Available offline" "Clear All Offline Photos" "No offline photos"; do jq -e --arg k "$k" ".strings[\$k].localizations.fr" "$f" >/dev/null || { echo "FAIL $k"; exit; }; done; echo PASS'
+Pre-state attendu: FAIL (clés absentes)
 Post-state attendu: PASS
 ```
+
+```
+### AC-3512 [type: new]
+Assertion: preuve de bout en bout — le stub committé UITests/stubs/immich_stub_offline.py sert le handshake + timeline + GET /api/assets/{id} + GET /api/assets/{id}/original, et test_09_offlineDownload passe à la main sur le simulateur : téléchargement depuis le viewer → badge dans le timeline → écran Offline Storage → suppression.
+Check post-impl: sh -c 'test -f UITests/stubs/immich_stub_offline.py && grep -qE "original" UITests/stubs/immich_stub_offline.py && grep -qE "test_09_offlineDownload" UITests/ImmichRenderScreenshots.swift && echo PASS || echo FAIL'
+Pre-state attendu: FAIL (stub et scénario absents)
+Post-state attendu: PASS (+ sortie du run XCUITest : `test_09_offlineDownload` vert, 2 runs consécutifs)
+```
+
+## État de préparation (2026-09-13)
+
+| Pré-requis | État |
+|---|---|
+| Baseline de régression mesurée | ✅ 805 tests, TEST SUCCEEDED (`/tmp/immich_offline_baseline.txt`) |
+| Contrat API vérifié sur l'OpenAPI `main` | ✅ `GET /assets/{id}/original` |
+| Spec + UI brief relus et corrigés | ✅ révision ajoutée à `.omp/offline-download/offline-download.specs.md` |
+| Backlog §2.7 + tableau de suivi | ✅ mis à jour |
+| Issue #18 | ✅ corps corrigé (répertoire de cache, chemin de rendu local, AC) |
+| Checks d'AC exécutables | ✅ les 12 checks exécutables ont été lancés verbatim en pré-état : tous rendent le FAIL documenté (aucun `PASS` parasite, aucun check inerte) ; le check de régression rend `805` sur la sortie réelle de la baseline |
+| Ordre d'implémentation | ✅ 16 étapes ci-dessus |
+
+**Outillage vérifié**
+- `xcodegen` (/opt/homebrew/bin/xcodegen), projet `ImmichSwiftUI.xcodeproj`, simulateur `iPhone 17` (booté, iOS 26).
+- `project.yml` déclare `sources: - path: Sources`, `- path: Tests`, `- path: UITests` : **les nouveaux fichiers et le stub `.py` sont pris automatiquement** par `xcodegen generate` — aucune liste de fichiers à éditer.
+- Le stub de bout en bout se lance à la main (`python3 UITests/stubs/immich_stub_offline.py 8421`) ; les tests UI se *skippent* sans lui, donc le scheme reste vert par défaut.
+- Commande de régression : `xcodebuild test -project ImmichSwiftUI.xcodeproj -scheme ImmichSwiftUI -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:ImmichSwiftUITests` (~5 min).
+
+**Ordre d'exécution recommandé** : 1–3 (store + downsampler + étage local) → 14 (tests du store, **avant** l'UI : la politique d'éviction et la réconciliation d'index se valident sans écran) → 4–5 (index + VM) → 6 (écran) → 7–10 (intégrations) → 11–12 (câblage) → 13 (i18n) → 15 (stub + XCUITest) → 16 (suite complète).
+
+**Points de rupture possibles**
+- `AuthenticatedAsyncImage` est utilisé par toutes les grilles : l'étage local doit rester strictement opt-in (`localFileURL` par défaut `nil`) pour ne rien changer aux 6 autres appelants.
+- Le badge de cache lit l'environnement : si `AuthenticatedRoot` oublie l'injection, `@Environment(OfflineAssetIndex.self)` vaut `nil` et le badge disparaît **silencieusement** — d'où l'AC-3504 vérifié par XCUITest, pas par grep.
+- `bytes(for:)` ne fournit pas toujours `Content-Length` (chunked) : la progression doit retomber sur une barre indéterminée, pas sur 0 % figé.
+- Réglage `offlineMaxSize` : les valeurs `UserDefaults` sont des `Int` (64 bits) — pas de stockage direct d'`Int64` non convertible.
