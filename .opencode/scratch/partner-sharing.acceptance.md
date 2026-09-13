@@ -2,11 +2,19 @@
 
 Status: shipped — AC-1070..AC-1076 PASS 2026-08-12 (426 tests, suite verte).
 
+> **Révision du 2026-09-13 — la surface livrée ici est partiellement cassée au runtime.**
+> Vérification contre l'OpenAPI publié (`main`, `v1.106.0`, `v1.135.0`, `v1.140.0`, `v1.142.0`) et `server/src/services/partner.service.ts` :
+> - **`direction` est requis sur `GET /api/partners`.** L'hypothèse « Client P0 ready: `getPartners()` » ci-dessous a produit un appel sans query : `SharedLinksView` reçoit un **400**, donc la section partenaires livrée ici n'a jamais pu s'afficher. `AC-1072`/`AC-1073` sont des greps sur le source : ils sont verts et ne mesurent rien de l'exécution — même angle mort que la clôture 8/8 d'OAuth2 le 2026-09-10.
+> - **`PUT /api/partners/{id}` n'est valide que sur une ligne `shared-with`** (serveur : `sharedById = id, sharedWithId = moi`) et **`DELETE` uniquement sur une ligne `shared-by`** : le toggle et la poubelle posés sur **chaque** ligne `PartnerRow` ne peuvent pas fonctionner sur les deux directions à la fois.
+> - `POST /api/partners` prend `{sharedWithId: <uuid>}`, **pas un email**.
+>
+> Suite de cette surface : `.opencode/scratch/partners-ui.acceptance.md` (AC-3100 – AC-3113), qui déplace le bloc partenaires hors de `SharedLinksView` vers un écran dédié et corrige le contrat client.
+
 ## Plan
 **Objectif**: Partner sharing (Flutter parity): list partners in the Shared tab, per-partner "show in timeline" toggle + remove, and a "Shared with you" timeline filter (partner photos interleaved in the timeline).
 
 **Hypothèses**:
-- Client P0 ready: `getPartners()`, `updatePartner(id:isInTimeline:)` (PUT /api/partners/{id}), `removePartner(id:)` (DELETE) — ImmichClient + MockImmichClient stubs (:554-575, captures :131-135).
+- Client P0 ready: `getPartners()` ⚠ **périmé : sans `direction` le serveur répond 400** (cf. Révision en tête), `updatePartner(id:isInTimeline:)` (PUT /api/partners/{id}), `removePartner(id:)` (DELETE) — ImmichClient + MockImmichClient stubs (:554-575, captures :131-135).
 - `getTimeBuckets`/`getTimeBucket` accept `withPartners: Bool?` (P0 expansion) — TimelineViewModel currently passes literal `nil` at 2 + 1 call sites (refresh :147, load :163, loadNextBucket :185).
 - `TimelineViewModel.setFilter(isFavorite:visibility:)` (:62) guards no-op on unchanged values; extend with `withPartners` while keeping a default so existing call sites/tests compile untouched.
 - SharedLinksView lists links in a `List`; empty/error/loading branches (:20-48). Partner section goes into the list when the list is shown, and replaces the "empty" ContentUnavailable when links are empty but partners exist.

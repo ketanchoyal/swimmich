@@ -72,6 +72,12 @@ final class ImmichRenderScreenshots: XCTestCase {
         _ = done.wait(timeout: .now() + 6)
     }
 
+    /// Same route, but states the intent for the partner stub: restore one
+    /// incoming partner, one outgoing partner and no invitation.
+    private func resetPartners() {
+        resetStacks()
+    }
+
     /// Waits for any button whose label contains `text` and taps it.
     ///
     /// Case-sensitive on purpose: the software keyboard's return key is
@@ -432,5 +438,121 @@ final class ImmichRenderScreenshots: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["2 photos"].waitForExistence(timeout: 15),
                       "the new stack is not in the hub")
+    }
+
+    /// Partners (issue #14) against a committed stub. Two things can only be
+    /// seen by running the app:
+    ///
+    /// 1. the **direction** query is really sent — the stub answers 400 for a
+    ///    `/api/partners` without it, which is what the app used to do;
+    /// 2. the **asymmetry** between the two lists is real on screen: an
+    ///    incoming row carries the timeline switch and no remove button, an
+    ///    outgoing row the opposite. `PUT` pairs `{sharedById: id, sharedWithId:
+    ///    me}` and `DELETE` the reverse, so a row offering both would send a
+    ///    request that matches nothing (or revokes the wrong access).
+    ///
+    /// Needs the partner stub (committed, unlike the stacks one):
+    ///
+    ///     python3 UITests/stubs/immich_stub_partners.py 8421
+    func test_06_partners() throws {
+        let incomingId = "aaaaaaaa-1111-4111-8111-111111111111"
+        let outgoingId = "bbbbbbbb-2222-4222-8222-000000000002"
+        let invitableId = "cccccccc-3333-4333-8333-000000000003"
+
+        setProvider("auto")
+        resetPartners()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(3)
+
+        // The Me hub is a lazy Form: rows below the fold do not exist yet.
+        let partnersRow = app.buttons["Partners"]
+        for _ in 0..<5 where !partnersRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(partnersRow.waitForExistence(timeout: 10), "Partners row missing in the Me hub")
+        partnersRow.tap()
+        sleep(3)
+        shot("23-partners")
+
+        // The incoming partner (they share with me): switch, no remove button.
+        let incomingToggle = app.descendants(matching: .any)
+            .matching(identifier: "partnerTimelineToggle-\(incomingId)").firstMatch
+        XCTAssertTrue(incomingToggle.waitForExistence(timeout: 15),
+                      "no timeline switch on an incoming partner — is the list empty (direction rejected?)")
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "partnerRemove-\(incomingId)").firstMatch.exists,
+            "an incoming row must not offer remove: DELETE would pair {sharedById: me, sharedWithId: id} and revoke access I never granted")
+
+        // The outgoing partner (I share with them): remove button, no switch.
+        let outgoingRemove = app.descendants(matching: .any)
+            .matching(identifier: "partnerRemove-\(outgoingId)").firstMatch
+        XCTAssertTrue(outgoingRemove.waitForExistence(timeout: 10), "no remove button on my own partner")
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "partnerTimelineToggle-\(outgoingId)").firstMatch.exists,
+            "an outgoing row must not offer the timeline switch: PUT would pair {sharedById: id, sharedWithId: me} and match nothing")
+
+        // Invite: the directory minus me minus everyone already in "Sharing".
+        // Partner sharing is one-way, so the incoming partner is a legitimate
+        // candidate (adding them back is how their library shows in my
+        // timeline) — but the outgoing one is not.
+        let invite = app.buttons["invitePartner"]
+        XCTAssertTrue(invite.waitForExistence(timeout: 10), "no invite button in the toolbar")
+        invite.tap()
+        sleep(3)
+        let candidate = app.buttons.matching(identifier: "inviteCandidate-\(invitableId)").firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 15), "invite sheet did not list the directory")
+        XCTAssertFalse(app.buttons.matching(identifier: "inviteCandidate-\(outgoingId)").firstMatch.exists,
+            "a user already in Sharing must not be offered again — POST /api/partners answers 400 'Partner already exists'")
+        candidate.tap()
+        shot("25-partners-invite")
+
+        let confirmInvite = app.buttons["confirmInvitePartner"]
+        XCTAssertTrue(confirmInvite.waitForExistence(timeout: 10), "Invite CTA missing")
+        // The tap flips `selectedCandidateId`, which arms the CTA on the next
+        // render — poll instead of reading a possibly stale enabled state.
+        let armed = expectation(for: NSPredicate(format: "isEnabled == true"),
+                                evaluatedWith: confirmInvite)
+        let outcome = XCTWaiter().wait(for: [armed], timeout: 10)
+        XCTAssertEqual(outcome, .completed, "picking a candidate did not arm the CTA")
+        confirmInvite.tap()
+        sleep(4)
+        shot("26-partners-after-invite")
+
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "partnerRemove-\(invitableId)").firstMatch.waitForExistence(timeout: 15),
+            "the invited user did not appear under Sharing (POST /api/partners)")
+
+        // Removing is the outgoing-only action.
+        outgoingRemove.tap()
+        sleep(2)
+        // The identifier can resolve to more than one element inside the
+        // dialog (the Button and its container), so take the first match.
+        let confirm = app.buttons.matching(identifier: "confirmStopSharing").firstMatch
+        let confirmFallback = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'Stop sharing' OR label CONTAINS 'partage'")
+        ).firstMatch
+        let destructive = confirm.waitForExistence(timeout: 6) ? confirm : confirmFallback
+        XCTAssertTrue(destructive.waitForExistence(timeout: 6), "no confirmation for the removal")
+        shot("27-partners-remove-confirm")
+        destructive.tap()
+        sleep(4)
+
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "partnerRemove-\(outgoingId)").firstMatch.exists,
+            "the removed partner is still listed")
     }
 }

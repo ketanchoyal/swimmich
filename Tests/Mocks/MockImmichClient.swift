@@ -167,10 +167,18 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastMergeTargetId: String?
     var mergePeopleResponse: [BulkIdResponseDto]?
     var personStatisticsResponse: [String: PersonStatisticsResponseDto] = [:]
-    var partnersResponse: [PartnerResponseDto]?
+    var partnersSharedWithResponse: [PartnerResponseDto]?
+    var partnersSharedByResponse: [PartnerResponseDto]?
     var partnersError: Error?
+    /// Every direction requested, in order — the query param is **required**
+    /// server-side, so a test must be able to assert it was sent.
+    var lastPartnersDirections: [PartnerDirection] = []
+    var lastPartnersDirection: PartnerDirection? { lastPartnersDirections.last }
+    var lastCreatePartnerSharedWithId: String?
+    var createPartnerResponse: PartnerResponseDto?
     var lastUpdatePartnerId: String?
     var lastUpdatePartnerInTimeline: Bool?
+    var updatePartnerResponse: PartnerResponseDto?
     var lastRemovePartnerId: String?
     var lastActivitiesAlbumId: String?
     var lastActivitiesAssetId: String?
@@ -623,12 +631,27 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return personStatisticsResponse[id] ?? PersonStatisticsResponseDto(assets: 0)
     }
 
-    // MARK: - Partners (P0 api-surface-expansion)
+    // MARK: - Partners (P0 api-surface-expansion; direction required)
 
-    func getPartners() async throws -> [PartnerResponseDto] {
+    func getPartners(direction: PartnerDirection) async throws -> [PartnerResponseDto] {
         bump()
+        lastPartnersDirections.append(direction)
         if let e = globalError ?? partnersError { throw e }
-        return partnersResponse ?? []
+        switch direction {
+        case .sharedWith: return partnersSharedWithResponse ?? []
+        case .sharedBy: return partnersSharedByResponse ?? []
+        }
+    }
+
+    func createPartner(sharedWithId: String) async throws -> PartnerResponseDto {
+        bump()
+        lastCreatePartnerSharedWithId = sharedWithId
+        if let e = globalError ?? partnersError { throw e }
+        return createPartnerResponse ?? PartnerResponseDto(
+            id: sharedWithId, name: "Partner \(sharedWithId)", email: "\(sharedWithId)@test",
+            profileImagePath: "", avatarColor: "", profileChangedAt: "2024-01-01T00:00:00.000Z",
+            inTimeline: false
+        )
     }
 
     func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto {
@@ -636,7 +659,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastUpdatePartnerId = id
         lastUpdatePartnerInTimeline = isInTimeline
         if let e = globalError ?? partnersError { throw e }
-        return PartnerResponseDto(
+        return updatePartnerResponse ?? PartnerResponseDto(
             id: id, name: "Partner", email: "partner@test", profileImagePath: "",
             avatarColor: "", profileChangedAt: "2024-01-01T00:00:00.000Z", inTimeline: isInTimeline
         )

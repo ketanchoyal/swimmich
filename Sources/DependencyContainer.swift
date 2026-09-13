@@ -130,6 +130,10 @@ final class DependencyContainer {
         StacksViewModel(client: client as any ImmichClient)
     }
 
+    func makePartnersViewModel() -> PartnersViewModel {
+        PartnersViewModel(client: client as any ImmichClient)
+    }
+
     func makeAdminViewModel() -> AdminViewModel {
         AdminViewModel(client: client as any ImmichClient)
     }

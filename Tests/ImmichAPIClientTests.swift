@@ -458,7 +458,10 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.url?.path, "/api/duplicates")
     }
 
-    func test_P0_getPartners_hitsPartnersEndpoint() async throws {
+    /// `GET /api/partners` — `direction` is a **required** query param. Without
+    /// it the server answers 400, which is what this client used to do (the app
+    /// shipped a call with no query at all until 2026-09-13).
+    func test_P0_getPartners_sendsRequiredDirection() async throws {
         let session = makeMockedSession()
         let client = ImmichAPIClient(session: session)
         client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
@@ -466,15 +469,83 @@ final class ImmichAPIClientTests: XCTestCase {
         [{"id": "u9", "name": "Pat", "email": "pat@test", "profileImagePath": "", "avatarColor": "#00FF00", "profileChangedAt": "2024-01-01T00:00:00.000Z", "inTimeline": true}]
         """.data(using: .utf8)!
 
-        let partners = try await client.getPartners()
+        let incoming = try await client.getPartners(direction: .sharedWith)
+        XCTAssertEqual(incoming.count, 1)
+        XCTAssertTrue(incoming.first?.inTimeline == true)
+        guard let incomingRequest = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(incomingRequest.httpMethod, "GET")
+        XCTAssertEqual(incomingRequest.url?.path, "/api/partners")
+        XCTAssertTrue(incomingRequest.url?.query?.contains("direction=shared-with") == true,
+                      "direction is required — a direction-less call is a 400")
 
-        XCTAssertEqual(partners.count, 1)
-        XCTAssertTrue(partners.first?.inTimeline == true)
+        CapturingURLProtocol.reset()
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+        _ = try await client.getPartners(direction: .sharedBy)
+        guard let outgoingRequest = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertTrue(outgoingRequest.url?.query?.contains("direction=shared-by") == true,
+                      "the two directions are distinct queries")
+    }
+
+    /// `POST /api/partners` — the server takes `{sharedWithId}`, a user id.
+    func test_partners_createPartnerPostsSharedWithId() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 201
+        CapturingURLProtocol.nextData = """
+        {"id": "u2", "name": "Bob", "email": "bob@test", "profileImagePath": "", "avatarColor": "#FF0000", "profileChangedAt": "2024-01-01T00:00:00.000Z", "inTimeline": false}
+        """.data(using: .utf8)!
+
+        let created = try await client.createPartner(sharedWithId: "u2")
+
+        XCTAssertEqual(created.id, "u2")
         guard let captured = CapturingURLProtocol.lastRequest else {
             return XCTFail("no request captured")
         }
-        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.httpMethod, "POST")
         XCTAssertEqual(captured.url?.path, "/api/partners")
+        XCTAssertEqual(captured.url?.query, nil, "the id travels in the body, not the query")
+        XCTAssertEqual(try decodedBody()["sharedWithId"] as? String, "u2")
+    }
+
+    /// `PUT /api/partners/{id}` — the timeline toggle.
+    func test_P0_updatePartner_putsPartnerPath() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "p1", "name": "Pat", "email": "pat@test", "profileImagePath": "", "avatarColor": "#00FF00", "profileChangedAt": "2024-01-01T00:00:00.000Z", "inTimeline": true}
+        """.data(using: .utf8)!
+
+        _ = try await client.updatePartner(id: "p1", isInTimeline: true)
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/partners/p1")
+        XCTAssertEqual(try decodedBody()["inTimeline"] as? Bool, true)
+    }
+
+    /// `DELETE /api/partners/{id}` — 204, no body to decode.
+    func test_P0_removePartner_deletesPartnerPath() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+        CapturingURLProtocol.nextData = Data()
+
+        try await client.removePartner(id: "p1")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/partners/p1")
     }
 
     func test_P0_getActivities_hitsActivitiesEndpointWithQuery() async throws {

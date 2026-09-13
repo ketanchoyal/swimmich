@@ -319,10 +319,16 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         return try await sendAuthed(.GET, path: ImmichAPI.faces.path(""), query: query)
     }
 
-    // MARK: - Partners (P0 api-surface-expansion)
+    // MARK: - Partners (P0 api-surface-expansion; direction corrected 2026-09-13)
 
-    func getPartners() async throws -> [PartnerResponseDto] {
-        try await sendAuthed(.GET, path: ImmichAPI.partners.path(""))
+    func getPartners(direction: PartnerDirection) async throws -> [PartnerResponseDto] {
+        // `direction` is required — an empty query is a 400, not "all partners".
+        let query = [URLQueryItem(name: "direction", value: direction.rawValue)]
+        return try await sendAuthed(.GET, path: ImmichAPI.partners.path(""), query: query)
+    }
+
+    func createPartner(sharedWithId: String) async throws -> PartnerResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.partners.path(""), body: AnyEncodable(PartnerCreateDto(sharedWithId: sharedWithId)))
     }
 
     func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto {

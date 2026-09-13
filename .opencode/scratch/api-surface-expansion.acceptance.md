@@ -2,6 +2,13 @@
 
 Status: shipped — DTOs + client methods + timeline filters + tests (326 tests verts, 0 échec; baseline ~214). AC-800..AC-811 PASS le 2026-08-12.
 
+> **Révision du 2026-09-13 — deux lectures de l'OpenAPI étaient fausses ici.**
+> La carte affirme en tête que chaque endpoint a été vérifié contre l'OpenAPI ; deux lignes ci-dessous ne l'étaient pas :
+> - **`GET /api/partners` : `direction` est requis** (`required: true` sur `main` **et** `v1.106.0/v1.135.0/v1.140.0/v1.142.0`, vérifié le 2026-09-13). La méthode livrée, `getPartners()` sans paramètre, produit un **400**. Les AC de cette carte pinçaient le **préfixe** `func getPartners` : le check restait vert sans jamais mesurer la query.
+> - **`POST /api/partners` prend `{sharedWithId: <uuid>}`, pas un email** (`server/src/dtos/partner.dto.ts`) — la mention « create par email » ci-dessous est fausse et a été propagée jusqu'à la carte partners-ui, corrigée le 2026-09-13.
+>
+> Côté tests, `test_P0_getPartners_hitsPartnersEndpoint` (`Tests/ImmichAPIClientTests.swift:461`) asserte le chemin sans la query : il ne pouvait pas voir le 400. Correction portée par `.opencode/scratch/partners-ui.acceptance.md` (AC-3101 – AC-3103).
+
 ## Plan
 
 **Objectif**: Étendre `ImmichClient` + DTOs aux endpoints manquants du plan de parité, sans toucher au cœur dispatch (sendAuthed/sendAuthedRaw). Chaque endpoint vérifié contre OpenAPI officiel (main branch) — pas de schémas devinés.
@@ -21,7 +28,7 @@ Status: shipped — DTOs + client methods + timeline filters + tests (326 tests 
   - `/people/{id}/assets` N'EXISTE PLUS sur main → assets d'une personne = `searchMetadata(personIds:)` (déjà supporté, SearchViewModel).
   - `GET /memories` → `[MemoryResponseDto]`; params for(date),isSaved,isTrashed,order(asc|desc|random),size,type. MemoryResponseDto: id,createdAt,updatedAt,memoryAt,ownerId,type("on_this_day"),data{year},assets:[AssetResponseDto],isSaved + optionnels showAt,hideAt,seenAt,deletedAt.
   - `GET /duplicates` (aucun param) → `[DuplicateResponseDto {duplicateId, assets:[AssetResponseDto], suggestedKeepAssetIds:[String]}]`.
-  - `GET /partners` → `[PartnerResponseDto]` (=user + inTimeline: Bool); `PUT /partners/{id}` body `{inTimeline:Bool}` → 200; `DELETE /partners/{id}` → 204; `POST /partners` (create par email) → 201 — PAS au scope P0 (UI partner create = P3).
+  - `GET /partners?direction=shared-by|shared-with` → `[PartnerResponseDto]` (=user + inTimeline: Bool) ; **`direction` est requis** (corrigé le 2026-09-13) ; `PUT /partners/{id}` body `{inTimeline:Bool}` → 200 (valide seulement sur une ligne `shared-with`) ; `DELETE /partners/{id}` → 204 (seulement sur une ligne `shared-by`) ; `POST /partners` body **`{sharedWithId: <uuid>}`** → 201 (⚠ pas un email) — PAS au scope P0 (UI partner create = P3).
   - `GET /activities?albumId(REQ)&assetId?&type?` → `[ActivityResponseDto {id,createdAt,type(comment|like),user:UserResponseDto,assetId?,comment?}]`; `POST /activities` body `ActivityCreateDto {albumId(REQ),type(REQ),assetId?,comment?}`; `DELETE /activities/{id}` → 204.
   - `GET /server/statistics` → `ServerStatsResponseDto {photos,videos,usage,usagePhotos,usageVideos,usageByUser:[UsageByUserDto {userId,userName,photos,videos,usage,usagePhotos,usageVideos,quotaSizeInBytes}]}`.
   - `PUT /shared-links/{id}` body `SharedLinkEditDto {password,expiresAt,allowUpload,allowDownload,showMetadata,description}` (tous optionnels) → SharedLinkResponseDto.

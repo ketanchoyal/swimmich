@@ -109,9 +109,21 @@ protocol ImmichClient: AnyObject, Sendable {
     /// `GET /api/faces?id={assetId}` — all faces detected on an asset (gap #5).
     func getFaces(assetId: String) async throws -> [AssetFaceResponseDto]
 
-    // MARK: - Partners (P0 api-surface-expansion)
-    func getPartners() async throws -> [PartnerResponseDto]
+    // MARK: - Partners (P0 api-surface-expansion; direction corrected 2026-09-13)
+    /// `GET /api/partners?direction=` — `direction` is **required**; without it
+    /// the server answers 400. The response always carries the *other* user of
+    /// the pair (see `PartnerDirection`).
+    func getPartners(direction: PartnerDirection) async throws -> [PartnerResponseDto]
+    /// `POST /api/partners` body `{ sharedWithId }` — the server takes a user
+    /// id, never an email.
+    func createPartner(sharedWithId: String) async throws -> PartnerResponseDto
+    /// `PUT /api/partners/{id}` — valid **only** for a row from
+    /// `getPartners(direction: .sharedWith)`: the server pairs `{sharedById: id,
+    /// sharedWithId: me}`.
     func updatePartner(id: String, isInTimeline: Bool) async throws -> PartnerResponseDto
+    /// `DELETE /api/partners/{id}` — valid **only** for a row from
+    /// `getPartners(direction: .sharedBy)`: the server pairs `{sharedById: me,
+    /// sharedWithId: id}`.
     func removePartner(id: String) async throws
 
     // MARK: - Activity (P0 api-surface-expansion)

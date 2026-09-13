@@ -24,7 +24,7 @@
 |---|---------|-------|----------|------|--------|--------|---------------------|-------|-------------|
 | 1 | **Backup Auto** | P2 | AC-BK01–BK10 | .omp/backup-auto/ | Voir §2.1 | ✅ Terminé | — | suite 692 verte | 7/10 AC (BK05, BK06, BK08 obsolètes) |
 | 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | ✅ Terminé | — (wire) | 6 `test_oauth_*` | 8/8 AC |
-| 3 | **Partners UI** | P3 | AC-3100–3109 | .omp/partners-ui/ | Voir §2.3 | 🟡 Plan | createPartner, getPartners(dir) | 0/6 | 0/10 AC |
+| 3 | **Partners UI** | P3 | AC-3100–3113 | .omp/partners-ui/ | Voir §2.3 | ✅ Terminé | — (2 wire, 1 corrigé) | 14 + 4 + 1 XCUITest | 14/14 AC |
 | 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | 🟡 Plan | 7 (CRUD + stats) | 0/8 | 0/9 AC |
 | 5 | **Push Notifications** | P5 | AC-3300–3308 | .omp/push-notifications/ | Voir §2.5 | 🟡 Plan | device-token reg/unreg | 0/9 | 0/9 AC |
 | 6 | **Shared Links Enriched** | P3 | AC-3400–3409 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | getPublic, uploadTo, checkPW | 0/7 | 0/10 AC |
@@ -123,43 +123,58 @@ Flow non vérifiable bout-en-bout sans serveur Immich avec provider OIDC : la se
 
 ---
 
-### 2.3. Partners UI (P3)
+### 2.3. Partners UI (P3) — ✅ Terminé (2026-09-13)
 
 **Fichier spec** : `.omp/partners-ui/partners-ui.specs.md`
 **Card AC** : `.opencode/scratch/partners-ui.acceptance.md`
 **UI brief** : `.omp/partners-ui/partners-ui.ui.md`
-**AC Cards** : AC-3100 – AC-3109
+**AC Cards** : AC-3100 – AC-3113
 **Phase** : P3 — Social
 
+#### Résultat (2026-09-13)
+**14/14 AC PASS.** Suite **724 → 736 tests, TEST SUCCEEDED** (iPhone 17) + `test_06_partners` de bout en bout contre le stub **committé** `UITests/stubs/immich_stub_partners.py` (le premier stub du dépôt : celui des piles vit dans `/tmp`). `Sources/Features/Partners/` : `PartnersViewModel` (deux directions, invitation par annuaire, mutations bornées à leur collection), `PartnersView` (deux sections dans le hub « Me »), `InvitePartnerSheet` (annuaire − soi − déjà partenaires, CTA armé à la sélection), `PartnerRow`/`PartnerAvatarCircle` (déplacés depuis `SharedLinksView`, scindés par mode : entrant = toggle, sortant = retrait). Bloc partenaires **retiré** de `SharedLinksView`/`SharedLinksViewModel`. Le journal du stub après le scénario prouve ce que l'app envoie : deux `GET` avec `direction`, un `POST` `{sharedWithId}`, un `DELETE` sur le partenaire **sortant**, et aucune requête sans `direction` (celle qui répondait 400). Piège majeur : `.buttonStyle(.plain)` sur un `Button` dans une `List` avale le tap (le CTA d'invitation restait grisé) — même classe de défaut que le picker de piles.
+
+> **Révision du 2026-09-13 (avant implémentation)** — vérification faite sur l'OpenAPI publié (`main`, `v1.106.0`, `v1.135.0`, `v1.140.0`, `v1.142.0`) et les sources serveur. Quatre erreurs de la fiche d'origine sont corrigées ici :
+> - **`GET /api/partners?direction=` n'est pas optionnel** : `direction` est `required` dans toutes les versions vérifiées. Le `getPartners()` **actuellement wire** (`ImmichAPIClient.swift:324`, appelé par `SharedLinksView`) part donc sans query et reçoit un **400** — la section partenaires de l'onglet Shared est cassée au runtime aujourd'hui. Aucun test ne l'a vu : `test_P0_getPartners_hitsPartnersEndpoint` (`ImmichAPIClientTests.swift:461`) asserte le chemin, jamais la query.
+> - **La création prend un userId, pas un email** : `POST /api/partners` → `{sharedWithId: <uuid>}`. `createPartner(email:)` est inimplémentable tel quel ; la sélection passe par l'annuaire `GET /api/users` (et un email saisi doit être résolu par correspondance).
+> - **La mutation est un `PUT`, pas un `PATCH`** (`partner.controller.ts`, `@Put(':id')`).
+> - **Les deux directions ne portent pas les mêmes actions** : `PUT /api/partners/{id}` vaut pour `sharedById = id, sharedWithId = moi` (lignes **shared-with**), `DELETE /api/partners/{id}` vaut pour l'inverse (lignes **shared-by**). Une liste fusionnée avec toggle *et* poubelle sur chaque ligne est structurellement fausse.
+>
+> Sémantique (le DTO renvoyé est **toujours l'autre** utilisateur) : `shared-by` = les gens que **j'ai** ajoutés (« Sharing »), `shared-with` = ceux qui partagent **leur** photothèque avec moi (« Shared with me »). Le toggle timeline du Flutter porte sur `shared-with`.
+>
+> **Rattachement** : écran dédié poussé depuis le hub « Me » (comme Trash, Backup, Duplicates, People, Tags, Stacks), et **retrait** du bloc partenaires de `SharedLinksView` — le web range le partage partenaire dans `User Settings > Partner Sharing`.
+
 #### Objectif
-Interface complète de partage entre partenaires : écran dédié avec tabs "Shared with me" / "Sharing", invitation par email ou recherche utilisateur, toggle timeline par partenaire.
+Interface complète de partage entre partenaires : écran dédié à deux sections (« Shared with me » / « Sharing »), invitation par sélection dans l'annuaire de l'instance, toggle « Show in timeline » sur les partenaires entrants, retrait des partenaires sortants.
 
 #### Points d'entrée
-- `PartnerCreateDto` + `PartnerDirection` enum — `DTOs+People.swift`
-- `PartnerShellView` — TabView segmenté + FAB "+" + liste partners
-- `PartnerShellViewModel` — loadPartners, createPartner, togglePartner, removePartner
-- `InvitePartnerSheet` — TextField email + UserSearchView
-- `UserSearchView` — SearchField + liste users filtrée + checkmark
+- `PartnerCreateDto { sharedWithId }` + `PartnerDirection` (`shared-by` / `shared-with`) — `DTOs+People.swift`
+- `PartnersView` — deux sections dans une `Form` + bouton « + » → `InvitePartnerSheet`
+- `PartnersViewModel` — `load`, `invite(userId:)`, `setInTimeline(partnerId:enabled:)`, `remove(partnerId:)`, `loadCandidates`
+- `InvitePartnerSheet` — annuaire filtré (nom/email) + CTA « Invite » ; pas de vue imbriquée
+- `PartnerRow` + `PartnerAvatarCircle` — déplacés depuis `SharedLinksView.swift:341-407`, scindés par mode (entrant = toggle, sortant = retrait)
 
 #### Endpoint API
-- `POST /api/partners` — **manquant** (createPartner)
-- `GET /api/partners?direction=` — **manquant** (getPartners with direction)
-- `PATCH /api/partners/:id` — existant (updatePartner)
-- `DELETE /api/partners/:id` — existant (removePartner)
+- `GET /api/partners?direction=shared-by|shared-with` — **manquant** (le `direction` est requis)
+- `POST /api/partners` — **manquant** (corps `{sharedWithId}`)
+- `PUT /api/partners/:id`, `DELETE /api/partners/:id` — existants, mais chacun valide sur une seule direction
 
 #### Étapes d'implémentation
 1. Créer `PartnerCreateDto` + `PartnerDirection` dans `DTOs+People.swift`
-2. Ajouter `createPartner(email:)` + `getPartners(direction:)` dans `ImmichClient` + `ImmichAPIClient`
-3. Créer `PartnerShellViewModel` dans `Sources/Features/SharedLinks/`
-4. Créer `PartnerShellView` avec TabView segmenté + FAB
-5. Créer `InvitePartnerSheet` + `UserSearchView`
-6. Ajouter "Partners" link dans `ProfileView` → `PartnerShellView`
-7. Mock `createPartner` + `getPartners` dans `MockImmichClient`
-8. Tests ≥6
+2. Corriger `getPartners(direction:)` (**non optionnel**) + ajouter `createPartner(sharedWithId:)` dans `ImmichClient` + `ImmichAPIClient`
+3. Créer `PartnersViewModel` dans `Sources/Features/Partners/`
+4. Créer `PartnersView` (deux sections + bouton « + »)
+5. Créer `InvitePartnerSheet`
+6. Déplacer `PartnerRow`/`PartnerAvatarCircle` et retirer le bloc partenaires de `SharedLinksView`/`SharedLinksViewModel`
+7. Ajouter le lien « Partners » dans `ProfileView` → `PartnersView`
+8. Mock `createPartner(sharedWithId:)` + `getPartners(direction:)` (deux fixtures distinctes) dans `MockImmichClient`
+9. Tests de comportement + tests de transport + scénario XCUITest sur stub committé
 
 #### Tests attendus
-- `Tests/PartnerShellViewModelTests.swift` ≥6 tests : create, toggle, remove, direction filter, empty state, error
-- Regression : suite ≥ baseline
+- `Tests/PartnersViewModelTests.swift` : direction, invitation, refus des mutations hors portée (aucun PUT sur un sortant, aucun DELETE sur un entrant), retrait après succès, erreur
+- `Tests/ImmichAPIClientTests.swift` : 4 tests de transport (query `direction`, corps `{sharedWithId}`, `PUT`/`DELETE` sur `/api/partners/{id}`)
+- `UITests/stubs/immich_stub_partners.py` + scénario `test_06_partners` (le stub refuse un `/api/partners` sans `direction`)
+- Regression : suite ≥ baseline (724 au 2026-09-13)
 
 ---
 
@@ -651,9 +666,9 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 | PATCH | /api/albums/:id | updateAlbum() | Albums |
 | DELETE | /api/albums/:id | deleteAlbum() | Albums |
 | GET | /api/users | getUsers() | Partners, shares |
-| GET | /api/partners | getPartners() | Partners |
-| PATCH | /api/partners/:id | updatePartner() | Partners |
-| DELETE | /api/partners/:id | removePartner() | Partners |
+| GET | /api/partners?direction= | getPartners(direction:) | Partners — `direction` (`shared-by`/`shared-with`) est **requis** (vérifié 2026-09-13) |
+| PUT | /api/partners/:id | updatePartner() | Partners — **PUT**, et valide uniquement sur une ligne `shared-with` |
+| DELETE | /api/partners/:id | removePartner() | Partners — valide uniquement sur une ligne `shared-by` |
 | GET | /api/memories | getMemories() | Memories read |
 | POST | /api/memories/:id/assets | addAssetsToMemory() | **NEW** |
 | PATCH | /api/memories/:id | updateMemory() | **NEW** |
@@ -716,4 +731,4 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 (Stacks UI ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`).*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 : **Partners UI** ✅ clôturé (14/14 AC PASS, 724 → 736 tests, `test_06_partners` de bout en bout sur le premier stub **committé** du dépôt) après révision complète du contrat serveur (`direction` **requis** sur `GET /api/partners` — l'appel sans query rendait 400 au runtime ; création par `sharedWithId` et non par email ; `PUT`/`DELETE` valides chacun sur une seule direction ; rattachement au hub « Me ») — **Stacks UI** ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`.*

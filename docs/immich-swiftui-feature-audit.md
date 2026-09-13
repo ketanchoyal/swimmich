@@ -217,9 +217,10 @@
 
 | Fonctionnalité | Status | Fichiers clés |
 |---|---|---|
-| Partner list (getPartners) | ✅ Shipped (client only) | `Client.getPartners()` wired |
-| Partner timeline toggle | ✅ Shipped (client only) | `Client.updatePartner()` wired |
-| Remove partner | ✅ Shipped (client only) | `Client.removePartner()` wired |
+| Partner list (getPartners) | ✅ Shipped (2026-09-13) | `PartnersView.swift` + `PartnersViewModel.swift` — `getPartners(direction:)` (le `direction` requis manquait : l'ancien appel rendait 400) |
+| Partner timeline toggle | ✅ Shipped | `Client.updatePartner()` — borné aux lignes `shared-with` |
+| Remove partner | ✅ Shipped | `Client.removePartner()` — borné aux lignes `shared-by` |
+| Invite partner | ✅ Shipped | `Client.createPartner(sharedWithId:)` + `InvitePartnerSheet` (annuaire `GET /api/users`) |
 | Activity feed (comments, likes) | ✅ Shipped | `ActivityFeedSheet.swift` (wired in album detail) |
 | Create activity (comment, like) | ✅ Shipped | `Client.createActivity()` wired |
 | Delete activity | ✅ Shipped | `Client.deleteActivity()` wired |
@@ -308,8 +309,9 @@
 | `/api/people/:id/statistics` | GET | ✅ (Person stats) |
 | `/api/faces/:personId` | PUT | ✅ (Reassign face) |
 | `/api/faces` | GET | ✅ (Get faces by asset) |
-| `/api/partners` | GET | ✅ (Client only) |
-| `/api/partners/:id` | PUT | ✅ (Client only) |
+| `/api/partners?direction=` | GET | ✅ (`direction` requis, envoyé depuis 2026-09-13) |
+| `/api/partners` | POST | ✅ (corps `{sharedWithId}`) |
+| `/api/partners/:id` | PUT | ✅ (lignes `shared-with` seulement) |
 | `/api/partners/:id` | DELETE | ✅ (Client only) |
 | `/api/activities` | GET | ✅ (Activity feed) |
 | `/api/activities` | POST | ✅ (Create activity) |

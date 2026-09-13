@@ -64,9 +64,29 @@ struct PartnerResponseDto: Codable, Equatable {
     let inTimeline: Bool
 }
 
-/// `PUT /api/partners/{id}`
+/// `PUT /api/partners/{id}` — `inTimeline` is required by the server.
 struct PartnerUpdateDto: Codable, Equatable {
     let inTimeline: Bool
+}
+
+/// Which side of the partner relation a query asks about.
+///
+/// The direction is the side **the current user sits on**, and the server
+/// always returns the *other* user of the pair (`PartnerService.search` →
+/// `mapPartner`):
+/// - `sharedBy` — rows where `sharedById == me`, so the response carries the
+///   people **I** added ("Sharing").
+/// - `sharedWith` — rows where `sharedWithId == me`, so the response carries
+///   the people who share **their** library with me ("Shared with me").
+enum PartnerDirection: String, Codable, Equatable {
+    case sharedBy = "shared-by"
+    case sharedWith = "shared-with"
+}
+
+/// `POST /api/partners` — the server takes a **user id**, not an email
+/// (`PartnerCreateDto`, `server/src/dtos/partner.dto.ts`).
+struct PartnerCreateDto: Codable, Equatable {
+    let sharedWithId: String
 }
 
 // MARK: - Faces (gap #5)
