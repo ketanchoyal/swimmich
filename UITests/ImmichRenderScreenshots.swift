@@ -1043,6 +1043,227 @@ final class ImmichRenderScreenshots: XCTestCase {
         XCTAssertNotNil(created.year, "data.year is required by MemoryCreateDto", file: file, line: line)
     }
 
+    /// Offline download (issue #18), end to end against the committed stub.
+    ///
+    ///     python3 UITests/stubs/immich_stub_offline.py 8421
+    ///
+    /// Proves the whole promise in one run: the viewer downloads the original,
+    /// the badge appears on the timeline tile, the storage screen lists it with
+    /// a real usage figure, and removing it empties the cache again. The wire
+    /// assertion is the load-bearing one — a badge that appeared without
+    /// `/api/assets/{id}/original` ever being fetched would mean the app is
+    /// claiming an offline copy it does not have.
+    func test_09_offlineDownload() throws {
+        // A SECOND-ROW photo: the timeline pins a floating date header over
+        // its first row, and a badge underneath it is invisible in a capture.
+        let target = "aaaaaaaa-1111-4111-8111-000000000004"
+
+        setProvider("auto")
+        resetStacks() // same `/__reset` route: restores the stub's initial state
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+        shot("40-timeline-before-offline")
+
+        // MARK: Download from the viewer
+
+        let tile = app.descendants(matching: .any)
+            .matching(identifier: "assetTile_\(target)").firstMatch
+        if !tile.waitForExistence(timeout: 20) {
+            // The grid only publishes rendered cells; the identifier may sit
+            // below the fold on a small simulator.
+            app.swipeUp()
+            sleep(2)
+        }
+        tile.tap()
+        sleep(3)
+        shot("41-viewer")
+
+        let share = app.buttons["Share"]
+        XCTAssertTrue(share.waitForExistence(timeout: 15), "no share button in the viewer")
+        share.tap()
+        sleep(2)
+
+        let download = app.buttons["downloadForOfflineButton"]
+        XCTAssertTrue(download.waitForExistence(timeout: 15), "no 'Download for Offline' row in the share sheet")
+        download.tap()
+
+        // The row flips to "Available offline" only when the store reported the
+        // asset cached — i.e. after the file was written and indexed.
+        let available = app.descendants(matching: .any).matching(identifier: "offlineAvailableRow").firstMatch
+        if !available.waitForExistence(timeout: 30) {
+            // The section renders the failure inline; surfacing it here beats a
+            // bare "never completed".
+            let visible = app.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | ")
+            XCTFail("the download never completed: the asset was not indexed as cached. On screen: \(visible)")
+        }
+        shot("42-viewer-available-offline")
+
+        assertStubDownloadedOriginal(target)
+
+        // Leave the sheet, then the viewer. Tapping alone proved unreliable
+        // (a tap that misses leaves the viewer up, and every later assertion
+        // then reads the covered timeline — which still exists in the
+        // accessibility tree), so the dismissal is verified: `viewerBackButton`
+        // is gone only once the cover really came down.
+        app.buttons["closeShareSheet"].tap()
+        sleep(2)
+        for _ in 0..<4 where app.buttons["viewerBackButton"].exists {
+            let back = app.buttons["viewerBackButton"]
+            if back.isHittable { back.tap() } else { app.swipeDown() }
+            sleep(2)
+        }
+        XCTAssertFalse(app.buttons["viewerBackButton"].exists,
+                       "the photo viewer never dismissed — every later step would read the covered timeline")
+        sleep(2)
+
+        // MARK: The timeline tile is badged
+
+        let badge = app.descendants(matching: .any).matching(identifier: "offlineBadge").firstMatch
+        XCTAssertTrue(badge.waitForExistence(timeout: 20),
+                      "no offline badge on the cached tile — the environment index is not reaching the cells")
+        // Scroll the tile clear of the floating date header before capturing:
+        // the header covers the first row, so a badge inside it is asserted
+        // (accessibility tree) but not visible in the screenshot.
+        app.swipeUp()
+        sleep(2)
+        shot("43-timeline-offline-badge")
+
+        // MARK: The storage screen — with the server refusing everything
+
+        // From here the stub answers 503 to every asset and timeline route, so
+        // anything still rendered comes from the downloaded file. This is what
+        // turns "the cache holds a file" into "the app is usable offline".
+        setStubNetwork(down: true)
+
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(4)
+
+        // The Management section sits below the fold: a Form only publishes what
+        // it has rendered. Matched by identifier — the label is translated
+        // ("Stockage hors ligne"), so a literal would depend on the locale.
+        let offlineRow = app.buttons.matching(identifier: "offlineStorageRow").firstMatch
+        for _ in 0..<6 where !offlineRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        if !offlineRow.waitForExistence(timeout: 10) {
+            shot("44-profile-me-no-offline-row")
+            XCTFail("Offline Storage row missing in the Me hub:\n\(app.debugDescription)")
+        }
+        offlineRow.tap()
+        sleep(4)
+        shot("44-offline-storage")
+
+        let usageText = app.staticTexts["offlineUsageText"]
+        XCTAssertTrue(usageText.waitForExistence(timeout: 15), "no usage figure on the storage screen")
+
+        let cachedBadge = app.descendants(matching: .any).matching(identifier: "offlineCachedBadge").firstMatch
+        XCTAssertTrue(cachedBadge.waitForExistence(timeout: 15),
+                      "the cached asset is not in the grid — the storage screen did not read the index")
+
+        let cachedTile = app.descendants(matching: .any)
+            .matching(identifier: "offlineAsset_\(target)").firstMatch
+        XCTAssertTrue(cachedTile.waitForExistence(timeout: 15), "no addressable cached tile")
+
+        // The grid rendered with the server down; nothing may have been fetched.
+        assertStubServedNoAssetWhileDown()
+
+        // MARK: Remove it
+
+        cachedTile.press(forDuration: 1.5)
+        let remove = firstButton(labels: ["Remove from Offline", "Retirer du hors ligne"])
+        XCTAssertTrue(remove.waitForExistence(timeout: 10), "no 'Remove from Offline' in the context menu")
+        remove.tap()
+        sleep(3)
+        shot("45-offline-emptied")
+
+        XCTAssertFalse(cachedTile.exists, "the removed asset is still in the offline grid")
+        XCTAssertFalse(cachedBadge.exists, "the cache badge survived the removal")
+        XCTAssertTrue(offlineEmptyStateShown(), "the storage screen did not fall back to its empty state")
+    }
+
+    /// A button matched by either of two labels (the app runs in the
+    /// simulator's locale, so a translated string must not decide a scenario).
+    private func firstButton(labels: [String]) -> XCUIElement {
+        let predicate = NSPredicate(format: "label IN %@", labels)
+        return app.buttons.matching(predicate).firstMatch
+    }
+
+    /// Flips the stub between reachable and refusing-everything.
+    private func setStubNetwork(down: Bool) {
+        var request = URLRequest(url: URL(string: "\(stub)/__network?down=\(down ? 1 : 0)")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { _, _, _ in done.signal() }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__network")
+    }
+
+    /// The offline screen must not have needed the server: with the stub down,
+    /// every asset route it hit is recorded with `offline: true`.
+    private func assertStubServedNoAssetWhileDown(file: StaticString = #filePath, line: UInt = #line) {
+        struct Entry: Decodable { let path: String; let offline: Bool? }
+        var request = URLRequest(url: URL(string: "\(stub)/__requests")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__requests", file: file, line: line)
+
+        let entries = (try? JSONDecoder().decode([Entry].self, from: Data(body.utf8))) ?? []
+        let refused = entries.filter { $0.offline == true }
+        XCTAssertTrue(refused.isEmpty,
+                      "the offline screen still asked the server for \(refused.map(\.path)) — it must read the downloaded file",
+                      file: file, line: line)
+    }
+
+    /// The offline grid's empty state, matched by identifier or by its title:
+    /// a `ContentUnavailableView` does not reliably keep an identifier placed on
+    /// the container.
+    private func offlineEmptyStateShown() -> Bool {
+        if app.descendants(matching: .any).matching(identifier: "offlineEmptyState").firstMatch.exists {
+            return true
+        }
+        return app.staticTexts["No offline photos"].exists
+            || app.staticTexts["Aucune photo hors ligne"].exists
+    }
+
+    /// The download really hit the wire, with the session's bearer token.
+    private func assertStubDownloadedOriginal(_ assetId: String, file: StaticString = #filePath, line: UInt = #line) {
+        struct Entry: Decodable { let method: String; let path: String; let assetId: String?; let authorization: String? }
+        var request = URLRequest(url: URL(string: "\(stub)/__requests")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__requests", file: file, line: line)
+
+        let entries = (try? JSONDecoder().decode([Entry].self, from: Data(body.utf8))) ?? []
+        let download = entries.first {
+            $0.method == "GET" && $0.path == "/api/assets/\(assetId)/original"
+        }
+        XCTAssertNotNil(download,
+                        "no GET /api/assets/\(assetId)/original on the wire — got: \(entries.map { "\($0.method) \($0.path)" })",
+                        file: file, line: line)
+        XCTAssertEqual(download?.authorization, "Bearer stub-access-token",
+                       "the original must be fetched with the session token", file: file, line: line)
+    }
+
     /// The "Memories" tab, whichever language the catalog resolves it in.
     ///
     /// `firstMatch`: iOS 26 renders the tab bar's expanded and minimized forms

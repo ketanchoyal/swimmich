@@ -89,6 +89,7 @@ private struct AuthenticatedRoot: View {
     @State private var stacks: StacksViewModel
     @State private var partners: PartnersViewModel
     @State private var admin: AdminViewModel
+    @State private var offline: OfflineDownloadViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -114,6 +115,7 @@ private struct AuthenticatedRoot: View {
         _stacks = State(initialValue: container.makeStacksViewModel())
         _partners = State(initialValue: container.makePartnersViewModel())
         _admin = State(initialValue: container.makeAdminViewModel())
+        _offline = State(initialValue: container.makeOfflineDownloadViewModel())
     }
 
     var body: some View {
@@ -148,12 +150,18 @@ private struct AuthenticatedRoot: View {
             selection = .photos
         }
         .environment(albums)
+        // Offline cache (issue #18): the mirror reaches every grid cell, the VM
+        // reaches the viewer's share sheet. Injected here because the whole
+        // authenticated tree must share one cache.
+        .environment(container.offlineIndex)
+        .environment(offline)
         .onReceive(NotificationCenter.default.publisher(for: .immichAssetsChanged)) { _ in
             Task {
                 await timeline.refresh()
                 await albums.refresh()
                 await people.load(force: true)
                 await memories.load()
+                await offline.load()
             }
         }
         .onChange(of: selection) { _, newValue in
@@ -185,7 +193,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

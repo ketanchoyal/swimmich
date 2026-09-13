@@ -38,6 +38,14 @@ final class DependencyContainer {
     /// than only at the next scene activation.
     let libraryMonitor: any PhotoLibraryChangeMonitoring
 
+    /// Offline cache (issue #18). One store per process: the timeline badge,
+    /// the viewer and the storage screen must all read the same on-disk index,
+    /// and two stores would each hold their own copy of it.
+    let offlineStore: OfflineAssetStore
+    /// UI mirror of `offlineStore`'s index, injected into the environment so
+    /// every grid cell can answer "is this cached?" without a parameter.
+    let offlineIndex: OfflineAssetIndex
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
@@ -50,6 +58,8 @@ final class DependencyContainer {
         self.backupLedger = BackupLedger.persistent()
         self.backupLiveActivity = LiveActivityBackupService()
         self.libraryMonitor = PhotoLibraryChangeMonitor()
+        self.offlineStore = OfflineAssetStore()
+        self.offlineIndex = OfflineAssetIndex()
         self.upload = UploadViewModel(
             client: client as any ImmichClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
@@ -173,6 +183,17 @@ final class DependencyContainer {
 
     func makeDuplicatesViewModel() -> DuplicatesViewModel {
         DuplicatesViewModel(client: client as any ImmichClient)
+    }
+
+    /// Offline storage screen (issue #18). Shares the process-wide store and
+    /// mirror so a download made in the viewer shows up on the timeline badge
+    /// and on this screen without a relaunch.
+    func makeOfflineDownloadViewModel() -> OfflineDownloadViewModel {
+        OfflineDownloadViewModel(
+            store: offlineStore,
+            client: client as any ImmichClient,
+            index: offlineIndex
+        )
     }
 
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,

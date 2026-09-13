@@ -117,6 +117,8 @@ Post-state attendu: PASS
 
 ## Révision 2026-09-13 — préparation d'implémentation
 
+> **LIVRÉ le 2026-09-13** (13/13 AC PASS, suite 805 → 828, `test_09_offlineDownload` vert 2×). Les écarts constatés à l'implémentation sont consignés dans `.opencode/scratch/offline-download.acceptance.md` § « Écarts constatés » — les deux qui comptent ici : `fileSizeInByte` vit dans `exifInfo` (pas sur l'asset), et les tables de l'index **doivent rester observées** (un `@ObservationIgnored` rend le badge du timeline muet).
+
 Carte de référence : `.opencode/scratch/offline-download.acceptance.md` (réécrite, AC-3500–AC-3512). La carte d'origine (AC-OF01–AC-OF07) ne mesurait que la **présence de mots** dans des fichiers (`grep -q`), ne bornait la régression qu'à `-ge 200` pour une baseline réelle de **805**, et laissait hors périmètre ce qui fait marcher la fonctionnalité. Corrections :
 
 1. **Répertoire de cache : `Application Support/OfflineAssets/`, pas `.cachesDirectory`.** La spec d'origine suivait `Caches` ; l'OS purge ce répertoire sous pression disque — un asset annoncé « disponible hors-ligne » disparaîtrait sans prévenir. Précédent du dépôt : `EditStateStore` écrit sous Application Support. Contenu : `index.json` (`[CachedAssetInfo]`) + `<assetId>.<ext>`.

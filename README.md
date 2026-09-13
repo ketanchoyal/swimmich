@@ -38,6 +38,7 @@ Feature parity with the Flutter client is tracked in [`docs/mobile-features-vs-f
 | **People, Tags, Duplicates, Trash** | face management, tags, duplicate detection, restore | `Sources/Features/People/`, `Tags/`, `Duplicates/`, `Trash/` |
 | **Shared Links** | CRUD, password, expiration, **public viewer** (open a received link, unlock it, browse it, guest upload) | `Sources/Features/SharedLinks/` |
 | **Memories** | "On this day", moments viewer | `Sources/Features/Memories/` |
+| **Offline Download** | download originals to a durable cache, browse them with the server unreachable, storage budget + eviction | `Sources/Features/Offline/` + `Sources/Services/OfflineAssetStore.swift` |
 | **Photo Editor** | crop, rotate, non-destructive editing | `Sources/Features/Editor/` |
 | **RoadTrip** | reader + export of a travel film (opening → slideshow → map route) generated from an album | `Sources/Features/RoadTrip/` |
 | **Auto-Backup** | streaming, server dedup, Live Activity, background, resume | `Sources/Features/Upload/` + `Sources/Services/BackupEngine.swift` |
@@ -98,7 +99,7 @@ flowchart TD
 ### Data and Images
 
 - **`ImmichAPIClient`**: all URLs pass through `ImmichAPI.SubPath`; token in header; thread-safe client; typed errors `APIError`.
-- **Images:** `AuthenticatedAsyncImage`, 3-level pipeline (actor-isolated memory cache `NSCache`, disk cache, network with auth headers).
+- **Images:** `AuthenticatedAsyncImage`, 4-level pipeline (offline file — served from the download cache when present and downsampled through ImageIO, actor-isolated memory cache `NSCache`, disk cache, network with auth headers).
 - **Real-time:** `RealtimeService` (Socket.IO) for server events.
 
 ### Auto-Backup — the crown jewel
@@ -145,7 +146,7 @@ On first launch: URL of your Immich instance (or QR code scan), then login. Any 
 xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-- ~640 tests in `Tests/`; each view model is tested with a `MockImmichClient` injected via `init(client:)`.
+- 831 unit tests in `Tests/` (plus committed end-to-end UI scenarios in `UITests/`, each with its Python stub under `UITests/stubs/`); every view model is tested with a `MockImmichClient` injected via `init(client:)`.
 - **Trap:** the test target sources the entire `Tests/` folder — a new `Tests/*.swift` file is only compiled after `xcodegen generate`. Without regeneration, tests pass "green" by omission.
 
 ## Contributing

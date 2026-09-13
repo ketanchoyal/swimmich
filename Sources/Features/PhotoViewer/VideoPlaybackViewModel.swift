@@ -41,14 +41,22 @@ final class VideoPlaybackViewModel {
 
     /// Prepares the video page for `asset` against `baseURL` (HLS playback
     /// URL via `ImmichAssetURL.videoPlayback`) and auto-plays.
-    func prepare(asset: AssetReactItem, baseURL: URL, token: String?) async {
-        await prepare(assetID: asset.id, baseURL: baseURL, token: token)
+    ///
+    /// `localFileURL` (issue #18) is the offline copy: when the asset was
+    /// downloaded for offline viewing, playback reads that file instead of
+    /// streaming — no network, and no bearer token (a local file needs none).
+    func prepare(asset: AssetReactItem, baseURL: URL, token: String?, localFileURL: URL? = nil) async {
+        await prepare(assetID: asset.id, baseURL: baseURL, token: token, localFileURL: localFileURL)
     }
 
     /// Prepares by explicit asset ID — used by the viewer for Live Photo
     /// video pairs, where the playable pair has a different id than the
     /// still page (`livePhotoVideoId`).
-    func prepare(assetID: String, baseURL: URL, token: String?) async {
+    func prepare(assetID: String, baseURL: URL, token: String?, localFileURL: URL? = nil) async {
+        if let localFileURL {
+            await prepare(url: localFileURL, assetID: assetID, token: nil)
+            return
+        }
         let url = ImmichAssetURL.videoPlayback(assetId: assetID, baseURL: baseURL)
         await prepare(url: url, assetID: assetID, token: token)
     }

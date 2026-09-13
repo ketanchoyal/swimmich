@@ -16,6 +16,11 @@ struct AssetThumbnailCell: View {
     let baseURL: URL
     let token: String?
 
+    /// Offline cache mirror (issue #18). Read from the environment rather than
+    /// passed in: this cell is instantiated from six different grids, and a
+    /// parameter would eventually be forgotten at one of them.
+    @Environment(OfflineAssetIndex.self) private var offline: OfflineAssetIndex?
+
     var selectionMode: Bool = false
     var isSelected: Bool = false
     var onTap: () -> Void = {}
@@ -44,7 +49,16 @@ struct AssetThumbnailCell: View {
         let cell = Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                AuthenticatedAsyncImage(url: url, token: token)
+                AuthenticatedAsyncImage(
+                    url: url,
+                    token: token,
+                    localFileURL: offline?.localURL(for: asset.id)
+                )
+                    // Identifier on the image LAYER, never on the whole cell: an
+                    // identifier on a container replaces its descendants', which
+                    // would hide `stackBadge` / `offlineBadge` — the very
+                    // elements the UI scenarios assert on.
+                    .accessibilityIdentifier("assetTile_\(asset.id)")
                     .scrollTransition { content, phase in
                         // Parallax: scale + fade slightly as the cell exits viewport.
                         // Applied to image CONTENT only (FM-3), never the Section.
@@ -140,6 +154,9 @@ struct AssetThumbnailCell: View {
             if asset.projectionType == "equirectangular" {
                 badge { Text("360°") }
             }
+            if isCachedOffline {
+                offlineBadge
+            }
             if asset.isStacked {
                 badge {
                     HStack(spacing: 3) {
@@ -158,6 +175,23 @@ struct AssetThumbnailCell: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(4)
+    }
+
+    /// True when this asset's original is cached for offline viewing.
+    private var isCachedOffline: Bool {
+        offline?.isCached(asset.id) ?? false
+    }
+
+    /// Offline pill (issue #18) — top-leading, above the stack badge. Icon+text
+    /// share one accessibility element: a label on the container would fold the
+    /// children's own labels away, and a test then finds nothing.
+    private var offlineBadge: some View {
+        badge {
+            Image(systemName: "arrow.down.circle.fill").font(.system(size: 10)) // DS-exempt: badge micro-glyph §8.6
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("offlineBadge")
+        .accessibilityLabel("Available offline")
     }
 
     /// Spoken form of the stack badge ("5 photos in a stack").

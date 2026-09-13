@@ -39,6 +39,20 @@ final class VideoPlaybackViewModelTests: XCTestCase {
         XCTAssertEqual(mock.preparedURL?.host, "example.com")
     }
 
+    /// A downloaded video plays from disk (issue #18): the whole point of the
+    /// offline cache is that this page works with the server unreachable.
+    func test_prepare_withLocalFile_playsFromDiskAndSendsNoToken() async {
+        let mock = MockVideoPlaybackEngine()
+        let vm = VideoPlaybackViewModel(engine: mock)
+        let local = URL(fileURLWithPath: "/tmp/offline/v9.mp4")
+
+        await vm.prepare(asset: makeVideoAsset(id: "v9"), baseURL: baseURL, token: "tok-123", localFileURL: local)
+
+        XCTAssertEqual(mock.preparedURL, local, "a cached video must be read from its file, not streamed")
+        XCTAssertNil(mock.preparedToken, "a local file needs no bearer token")
+        XCTAssertEqual(vm.status, .playing)
+    }
+
     func test_prepare_autoplays_afterReady() async {
         let mock = MockVideoPlaybackEngine()
         let vm = VideoPlaybackViewModel(engine: mock)

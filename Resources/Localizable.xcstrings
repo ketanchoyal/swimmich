@@ -64,6 +64,39 @@
     "%@" : {
 
     },
+    "%@ • Full (%@ limit)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ • Plein (limite %@)"
+          }
+        }
+      }
+    },
+    "%@ • No size limit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ • Aucune limite de taille"
+          }
+        }
+      }
+    },
+    "%@ • of %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ • sur %@"
+          }
+        }
+      }
+    },
     "%@ assets" : {
 
     },
@@ -128,8 +161,39 @@
         }
       }
     },
+    "%@ used" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ utilisés"
+          }
+        }
+      }
+    },
+    "%@ will be freed. Downloaded files will need to be downloaded again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ seront libérés. Les fichiers téléchargés devront être téléchargés à nouveau."
+          }
+        }
+      }
+    },
     "%@%%" : {
 
+    },
+    "%lld files" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld fichiers"
+          }
+        }
+      }
     },
     "%lld items" : {
       "extractionState" : "stale",
@@ -138,6 +202,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld éléments"
+          }
+        }
+      }
+    },
+    "%lld percent of the offline storage budget used" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld % du budget de stockage hors ligne utilisé"
           }
         }
       }
@@ -256,6 +331,17 @@
     "1 day" : {
 
     },
+    "1 file" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 fichier"
+          }
+        }
+      }
+    },
     "1 hour" : {
 
     },
@@ -296,22 +382,22 @@
     "1 year" : {
 
     },
-    "30 days" : {
-
-    },
-    "30 minutes" : {
-
-    },
-    "360°" : {
-
-    },
     "6 hours" : {
 
     },
     "7 days" : {
 
     },
+    "30 days" : {
+
+    },
+    "30 minutes" : {
+
+    },
     "90 days" : {
+
+    },
+    "360°" : {
 
     },
     "Account" : {
@@ -579,6 +665,17 @@
     "Auto backup" : {
 
     },
+    "Available offline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponible hors ligne"
+          }
+        }
+      }
+    },
     "Background backup is a roadmap item. The upload API surface is wired and unit-tested." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -674,6 +771,17 @@
     "Chargement des photos…" : {
 
     },
+    "Clear All Offline Photos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effacer toutes les photos hors ligne"
+          }
+        }
+      }
+    },
     "Clear failed" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -743,9 +851,6 @@
           }
         }
       }
-    },
-    "Copy link" : {
-
     },
     "Could not reach server." : {
       "extractionState" : "stale",
@@ -961,9 +1066,6 @@
         }
       }
     },
-    "Custom URL" : {
-
-    },
     "Custom…" : {
 
     },
@@ -1092,6 +1194,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Terminé"
+          }
+        }
+      }
+    },
+    "Download for Offline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger pour le hors ligne"
+          }
+        }
+      }
+    },
+    "Download photos to view them without an internet connection." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargez des photos pour les consulter sans connexion internet."
           }
         }
       }
@@ -1476,6 +1599,9 @@
         }
       }
     },
+    "It was revoked or it expired. Ask for a new one." : {
+
+    },
     "Items in trash are permanently deleted after 30 days." : {
       "localizations" : {
         "fr" : {
@@ -1556,9 +1682,6 @@
       }
     },
     "Libraries (%@)" : {
-
-    },
-    "Link ready" : {
 
     },
     "Links you create to share albums will appear here." : {
@@ -1867,6 +1990,17 @@
         }
       }
     },
+    "No matches" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun résultat"
+          }
+        }
+      }
+    },
     "No More Users to Invite" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1874,6 +2008,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun autre utilisateur à inviter"
+          }
+        }
+      }
+    },
+    "No offline photo matches that search." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune photo hors ligne ne correspond à cette recherche."
+          }
+        }
+      }
+    },
+    "No offline photos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune photo hors ligne"
           }
         }
       }
@@ -1988,6 +2143,17 @@
         }
       }
     },
+    "No size limit set" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune limite de taille définie"
+          }
+        }
+      }
+    },
     "No suggestions available" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2045,6 +2211,26 @@
         }
       }
     },
+    "Offline" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hors ligne"
+          }
+        }
+      }
+    },
+    "Offline Storage" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stockage hors ligne"
+          }
+        }
+      }
+    },
     "OK" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2069,6 +2255,9 @@
           }
         }
       }
+    },
+    "Open a shared link" : {
+
     },
     "Open in Browser" : {
       "extractionState" : "stale",
@@ -2150,6 +2339,12 @@
           }
         }
       }
+    },
+    "Password required" : {
+
+    },
+    "Paste the link someone shared with you — or its key — to browse the photos it contains." : {
+
     },
     "Pause" : {
       "extractionState" : "stale",
@@ -2374,12 +2569,34 @@
         }
       }
     },
+    "Remove all offline photos?" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer toutes les photos hors ligne ?"
+          }
+        }
+      }
+    },
     "Remove from Album" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retirer de l'album"
+          }
+        }
+      }
+    },
+    "Remove from Offline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer du hors ligne"
           }
         }
       }
@@ -2644,6 +2861,17 @@
         }
       }
     },
+    "Search offline photos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des photos hors ligne"
+          }
+        }
+      }
+    },
     "Search photos, places, and people" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2710,6 +2938,17 @@
     "Server check" : {
 
     },
+    "Server returned %lld." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur a renvoyé %lld."
+          }
+        }
+      }
+    },
     "Server URL" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2773,9 +3012,6 @@
           }
         }
       }
-    },
-    "Share link" : {
-
     },
     "Share with other users" : {
       "localizations" : {
@@ -2953,6 +3189,17 @@
     "The cover is what your timeline shows for this stack." : {
 
     },
+    "The downloaded file was empty." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier téléchargé était vide."
+          }
+        }
+      }
+    },
     "The next backup will re-check every photo against the server. Nothing is deleted — already-uploaded photos are simply skipped again." : {
 
     },
@@ -2965,6 +3212,9 @@
           }
         }
       }
+    },
+    "The photos stay in your library — only this memory is removed." : {
+
     },
     "The road trip was added to your photo library." : {
       "localizations" : {
@@ -3004,6 +3254,20 @@
           }
         }
       }
+    },
+    "This file is %@ — larger than the %@ offline budget." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce fichier fait %@ — plus gros que le budget hors ligne de %@."
+          }
+        }
+      }
+    },
+    "This link is protected. Enter the password you were given with it." : {
+
     },
     "This photo is not part of a stack." : {
       "localizations" : {

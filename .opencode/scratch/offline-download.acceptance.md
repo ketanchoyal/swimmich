@@ -1,9 +1,40 @@
 # Task: offline-download
 
-Status: plan — **carte RÉVISÉE le 2026-09-13** (la version d'origine datait du 2026-09-09 et était dérivée : tous ses checks étaient des `grep -q` de texte, la cible de régression était bornée à `-ge 200` pour une baseline de 805, et deux décisions structurantes manquaient — voir « Révision » en fin de carte). Non implémenté : aucun fichier `Offline*` n'existe dans `Sources/`.
+Status: done — **13/13 AC PASS** (2026-09-13). Suite **805 → 831 tests, TEST SUCCEEDED** (iPhone 17, `-only-testing:ImmichSwiftUITests`) ; `test_09_offlineDownload` vert sur **deux runs consécutifs** contre le stub committé `UITests/stubs/immich_stub_offline.py`.
 
-Issue : [#18](https://github.com/millianlmx/swimmich/issues/18) (P4 — Discovery, projet #2, item 18 `Todo`).
-Spec : `.omp/offline-download/offline-download.specs.md` · UI brief : `.omp/offline-download/offline-download.ui.md`.
+## Résultat (2026-09-13)
+
+| AC | Résultat | Preuve |
+|----|----------|--------|
+| AC-3500 | PASS | `Sources/Services/OfflineAssetStore.swift` — 9 entrées d'API + `CachedAssetInfo` + `init(folderURL:transport:fileManager:defaults:)` |
+| AC-3501 | PASS | `Sources/Features/Offline/OfflineDownloadViewModel.swift` |
+| AC-3502 | PASS | `Sources/Features/Offline/OfflineAssetsView.swift` (LazyVGrid, carte d'occupation, suppression, Clear All, état vide) |
+| AC-3503 | PASS | section `OfflineSection` du partage (`PhotoViewer.swift`) |
+| AC-3504 | PASS | badge `offlineBadge` + image locale dans `AssetThumbnailCell` ; **vérifié au pixel** sur `/tmp/shot-43-timeline-offline-badge.png` |
+| AC-3505 | PASS | `ProfileView` → `OfflineAssetsView(vm:)` (identifier `offlineStorageRow`) |
+| AC-3506 | PASS | `Tests/OfflineAssetStoreTests.swift` — 17 cas |
+| AC-3507 | PASS | progression déterminée (`MockFileDownloadTransport` rejoue (25,100)(50,100)(100,100)) + `test_downloadAsset_reportsDeterminateProgress` |
+| AC-3508 | PASS | `test_localImage_rendersWithoutNetwork` + `test_downsampler_capsTheDecodedSize` + étape « serveur coupé » du scénario UI |
+| AC-3509 | PASS | `Tests/OfflineDownloadViewModelTests.swift` — 8 cas |
+| AC-3510 | PASS | **831 tests, TEST SUCCEEDED** (baseline 805) |
+| AC-3511 | PASS | 24 clés EN+FR ajoutées à la main à `Resources/Localizable.xcstrings` |
+| AC-3512 | PASS | stub committé + `test_09_offlineDownload` vert 2× |
+
+**Tests ajoutés** : 17 unitaires sur le store (écriture+index, hit, miss, remove, clearAll, refus avant transfert, éviction, réconciliation, `.partial`, statut HTTP, payload vide, JPEG local, plafond du downsampler, extension serveur, jeton+progression), 8 sur le view model (load, download OK/KO, progression, remove, clearAll, recherche, anneau illimité).
+
+**Preuve d'exécution réelle** (`/tmp/shot-4*.png`) : grille avant → viewer → « Available offline » après téléchargement → badge visible sur la 2ᵉ rangée du timeline → écran Stockage hors ligne (**serveur coupé** : 179 octets utilisés, 1 fichier, tuile réellement rendue depuis le disque) → suppression → état vide.
+
+## Écarts constatés à l'implémentation (la carte les annonçait autrement)
+
+1. **`fileSizeInByte` n'est pas sur l'asset.** `AssetResponseDto` ne porte pas de taille : elle vit dans `exifInfo.fileSizeInByte` (`Sources/Core/Types/DTOs.swift:145`). Le store reçoit donc `dto.exifInfo?.fileSizeInByte`. Sans cette taille annoncée, la garde « refus avant téléchargement » ne se déclenche jamais.
+2. **`CachedAssetInfo` a gagné `originalFileName`.** Le fichier sur disque est nommé d'après l'`assetId` (unique, sûr) ; sans le nom serveur, l'écran n'affichait et ne cherchait qu'un UUID opaque. `displayName` retombe sur `fileName` pour un fichier orphelin adopté.
+3. **Les tables de l'index doivent être OBSERVÉES.** Première version : `@ObservationIgnored` sur `byID`/`urlsByID` et `progressByID`/`downloadingIDs`. Conséquence : le badge du timeline ne se rafraîchissait jamais — un `body` qui lit `isCached(_:)` ne crée de dépendance que sur ce que la propriété lue touche. Trouvé par le scénario XCUITest, **invisible aux tests unitaires** (qui interrogent l'objet directement, sans passer par une observation SwiftUI).
+4. **Arrêter le transfert ne suffit pas à prouver l'hors-ligne.** Avec le stub up, la grille peut se rafraîchir depuis `ImageCache`/`URLCache` et paraître « locale » à tort. Le stub committé expose donc `/__network?down=1` : tout `/api/assets/*` et `/api/timeline/*` répond alors 503 et **est journalisé `offline: true`**. Le scénario exige qu'aucune requête de ce type n'ait eu lieu pendant que l'écran s'affichait — c'est ce qui distingue « le cache contient un fichier » de « l'app est utilisable sans serveur ».
+5. **`URLProtocol` ne peut pas tester la progression.** Ces doubles livrent le corps d'un bloc et n'appellent jamais le délégué de téléchargement : rien à mesurer, et pas de fichier écrit. D'où la couture `FileDownloadTransport` (`Core/Protocols/`) + `URLSessionFileDownloadTransport` (flux natif vers un fichier temporaire) + `MockFileDownloadTransport` (script de progression). Même raison pour `URLSession.download` plutôt que `data(for:)` : un cache d'originaux ne matérialise pas une vidéo en mémoire.
+6. **Le titre du premier rang du timeline est masqué par l'en-tête de date flottant** : le scénario télécharge la photo de la 2ᵉ rangée et scrolle avant la capture (même piège que celui consigné pour le badge de pile).
+7. **Identifiants d'accessibilité** : `assetTile_<id>` sur une tuile du timeline et `offlineStorageRow` sur la ligne du hub « Me » (le libellé est traduit, donc un littéral dépendrait de la locale) ; **aucun identifiant sur la carte d'occupation** — posé sur ce conteneur il écrasait `offlineUsageText` et `offlineUsageRing` (famille de pièges déjà connue).
+8. **Écart d'UI assumé** : l'anneau affiche `<1%` au lieu de `0%` quand un fichier minuscule est en cache — « 0% » à côté d'une photo présente se lit comme un bug.
+9. **Les VIDÉOS ne se lisaient pas hors-ligne** (trou comblé le 2026-09-13, après la première clôture). `VideoPlaybackViewModel.prepare` construisait toujours l'URL HLS du serveur : un asset téléchargé produisait donc une tuile en placeholder (ImageIO ne lit pas un `.mp4`) et un lecteur qui échouait sans réseau — « Download for Offline » mentait pour les vidéos. Correctif : `localFileURL` accepté par `prepare`/`VideoPlayerView`/`KenBurnsImageView`/`ZoomableImageView`, alimenté par `OfflineAssetIndex` (viewer **et** diaporama), lecture avec `token: nil` pour un fichier local, et `ImageDownsampler.videoPoster(at:)` (AVAssetImageGenerator) en repli de l'étage 0 pour la vignette. Preuves : `test_prepare_withLocalFile_playsFromDiskAndSendsNoToken`, `test_videoPoster_rendersAFrameFromALocalMovie` (vrai MP4 H.264 généré par `Tests/Mocks/VideoFixture.swift`), `test_videoPoster_returnsNilForANonVideo`.
 
 ## Plan
 
@@ -89,7 +120,7 @@ Chaque check est **exécutable tel quel** depuis la racine du dépôt. Les check
 ```
 ### AC-3500 [type: new]
 Assertion: OfflineAssetStore existe comme actor dans Sources/Services/OfflineAssetStore.swift avec les 9 entrées d'API (download/cachedInfo/fileURL/allCached/isCached/totalBytes/remove/clearAll/maxCacheSize), CachedAssetInfo Codable et une init injectable folderURL:.
-Check post-impl: sh -c 'f=Sources/Services/OfflineAssetStore.swift; test -f "$f" || { echo FAIL; exit; }; s=$(sed -n "/^actor OfflineAssetStore/,/^}/p" "$f"); for d in "func download(" "func cachedInfo(" "func fileURL(" "func allCached(" "func isCached(" "func totalBytes(" "func remove(" "func clearAll(" "maxCacheSize" "init(folderURL"; do printf "%s" "$s" | grep -qE "$d" || { echo "FAIL $d"; exit; }; done; grep -qE "struct CachedAssetInfo: .*Codable" "$f" || { echo FAIL schema; exit; }; echo PASS'
+Check post-impl: sh -c 'f=Sources/Services/OfflineAssetStore.swift; test -f "$f" || { echo FAIL; exit; }; s=$(sed -n "/^actor OfflineAssetStore/,/^}/p" "$f"); for d in "func download(" "func cachedInfo(" "func fileURL(" "func allCached(" "func isCached(" "func totalBytes(" "func remove(" "func clearAll(" "maxCacheSize" "folderURL: URL?"; do printf "%s" "$s" | grep -qF "$d" || { echo "FAIL $d"; exit; }; done; grep -qE "struct CachedAssetInfo: .*Codable" "$f" || { echo FAIL schema; exit; }; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
@@ -97,7 +128,7 @@ Post-state attendu: PASS
 ```
 ### AC-3501 [type: new]
 Assertion: OfflineDownloadViewModel expose cachedAssets, cacheUsage, maxCacheSize, downloadAsset(id:), removeFromOffline(id:), clearAll(), load() dans Sources/Features/Offline/OfflineDownloadViewModel.swift.
-Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineDownloadViewModel.swift; test -f "$f" || { echo FAIL; exit; }; for d in "var cachedAssets" "var cacheUsage" "var maxCacheSize" "func downloadAsset(" "func removeFromOffline(" "func clearAll(" "func load("; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
+Check post-impl: sh -c 'f=Sources/Features/Offline/OfflineDownloadViewModel.swift; test -f "$f" || { echo FAIL; exit; }; for d in "var cachedAssets" "var cacheUsage" "var maxCacheSize" "func downloadAsset(" "func removeFromOffline(" "func clearAll(" "func load("; do grep -qF "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 ```
@@ -121,7 +152,7 @@ Post-state attendu: PASS
 ```
 ### AC-3504 [type: new]
 Assertion: AssetThumbnailCell affiche un badge d'asset en cache (identifier offlineBadge) alimenté par l'index d'environnement, et rend l'image depuis le fichier local.
-Check post-impl: sh -c 'f=Sources/Features/Timeline/AssetThumbnailCell.swift; for d in "OfflineAssetIndex" "offlineBadge" "localFileURL" "isCached"; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done'
+Check post-impl: sh -c 'f=Sources/Features/Timeline/AssetThumbnailCell.swift; for d in "OfflineAssetIndex" "offlineBadge" "localFileURL" "isCached"; do grep -qE "$d" "$f" || { echo "FAIL $d"; exit; }; done; echo PASS'
 Pre-state attendu: FAIL
 Post-state attendu: PASS
 Vérification de comportement: scénario XCUITest « test_09_offlineDownload » (badge visible après téléchargement).
@@ -198,6 +229,8 @@ Post-state attendu: PASS (+ sortie du run XCUITest : `test_09_offlineDownload` v
 
 ## État de préparation (2026-09-13)
 
+> **Deux checks ont été corrigés pendant l'implémentation** — ils échouaient sur un `grep -qE` appliqué à des littéraux contenant des parenthèses non échappées (`func download(`, `func downloadAsset(`), et AC-3504 ne rendait aucun verdict (ni PASS ni FAIL). Formes retenues : `grep -qF` pour un littéral, et un `echo PASS` final obligatoire. Leçon : un check jamais rejoué contre une vraie sortie est un check inexistant.
+
 | Pré-requis | État |
 |---|---|
 | Baseline de régression mesurée | ✅ 805 tests, TEST SUCCEEDED (`/tmp/immich_offline_baseline.txt`) |
@@ -205,8 +238,8 @@ Post-state attendu: PASS (+ sortie du run XCUITest : `test_09_offlineDownload` v
 | Spec + UI brief relus et corrigés | ✅ révision ajoutée à `.omp/offline-download/offline-download.specs.md` |
 | Backlog §2.7 + tableau de suivi | ✅ mis à jour |
 | Issue #18 | ✅ corps corrigé (répertoire de cache, chemin de rendu local, AC) |
-| Checks d'AC exécutables | ✅ les 12 checks exécutables ont été lancés verbatim en pré-état : tous rendent le FAIL documenté (aucun `PASS` parasite, aucun check inerte) ; le check de régression rend `805` sur la sortie réelle de la baseline |
-| Ordre d'implémentation | ✅ 16 étapes ci-dessus |
+| Checks d'AC exécutables | ✅ rejoués verbatim en pré-état (FAIL documenté) puis en post-état (**13/13 PASS**) |
+| Ordre d'implémentation | ✅ suivi : store + downsampler + étage local → tests du store → index/VM → écran → intégrations → câblage → i18n → stub + XCUITest → suite complète |
 
 **Outillage vérifié**
 - `xcodegen` (/opt/homebrew/bin/xcodegen), projet `ImmichSwiftUI.xcodeproj`, simulateur `iPhone 17` (booté, iOS 26).

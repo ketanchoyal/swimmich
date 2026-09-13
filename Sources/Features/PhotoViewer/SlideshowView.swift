@@ -21,6 +21,9 @@ struct SlideshowView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    /// Offline cache mirror (issue #18): a slideshow over downloaded assets must
+    /// keep running with no server, so every slide gets its local copy.
+    @Environment(OfflineAssetIndex.self) private var offline: OfflineAssetIndex?
 
     @State private var showControls = true
     @State private var directionForward = true
@@ -67,6 +70,7 @@ struct SlideshowView: View {
                 asset: asset,
                 baseURL: baseURL,
                 token: token,
+                localFileURL: offline?.localURL(for: asset.id),
                 controlsVisible: false,
                 onSingleTap: toggleControls,
                 isPaused: !vm.isPlaying,
@@ -78,6 +82,7 @@ struct SlideshowView: View {
                 baseURL: baseURL,
                 token: token,
                 assetID: pairID,
+                localFileURL: offline?.localURL(for: pairID),
                 controlsVisible: false,
                 onSingleTap: toggleControls,
                 isPaused: !vm.isPlaying,
@@ -88,6 +93,7 @@ struct SlideshowView: View {
                 asset: asset,
                 baseURL: baseURL,
                 token: token,
+                localFileURL: offline?.localURL(for: asset.id),
                 onSingleTap: toggleControls
             )
         } else {
@@ -95,7 +101,8 @@ struct SlideshowView: View {
                 asset: asset,
                 baseURL: baseURL,
                 token: token,
-                onSingleTap: toggleControls
+                onSingleTap: toggleControls,
+                localFileURL: offline?.localURL(for: asset.id)
             )
         }
     }

@@ -51,6 +51,9 @@ struct VideoPlayerView: View {
     /// video is a different asset than the still page (`livePhotoVideoId`).
     /// `nil` plays `asset.id` itself.
     var assetID: String? = nil
+    /// Offline copy (issue #18): when set, playback reads this file instead of
+    /// streaming the asset from the server.
+    var localFileURL: URL? = nil
     var controlsVisible: Bool = true
     var videoGravity: AVLayerVideoGravity = .resizeAspect
     var onSingleTap: () -> Void = {}
@@ -95,7 +98,7 @@ struct VideoPlayerView: View {
             if playerLayer == nil {
                 playerLayer = vm.engine.makePlayerLayer()
             }
-            Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token) }
+            Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token, localFileURL: localFileURL) }
         }
         .onDisappear {
             vm.pause()
@@ -223,7 +226,7 @@ struct VideoPlayerView: View {
             }
             Button {
                 vm.reset()
-                Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token) }
+                Task { await vm.prepare(assetID: assetID ?? asset.id, baseURL: baseURL, token: token, localFileURL: localFileURL) }
             } label: {
                 Text("Retry")
                     .font(.pvSubhead.weight(.semibold))

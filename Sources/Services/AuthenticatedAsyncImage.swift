@@ -15,6 +15,14 @@ struct AuthenticatedAsyncImage: View {
     /// Fitting mode: `.fill` (default, thumbnails) vs `.fit` (full-screen viewer).
     var contentMode: ContentMode = .fill
 
+    /// Offline copy (issue #18). When a file exists here it wins over every
+    /// network tier: that is what makes a cached asset readable with no
+    /// connection at all. Downsampled through ImageIO — a cached asset is an
+    /// *original*, and decoding a 12-megapixel photo per grid cell would put
+    /// tens of megabytes of bitmap in the scroll path.
+    var localFileURL: URL? = nil
+    var localMaxPixelSize: Int = 2048
+
     @State private var image: UIImage?
     @State private var didFail = false
 
@@ -32,16 +40,42 @@ struct AuthenticatedAsyncImage: View {
                 ShimmerPlaceholder()
             }
         }
-        .task(id: url?.absoluteString) {
+        // Keyed on the offline copy too: going offline→cached (or removing the
+        // cached file) must re-run the load, even though the URL is unchanged.
+        .task(id: localFileURL?.path ?? url?.absoluteString) {
             await load()
         }
     }
 
+    /// `UIImage` isn't `Sendable`, so the detached hop hands back a box.
+    private struct ImageBox: @unchecked Sendable {
+        let image: UIImage?
+    }
+
     private func load() async {
-        guard let url else { return }
         // Reset state for the new URL (drives `.task(id:)` re-evals on URL change).
         if image != nil { image = nil }
         didFail = false
+
+        // Tier 0 — offline copy. Downsampling a multi-megapixel original is
+        // real work: keep it off the main actor. A cached *video* has no still
+        // frame in ImageIO, so it falls back to its first frame — otherwise the
+        // tile would show the failure placeholder offline, since its thumbnail
+        // normally comes from the server.
+        if let localFileURL {
+            let maxPixelSize = localMaxPixelSize
+            let box = await Task.detached(priority: .userInitiated) {
+                let image = ImageDownsampler.image(at: localFileURL, maxPixelSize: maxPixelSize)
+                    ?? ImageDownsampler.videoPoster(at: localFileURL, maxPixelSize: maxPixelSize)
+                return ImageBox(image: image)
+            }.value
+            if let local = box.image {
+                self.image = local
+                return
+            }
+        }
+
+        guard let url else { return }
 
         // Tier 1 — in-memory cache. No await cost beyond actor hop.
         if let cached = await ImageCache.shared.image(for: url) {

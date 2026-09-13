@@ -8,6 +8,9 @@ struct KenBurnsImageView: View {
     let asset: AssetReactItem
     let baseURL: URL
     let token: String?
+    /// Offline copy (issue #18): a slide whose asset is cached reads the file
+    /// instead of the network, so a slideshow still works with no server.
+    var localFileURL: URL? = nil
     var onSingleTap: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,7 +37,9 @@ struct KenBurnsImageView: View {
             AuthenticatedAsyncImage(
                 url: asset.thumbnailURL(base: baseURL, size: .fullsize),
                 token: token,
-                contentMode: .fit
+                contentMode: .fit,
+                localFileURL: localFileURL,
+                localMaxPixelSize: 4096
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }

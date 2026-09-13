@@ -25,6 +25,10 @@ struct ZoomableImageView: View {
     /// fullsize image URL instead of a bearer header.
     var sharedLink: SharedLinkCredential? = nil
 
+    /// Offline copy (issue #18): when present the full-size page is served from
+    /// disk, which is what makes a cached photo viewable with no connection.
+    var localFileURL: URL? = nil
+
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -43,7 +47,11 @@ struct ZoomableImageView: View {
             let base = AuthenticatedAsyncImage(
                 url: asset.thumbnailURL(base: baseURL, size: .fullsize, sharedLink: sharedLink),
                 token: token,
-                contentMode: .fit
+                contentMode: .fit,
+                localFileURL: localFileURL,
+                // Full screen: keep enough pixels for pinch-zoom to 4x without
+                // re-decoding, still far below the original's own size.
+                localMaxPixelSize: 4096
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
             .scaleEffect(scale)

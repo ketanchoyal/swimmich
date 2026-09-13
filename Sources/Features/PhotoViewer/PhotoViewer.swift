@@ -155,6 +155,9 @@ struct PhotoViewer: View {
 
     @Environment(\.dismiss) private var dismissAction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Offline cache mirror (issue #18): lets every page serve its full-size
+    /// image from disk when the asset has been downloaded.
+    @Environment(OfflineAssetIndex.self) private var offlineIndex: OfflineAssetIndex?
 
     init(
         assets: [AssetReactItem],
@@ -305,6 +308,7 @@ struct PhotoViewer: View {
                             asset: asset,
                             baseURL: baseURL,
                             token: token,
+                            localFileURL: offlineIndex?.localURL(for: asset.id),
                             controlsVisible: showChrome,
                             onSingleTap: dismissOrToggleChrome
                         )
@@ -326,7 +330,8 @@ struct PhotoViewer: View {
                                 baseURL: baseURL,
                                 token: token,
                                 onSingleTap: dismissOrToggleChrome,
-                                onZoomChange: { isZoomed = $0 > 1.01 }
+                                onZoomChange: { isZoomed = $0 > 1.01 },
+                                localFileURL: offlineIndex?.localURL(for: asset.id)
                             )
                             if asset.livePhotoVideoId != nil {
                                 livePhotoOverlay(asset)
@@ -369,6 +374,7 @@ struct PhotoViewer: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Back")
+                .accessibilityIdentifier("viewerBackButton")
 
                 Spacer()
 
@@ -911,6 +917,7 @@ private struct PhotoShareSheet: View {
     let client: any ImmichClient
 
     @Environment(AuthViewModel.self) private var auth
+    @Environment(OfflineDownloadViewModel.self) private var offlineVM: OfflineDownloadViewModel?
     @Environment(\.dismiss) private var dismiss
     @State private var vm: PhotoShareViewModel?
     @State private var saveVM: SaveToLibraryViewModel?
@@ -977,6 +984,7 @@ private struct PhotoShareSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
+                .accessibilityIdentifier("closeShareSheet")
             }
         }
         .padding(.horizontal, PVSpacing.s16)
@@ -990,6 +998,10 @@ private struct PhotoShareSheet: View {
         List {
             if let saveVM {
                 SaveSection(saveVM: saveVM)
+            }
+
+            if let offlineVM {
+                OfflineSection(asset: asset, baseURL: baseURL, token: token, vm: offlineVM)
             }
 
             Section {
@@ -1195,6 +1207,80 @@ private struct SaveSection: View {
         } else if done {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Color.immichSuccess)
+        }
+    }
+}
+
+// MARK: - Offline section
+
+/// "Download for Offline" / "Remove from Offline" on the viewer's share sheet
+/// (issue #18). Reads the cache mirror to say whether the asset is already
+/// available without a connection, and reports live download progress.
+private struct OfflineSection: View {
+    let asset: AssetReactItem
+    let baseURL: URL
+    let token: String?
+    let vm: OfflineDownloadViewModel
+
+    private var isCached: Bool { vm.isCached(asset.id) }
+    private var isDownloading: Bool { vm.isDownloading(asset.id) }
+
+    var body: some View {
+        Section {
+            if isCached {
+                HStack(spacing: PVSpacing.s12) {
+                    Label("Available offline", systemImage: "arrow.down.circle.fill")
+                        .foregroundStyle(Color.immichSuccess)
+                    Spacer()
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.immichSuccess)
+                }
+                .accessibilityIdentifier("offlineAvailableRow")
+
+                Button(role: .destructive) {
+                    Task { await vm.removeFromOffline(asset.id) }
+                } label: {
+                    Label("Remove from Offline", systemImage: "trash")
+                }
+                .accessibilityIdentifier("removeFromOfflineButton")
+            } else {
+                Button {
+                    Task { await vm.downloadAsset(asset, baseURL: baseURL, token: token) }
+                } label: {
+                    HStack(spacing: PVSpacing.s12) {
+                        Label("Download for Offline", systemImage: "arrow.down.circle")
+                        Spacer()
+                        downloadIndicator
+                    }
+                }
+                .disabled(isDownloading)
+                .accessibilityIdentifier("downloadForOfflineButton")
+            }
+
+            if let error = vm.errorMessage {
+                Text(error)
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.immichError)
+            }
+        } header: {
+            Text("Offline")
+        }
+    }
+
+    /// Determinate while the server sends a `Content-Length`; an indeterminate
+    /// spinner otherwise (a chunked response would otherwise sit at 0 %).
+    @ViewBuilder
+    private var downloadIndicator: some View {
+        if isDownloading {
+            HStack(spacing: PVSpacing.s8) {
+                if let fraction = vm.progress(for: asset.id) {
+                    ProgressView(value: fraction)
+                        .frame(width: 60)
+                } else {
+                    ProgressView()
+                }
+            }
+            .accessibilityIdentifier("offlineDownloadProgress")
         }
     }
 }

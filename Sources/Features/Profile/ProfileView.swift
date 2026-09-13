@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State var stacks: StacksViewModel
     @State var partners: PartnersViewModel
     @State var admin: AdminViewModel
+    @State var offline: OfflineDownloadViewModel
 
     var body: some View {
         NavigationStack {
@@ -78,6 +79,13 @@ struct ProfileView: View {
                     } label: {
                         Label("Partners", systemImage: "person.badge.plus")
                     }
+
+                    NavigationLink {
+                        OfflineAssetsView(vm: offline)
+                    } label: {
+                        Label("Offline Storage", systemImage: "arrow.down.circle")
+                    }
+                    .accessibilityIdentifier("offlineStorageRow")
                 } header: {
                     Text("Management")
                 }
