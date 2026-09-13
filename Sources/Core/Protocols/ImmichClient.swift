@@ -141,8 +141,32 @@ protocol ImmichClient: AnyObject, Sendable {
     func createActivity(dto: ActivityCreateDto) async throws -> ActivityResponseDto
     func deleteActivity(id: String) async throws
 
-    // MARK: - Memories (P0 api-surface-expansion)
+    // MARK: - Memories (P0 api-surface-expansion; CRUD added 2026-09-13)
     func getMemories() async throws -> [MemoryResponseDto]
+    /// `GET /api/memories/{id}` — one memory. Used to re-read a memory after a
+    /// mutation that answers with per-asset results rather than the memory.
+    func getMemory(id: String) async throws -> MemoryResponseDto
+    /// `PUT /api/memories/{id}` — **PUT**, not PATCH: the published OpenAPI
+    /// exposes `get|put|delete` on this route and no PATCH (a PATCH 404s, the
+    /// same trap the shared-links edit had).
+    func updateMemory(id: String, dto: MemoryUpdateDto) async throws -> MemoryResponseDto
+    func deleteMemory(id: String) async throws
+    /// `POST /api/memories` body `MemoryCreateDto` — `data`, `memoryAt` and
+    /// `type` are required; there is no name field anywhere in the memory API.
+    func createMemory(dto: MemoryCreateDto) async throws -> MemoryResponseDto
+    /// `PUT /api/memories/{id}/assets` body `BulkIdsDto` — **PUT** (the route is
+    /// `put|delete`, so a POST 404s), answers one `BulkIdResponseDto` per id.
+    @discardableResult
+    func addAssetsToMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto]
+    /// `DELETE /api/memories/{id}/assets` body `BulkIdsDto` — answers one
+    /// `BulkIdResponseDto` per id (200, not 204).
+    @discardableResult
+    func removeAssetsFromMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto]
+    /// `GET /api/memories/statistics` — the server's memory count. Part of the
+    /// api-surface expansion: it is what the server's own paging answers to
+    /// (`size`/`page` on `GET /api/memories` only take effect when the caller
+    /// passes `size`), and no screen consumes it yet.
+    func getMemoriesStatistics() async throws -> MemoryStatisticsResponseDto
 
     // MARK: - Duplicates (P0 api-surface-expansion)
     func getDuplicates() async throws -> [DuplicateResponseDto]

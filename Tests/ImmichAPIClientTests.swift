@@ -440,6 +440,156 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.url?.path, "/api/memories")
     }
 
+    // MARK: - Memories CRUD (issue #15)
+
+    func test_mem_getMemory_getsMemoryById() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "m1", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "memoryAt": "2023-06-15T00:00:00.000Z", "ownerId": "me", "type": "on_this_day", "data": {"year": 2023}, "assets": [], "isSaved": false}
+        """.data(using: .utf8)!
+
+        let memory = try await client.getMemory(id: "m1")
+
+        XCTAssertEqual(memory.id, "m1")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/memories/m1")
+    }
+
+    /// The server exposes `put` on `/memories/{id}` and no PATCH — a PATCH is a
+    /// 404, the same trap the shared-link edit had.
+    func test_mem_updateMemory_putsIsSaved() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "m1", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "memoryAt": "2023-06-15T00:00:00.000Z", "ownerId": "me", "type": "on_this_day", "data": {"year": 2023}, "assets": [], "isSaved": true}
+        """.data(using: .utf8)!
+
+        let memory = try await client.updateMemory(id: "m1", dto: MemoryUpdateDto(isSaved: true))
+
+        XCTAssertTrue(memory.isSaved)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/memories/m1")
+        XCTAssertEqual(try decodedBody()["isSaved"] as? Bool, true)
+    }
+
+    func test_mem_deleteMemory_deletesById() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextStatus = 204
+
+        try await client.deleteMemory(id: "m1")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/memories/m1")
+    }
+
+    /// `data`, `memoryAt` and `type` are all required by `MemoryCreateDto`, and
+    /// the app sends `isSaved: true` so the server's 30-day cleanup cannot claim
+    /// a memory the user asked for.
+    func test_mem_createMemory_postsTheRequiredFields() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "new", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "memoryAt": "2019-05-04T00:00:00.000Z", "ownerId": "me", "type": "on_this_day", "data": {"year": 2019}, "assets": [], "isSaved": true}
+        """.data(using: .utf8)!
+
+        let memory = try await client.createMemory(dto: MemoryCreateDto(
+            assetIds: ["a1", "a2"],
+            data: OnThisDayDto(year: 2019),
+            memoryAt: "2019-05-04T00:00:00.000Z",
+            type: .on_this_day,
+            isSaved: true
+        ))
+
+        XCTAssertEqual(memory.id, "new")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/memories")
+        let body = try decodedBody()
+        XCTAssertEqual(body["assetIds"] as? [String], ["a1", "a2"])
+        XCTAssertEqual(body["memoryAt"] as? String, "2019-05-04T00:00:00.000Z")
+        XCTAssertEqual(body["type"] as? String, "on_this_day")
+        XCTAssertEqual((body["data"] as? [String: Any])?["year"] as? Int, 2019)
+        XCTAssertEqual(body["isSaved"] as? Bool, true)
+    }
+
+    /// Both asset routes take `BulkIdsDto` (`{ids}`) — not the `AssetIdsDto`
+    /// (`{assetIds}`) the shared-link route uses — and both answer
+    /// `BulkIdResponseDto`, whose field is `id`.
+    func test_mem_addAssetsToMemory_putsBulkIds() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id": "a1", "success": true}, {"id": "a2", "success": false, "error": "NO_PERMISSION"}]
+        """.data(using: .utf8)!
+
+        let results = try await client.addAssetsToMemory(id: "m1", assetIds: ["a1", "a2"])
+
+        XCTAssertEqual(results.map(\.id), ["a1", "a2"])
+        XCTAssertEqual(results[1].success, false)
+        XCTAssertEqual(results[1].error, .noPermission, "memories answer BulkIdErrorReason, which is uppercase")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PUT")
+        XCTAssertEqual(captured.url?.path, "/api/memories/m1/assets")
+        let body = try decodedBody()
+        XCTAssertEqual(body["ids"] as? [String], ["a1", "a2"])
+        XCTAssertNil(body["assetIds"], "this route takes ids, unlike the shared-link one")
+    }
+
+    func test_mem_removeAssetsFromMemory_deletesBulkIds() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"id": "a1", "success": true}]
+        """.data(using: .utf8)!
+
+        let results = try await client.removeAssetsFromMemory(id: "m1", assetIds: ["a1"])
+
+        XCTAssertEqual(results.count, 1)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "DELETE")
+        XCTAssertEqual(captured.url?.path, "/api/memories/m1/assets")
+        XCTAssertEqual(try decodedBody()["ids"] as? [String], ["a1"])
+    }
+
+    func test_mem_getMemoriesStatistics_hitsStatistics() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = #"{"total": 12}"#.data(using: .utf8)!
+
+        let stats = try await client.getMemoriesStatistics()
+
+        XCTAssertEqual(stats.total, 12)
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/memories/statistics")
+    }
+
     func test_P0_getDuplicates_hitsDuplicatesEndpoint() async throws {
         let session = makeMockedSession()
         let client = ImmichAPIClient(session: session)

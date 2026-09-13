@@ -666,6 +666,251 @@ final class ImmichRenderScreenshots: XCTestCase {
         assertStubRecordedSlug("trip-2026")
     }
 
+    /// Memories CRUD (issue #15) against a committed stub. Four things can only
+    /// be seen by running the app:
+    ///
+    /// 1. `PUT /api/memories/{id}` really carries `isSaved` — the bookmark is
+    ///    the only save entry point, and a view that flipped its icon locally
+    ///    would pass a screenshot and fail this;
+    /// 2. `POST /api/memories` carries the date **and** `isSaved: true` (the
+    ///    server deletes unsaved memories after 30 days, so an unsaved create
+    ///    would silently vanish);
+    /// 3. `PUT`/`DELETE /api/memories/{id}/assets` — the routes are `put|delete`
+    ///    on `{id}/assets`, and a `POST` (the shape the backlog card originally
+    ///    specified) is a 404;
+    /// 4. dropping the **last** photo closes the moment view, because
+    ///    `GET /api/memories` filters empty memories out — the card would
+    ///    otherwise stay on screen for a memory the server no longer returns.
+    ///
+    /// Needs the memories stub (committed, unlike the stacks one):
+    ///
+    ///     python3 UITests/stubs/immich_stub_memories.py 8421
+    func test_08_memories() throws {
+        let initialMemory = "dddddddd-4444-4444-8444-000000000001"
+        // The stub hands out ids in order from 2, so the created memory is
+        // addressable without scraping the screen.
+        let createdMemory = "dddddddd-4444-4444-8444-000000000002"
+        let firstPhoto = "aaaaaaaa-1111-4111-8111-000000000001"
+        let secondPhoto = "aaaaaaaa-1111-4111-8111-000000000002"
+        let thirdPhoto = "aaaaaaaa-1111-4111-8111-000000000003"
+        let fourthPhoto = "aaaaaaaa-1111-4111-8111-000000000004"
+
+        setProvider("auto")
+        resetStacks() // same `/__reset` route: restores the stub's initial state
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        openMemoriesTab()
+        shot("32-memories-list")
+
+        // MARK: Save toggle
+
+        let bookmark = app.buttons["memoryBookmark_\(initialMemory)"]
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 20), "the stub's memory is not in the list")
+        XCTAssertEqual(bookmark.label, "Save memory", "an unsaved memory must offer to save")
+
+        bookmark.tap()
+        let saved = NSPredicate(format: "label == 'Unsave memory'")
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation(for: saved, evaluatedWith: bookmark)], timeout: 15),
+                       .completed, "tapping the bookmark did not save the memory")
+        shot("33-memory-saved")
+
+        assertStubWrote(method: "PUT", path: "/api/memories/\(initialMemory)", isSaved: true)
+
+        // MARK: Create from a selection
+
+        let create = app.buttons["memoriesCreateButton"]
+        XCTAssertTrue(create.waitForExistence(timeout: 15), "no create button in the Memories toolbar")
+        create.tap()
+        sleep(3)
+
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "memoryDatePicker")
+            .firstMatch.waitForExistence(timeout: 15), "the create sheet has no date picker")
+
+        let pickA = pickerAsset(firstPhoto)
+        XCTAssertTrue(pickA.waitForExistence(timeout: 20), "the picker did not load the library")
+        pickA.tap()
+        pickerAsset(secondPhoto).tap()
+        shot("34-create-memory-picker")
+
+        let confirm = app.buttons["confirmCreateMemory"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "Create CTA missing")
+        XCTAssertTrue(confirm.isEnabled, "tapping photos did not select them")
+        confirm.tap()
+        sleep(4)
+
+        let created = app.descendants(matching: .any).matching(identifier: "memoryCard_\(createdMemory)").firstMatch
+        XCTAssertTrue(created.waitForExistence(timeout: 20), "the created memory is not in the list")
+        shot("35-memory-created")
+
+        assertStubCreatedMemory(assetIds: [firstPhoto, secondPhoto])
+
+        // MARK: Add photos to the created memory
+
+        created.tap()
+        sleep(3)
+        let addPhotos = app.buttons["memoryMomentAddPhotos"]
+        XCTAssertTrue(addPhotos.waitForExistence(timeout: 15), "no add-photos action in the moment view")
+        addPhotos.tap()
+        sleep(3)
+
+        let pickC = pickerAsset(thirdPhoto)
+        XCTAssertTrue(pickC.waitForExistence(timeout: 20), "the add-photos picker did not load")
+        pickC.tap()
+        app.buttons["confirmAddPhotosToMemory"].tap()
+        sleep(4)
+
+        assertStubWrote(method: "PUT", path: "/api/memories/\(createdMemory)/assets", ids: [thirdPhoto])
+        shot("36-memory-photo-added")
+
+        // MARK: Drop every photo — the last one closes the screen
+
+        // The stub creation ran with 2 photos and one was just added, so three
+        // removals empty it. The third closes the moment view: the memory no
+        // longer exists once `GET /api/memories` filters it out.
+        for index in 0..<3 {
+            let remove = app.buttons["memoryMomentRemovePhoto"]
+            XCTAssertTrue(remove.waitForExistence(timeout: 10), "remove action missing (pass \(index))")
+            remove.tap()
+            sleep(3)
+        }
+
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 20),
+                      "the moment view did not close when the memory lost its last photo")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "memoryCard_\(createdMemory)")
+            .firstMatch.waitForExistence(timeout: 5), "the emptied memory is still listed")
+        shot("37-memory-emptied")
+
+        // MARK: Delete the remaining memory
+
+        let remaining = app.descendants(matching: .any)
+            .matching(identifier: "memoryCard_\(initialMemory)").firstMatch
+        XCTAssertTrue(remaining.waitForExistence(timeout: 15), "the initial memory vanished")
+        remaining.tap()
+        sleep(3)
+
+        let delete = app.buttons["memoryMomentDelete"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 15), "no delete action in the moment view")
+        delete.tap()
+        sleep(2)
+        let confirmDelete = app.buttons["Delete Memory"]
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 10), "no confirmation for the delete")
+        confirmDelete.tap()
+        sleep(4)
+
+        assertStubWrote(method: "DELETE", path: "/api/memories/\(initialMemory)")
+        XCTAssertTrue(app.staticTexts["No Memories Yet"].waitForExistence(timeout: 20),
+                      "deleting the last memory must land on the empty state")
+        shot("38-memories-empty")
+    }
+
+    /// One picker cell, by the identity the grid gives it.
+    private func pickerAsset(_ assetId: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "pickerAsset_\(assetId)").firstMatch
+    }
+
+    /// The stub's request log, decoded with one shape for every method — the
+    /// scenarios assert on the wire, not on a screenshot.
+    private struct StubRequest: Decodable {
+        let method: String
+        let path: String
+        let isSaved: Bool?
+        let assetIds: [String]?
+        let ids: [String]?
+        let year: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case method, path, isSaved, assetIds, ids, data
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            method = try container.decode(String.self, forKey: .method)
+            path = try container.decode(String.self, forKey: .path)
+            isSaved = try container.decodeIfPresent(Bool.self, forKey: .isSaved)
+            assetIds = try container.decodeIfPresent([String].self, forKey: .assetIds)
+            ids = try container.decodeIfPresent([String].self, forKey: .ids)
+            year = try container.decodeIfPresent([String: Int].self, forKey: .data)?["year"]
+        }
+    }
+
+    private func stubRequests() -> [StubRequest] {
+        var request = URLRequest(url: URL(string: "\(stub)/__requests")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__requests")
+        return (try? JSONDecoder().decode([StubRequest].self, from: Data(body.utf8))) ?? []
+    }
+
+    private func describe(_ requests: [StubRequest]) -> String {
+        requests.map { "\($0.method) \($0.path) isSaved=\($0.isSaved.map(String.init) ?? "-") " +
+            "assetIds=\($0.assetIds ?? []) ids=\($0.ids ?? []) year=\($0.year.map(String.init) ?? "-")" }
+            .joined(separator: "\n")
+    }
+
+    private func assertStubWrote(
+        method: String,
+        path: String,
+        isSaved: Bool? = nil,
+        ids: [String]? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let requests = stubRequests()
+        let match = requests.contains { entry in
+            entry.method == method && entry.path == path
+                && (isSaved == nil || entry.isSaved == isSaved)
+                && (ids == nil || entry.ids == ids)
+        }
+        XCTAssertTrue(match, "no \(method) \(path) isSaved=\(isSaved.map(String.init) ?? "-") ids=\(ids ?? []) on the wire — got:\n\(describe(requests))",
+                      file: file, line: line)
+    }
+
+    /// The create payload, all four fields at once: the picked photos in grid
+    /// order, a `data.year` that matches `memoryAt`, the only type the server
+    /// accepts, and `isSaved: true` so the 30-day cleanup cannot take it.
+    private func assertStubCreatedMemory(assetIds: [String], file: StaticString = #filePath, line: UInt = #line) {
+        let requests = stubRequests()
+        guard let created = requests.first(where: { $0.method == "POST" && $0.path == "/api/memories" }) else {
+            return XCTFail("no POST /api/memories on the wire — got:\n\(describe(requests))", file: file, line: line)
+        }
+        XCTAssertEqual(created.assetIds, assetIds, "the selection must be the payload", file: file, line: line)
+        XCTAssertEqual(created.isSaved, true,
+                       "an unsaved memory is deleted by the server after 30 days", file: file, line: line)
+        XCTAssertNotNil(created.year, "data.year is required by MemoryCreateDto", file: file, line: line)
+    }
+
+    /// The "Memories" tab, whichever language the catalog resolves it in.
+    ///
+    /// `firstMatch`: iOS 26 renders the tab bar's expanded and minimized forms
+    /// at once while it is animating, so a bare `tabBars.buttons[label]` query
+    /// intermittently matches two buttons and `.tap()` throws ("Find single
+    /// matching element") — the same reason `tapButton` here already takes
+    /// `firstMatch`.
+    private func openMemoriesTab() {
+        for label in ["Memories", "Souvenirs"] {
+            let tab = app.tabBars.buttons[label].firstMatch
+            if tab.waitForExistence(timeout: 5) {
+                tab.tap()
+                return
+            }
+        }
+        app.tabBars.buttons.element(boundBy: 1).tap()
+    }
+
     /// Reads the stub's request log: the slug must have been on the wire —
     /// a form field that never reaches `POST /api/shared-links` would still
     /// produce a link, just one whose URL falls back to `/share/<key>`.

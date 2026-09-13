@@ -8,8 +8,16 @@ import SwiftUI
 /// Top bar: close (left), a centered "On this day" chip, and a "view in
 /// timeline" teleport (right) that dismisses and jumps the Photos tab to this
 /// photo. Swipe to browse; tap a photo for the full Photos-style pager.
+///
+/// It is also the memory's editing surface: the bottom action row saves or
+/// unsaves it (`PUT /api/memories/{id}`), adds photos (`PUT
+/// /api/memories/{id}/assets`), drops the photo currently on screen (`DELETE
+/// …/assets`) and deletes the whole memory (`DELETE /api/memories/{id}`).
 struct MemoryMomentView: View {
     let memory: MemoryResponseDto
+    /// The memory's owner — mutations go through it so the list behind this
+    /// screen shows the result, and so an emptied memory closes this screen.
+    let vm: MemoriesViewModel
     let baseURL: URL
     let token: String?
 
@@ -24,6 +32,8 @@ struct MemoryMomentView: View {
     @State private var scrollPosition = ScrollPosition()
     @State private var isAutoPlaying = true
     @State private var isVideoActive = false
+    @State private var showingAddPhotos = false
+    @State private var confirmingDelete = false
 
     /// The asset currently shown as the hero (pager-selected, falls back to the
     /// first asset).
@@ -229,10 +239,108 @@ struct MemoryMomentView: View {
             titleBlock
             pageDots
             chips
+            actionRow
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, PVSpacing.s16)
         .padding(.bottom, PVSpacing.s16)
+    }
+
+    /// The memory's mutations, over the hero. Each is a glass circle sized for
+    /// the 44 pt minimum tap target; icons carry the meaning, VoiceOver the words.
+    private var actionRow: some View {
+        GlassEffectContainer {
+            HStack(spacing: PVSpacing.s16) {
+                actionButton(
+                    symbol: memory.isSaved ? "bookmark.fill" : "bookmark",
+                    label: memory.isSaved ? "Unsave memory" : "Save memory",
+                    identifier: "memoryMomentSave"
+                ) {
+                    Task {
+                        if memory.isSaved {
+                            await vm.unsaveMemory(id: memory.id)
+                        } else {
+                            await vm.saveMemory(id: memory.id)
+                        }
+                    }
+                }
+
+                actionButton(
+                    symbol: "plus.rectangle.on.rectangle",
+                    label: "Add photos",
+                    identifier: "memoryMomentAddPhotos"
+                ) {
+                    showingAddPhotos = true
+                }
+
+                actionButton(
+                    symbol: "minus.circle",
+                    label: "Remove this photo from the memory",
+                    identifier: "memoryMomentRemovePhoto"
+                ) {
+                    guard let asset = heroAsset else { return }
+                    Task { await removePhoto(asset.id) }
+                }
+                .disabled(heroAsset == nil)
+
+                actionButton(
+                    symbol: "trash",
+                    label: "Delete memory",
+                    identifier: "memoryMomentDelete"
+                ) {
+                    confirmingDelete = true
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddPhotos) {
+            AddPhotosToMemorySheet(
+                memoryId: memory.id,
+                existingAssetIds: Set(memory.assets.map(\.id)),
+                vm: vm
+            )
+        }
+        .confirmationDialog(
+            "Delete this memory?",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Memory", role: .destructive) {
+                Task {
+                    await vm.deleteMemory(id: memory.id)
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The photos stay in your library — only this memory is removed.")
+        }
+    }
+
+    private func actionButton(
+        symbol: String,
+        label: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(label)
+    }
+
+    /// Drops one photo from the memory. The server filters empty memories out of
+    /// `GET /api/memories`, so when this was the last one the memory no longer
+    /// exists to show — `removeAssets` reports that and this screen closes.
+    private func removePhoto(_ assetId: String) async {
+        let stillExists = await vm.removeAssets(fromMemoryId: memory.id, assetIds: [assetId])
+        if !stillExists { dismiss() }
     }
 
     private var titleBlock: some View {

@@ -4,12 +4,23 @@ import SwiftUI
 /// (Liquid Glass chips over the hero photo). Tapping a card opens the full-screen
 /// `MemoryMomentView` (the nostalgia shot). Empty state when the server has no
 /// memories (e.g. a fresh library).
+///
+/// The card carries the memory CRUD the `/api/memories` routes expose: the
+/// bookmark toggles `isSaved`, the context menu adds photos / deletes, and the
+/// toolbar "+" creates a memory from a photo selection. A memory is a date, a
+/// type and a set of assets — there is no name to type, so the create sheet is
+/// a date plus the picker.
 struct MemoriesView: View {
     @Bindable var vm: MemoriesViewModel
     @Environment(AuthViewModel.self) private var auth
     @Environment(\.openProfile) private var openProfile
 
-    @State private var selectedMemory: MemoryResponseDto?
+    /// Id rather than the DTO: the moment view is presented from a *copy*, and a
+    /// memory whose assets were just edited (or emptied) must not be shown stale.
+    /// The cover re-resolves `vm.memory(id:)` on every re-evaluation.
+    @State private var selectedMemoryID: String?
+    @State private var addingPhotosToID: String?
+    @State private var pendingDelete: MemoryResponseDto?
 
     var body: some View {
         NavigationStack {
@@ -46,7 +57,18 @@ struct MemoriesView: View {
                                         memory: memory,
                                         baseURL: baseURL,
                                         token: auth.accessToken,
-                                        onOpen: { selectedMemory = memory }
+                                        onOpen: { selectedMemoryID = memory.id },
+                                        onToggleSaved: {
+                                            Task {
+                                                if memory.isSaved {
+                                                    await vm.unsaveMemory(id: memory.id)
+                                                } else {
+                                                    await vm.saveMemory(id: memory.id)
+                                                }
+                                            }
+                                        },
+                                        onAddPhotos: { addingPhotosToID = memory.id },
+                                        onDelete: { pendingDelete = memory }
                                     )
                                 }
                             }
@@ -59,19 +81,60 @@ struct MemoriesView: View {
             .navigationTitle("Memories")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        vm.showCreate = true
+                    } label: {
+                        Label("New Memory", systemImage: "plus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .accessibilityIdentifier("memoriesCreateButton")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     ProfileAvatarButton { openProfile() }
                 }
             }
             .task { await vm.load() }
+            .sheet(isPresented: $vm.showCreate) {
+                CreateMemorySheet(vm: vm)
+            }
+            .sheet(isPresented: Binding(
+                get: { addingPhotosToID != nil },
+                set: { if !$0 { addingPhotosToID = nil } }
+            )) {
+                if let memoryId = addingPhotosToID {
+                    AddPhotosToMemorySheet(
+                        memoryId: memoryId,
+                        existingAssetIds: Set(vm.memory(id: memoryId)?.assets.map(\.id) ?? []),
+                        vm: vm
+                    )
+                }
+            }
+            .confirmationDialog(
+                "Delete this memory?",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: { if !$0 { pendingDelete = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete Memory", role: .destructive) {
+                    guard let memory = pendingDelete else { return }
+                    pendingDelete = nil
+                    Task { await vm.deleteMemory(id: memory.id) }
+                }
+                Button("Cancel", role: .cancel) { pendingDelete = nil }
+            } message: {
+                Text("The photos stay in your library — only this memory is removed.")
+            }
             .fullScreenCover(
                 isPresented: Binding(
-                    get: { selectedMemory != nil },
-                    set: { if !$0 { selectedMemory = nil } }
+                    get: { selectedMemoryID != nil },
+                    set: { if !$0 { selectedMemoryID = nil } }
                 )
             ) {
-                if let memory = selectedMemory {
-                    MemoryMomentView(memory: memory, baseURL: baseURL, token: auth.accessToken)
+                if let id = selectedMemoryID, let memory = vm.memory(id: id) {
+                    MemoryMomentView(memory: memory, vm: vm, baseURL: baseURL, token: auth.accessToken)
                 }
             }
         }
@@ -107,12 +170,16 @@ struct MemoriesView: View {
 /// background with the day + year set in big poster typography over a bottom
 /// scrim ("1 juillet" / "2022"), plus "N years ago" and Liquid Glass chips
 /// (photo/video counts, location, asset count). Tapping the card opens the
-/// full-screen `MemoryMomentView`.
+/// full-screen `MemoryMomentView`; the bookmark toggles `isSaved` and the long
+/// press opens the memory's mutations.
 private struct MemoryCard: View {
     let memory: MemoryResponseDto
     let baseURL: URL
     let token: String?
     let onOpen: () -> Void
+    let onToggleSaved: () -> Void
+    let onAddPhotos: () -> Void
+    let onDelete: () -> Void
 
     private var hero: AssetResponseDto? { memory.assets.first }
 
@@ -133,43 +200,86 @@ private struct MemoryCard: View {
     }
 
     var body: some View {
-        Button(action: onOpen) {
-            ZStack {
-                if let heroURL {
-                    GeometryReader { proxy in
-                        AuthenticatedAsyncImage(url: heroURL, token: token, contentMode: .fill)
-                            .frame(width: proxy.size.width, height: proxy.size.height)
-                            .clipped()
-                    }
-                } else {
-                    Rectangle().fill(Color.bgTertiary.opacity(0.3))
+        // The bookmark is a sibling *above* the card's button, not a child of
+        // it: nested buttons swallow each other's taps (see the stack badge
+        // trap), and an overlay hit-tests first.
+        ZStack(alignment: .topTrailing) {
+            Button(action: onOpen) {
+                card
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("memoryCard_\(memory.id)")
+            .contextMenu {
+                Button(action: onToggleSaved) {
+                    Label(
+                        memory.isSaved ? "Unsave Memory" : "Save Memory",
+                        systemImage: memory.isSaved ? "bookmark.slash" : "bookmark"
+                    )
                 }
-
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.25),
-                        .init(color: .black.opacity(0.9), location: 0.85),
-                        .init(color: .black.opacity(0.98), location: 1.0)
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: PVSpacing.s12) {
-                        header
-                        footer
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(PVSpacing.s16)
+                Button(action: onAddPhotos) {
+                    Label("Add Photos", systemImage: "plus.rectangle.on.rectangle")
+                }
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete Memory", systemImage: "trash")
                 }
             }
-            .frame(height: 320)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: PVRadius.xl, style: .continuous))
+
+            bookmarkButton
+                .padding(PVSpacing.s12)
+        }
+    }
+
+    /// The save toggle — armed/unarmed in one tap, with its state readable by
+    /// VoiceOver (and by the UI test, which asserts on the label).
+    private var bookmarkButton: some View {
+        Button(action: onToggleSaved) {
+            Image(systemName: memory.isSaved ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+                .glassEffect(.regular.tint(.black.opacity(0.55)), in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memoryBookmark_\(memory.id)")
+        .accessibilityLabel(memory.isSaved ? "Unsave memory" : "Save memory")
+    }
+
+    private var card: some View {
+        ZStack {
+            if let heroURL {
+                GeometryReader { proxy in
+                    AuthenticatedAsyncImage(url: heroURL, token: token, contentMode: .fill)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                }
+            } else {
+                Rectangle().fill(Color.bgTertiary.opacity(0.3))
+            }
+
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.25),
+                    .init(color: .black.opacity(0.9), location: 0.85),
+                    .init(color: .black.opacity(0.98), location: 1.0)
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: PVSpacing.s12) {
+                    header
+                    footer
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(PVSpacing.s16)
+            }
+        }
+        .frame(height: 320)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: PVRadius.xl, style: .continuous))
     }
 
     private var header: some View {

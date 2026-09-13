@@ -25,10 +25,10 @@
 | 1 | **Backup Auto** | P2 | AC-BK01–BK10 | .omp/backup-auto/ | Voir §2.1 | ✅ Terminé | — | suite 692 verte | 7/10 AC (BK05, BK06, BK08 obsolètes) |
 | 2 | **OAuth2 UI** | P5 | AC-3000–3007 | .omp/oauth2-ui/ | Voir §2.2 | ✅ Terminé | — (wire) | 6 `test_oauth_*` | 8/8 AC |
 | 3 | **Partners UI** | P3 | AC-3100–3113 | .omp/partners-ui/ | Voir §2.3 | ✅ Terminé | — (2 wire, 1 corrigé) | 14 + 4 + 1 XCUITest | 14/14 AC |
-| 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | 🟡 Plan | 7 (CRUD + stats) | 0/8 | 0/9 AC |
+| 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | ✅ Terminé | — (100% wire) | 16 + 7 + 1 XCUITest | 9/9 AC |
 | 5 | **Push Notifications** | P5 | AC-3300–3308 | .omp/push-notifications/ | Voir §2.5 | 🟡 Plan | device-token reg/unreg | 0/9 | 0/9 AC |
 | 6 | **Shared Links Enriched** | P3 | AC-3900–3909 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | slug + URL builder + presets | 0/10 | 0/10 AC |
-| 7 | **Offline Download** | P4 | AC-3500–3508 | .omp/offline-download/ | Voir §2.7 | 🟡 Plan | — (FileManager) | 0/8 | 0/9 AC |
+| 7 | **Offline Download** | P4 | AC-3500–3512 | .omp/offline-download/ | Voir §2.7 | 🟡 Plan (carte révisée 2026-09-13) | — (FileManager) | 0/12 | 0/13 AC |
 | 8 | **Widgets Home Screen** | P5 | AC-3600–3608 | .omp/widgets-homescreen/ | Voir §2.8 | 🟡 Plan | — (WidgetKit) | 0/4 | 0/9 AC |
 | 9 | **Stacks UI** | P3 | AC-3700–3709 | .omp/stacks-ui/ | Voir §2.9 | ✅ Terminé | — (100% wire) | 13 + 7 + 3 + 1 | 10/10 AC |
 | 10 | **i18n Completing** | P5 | AC-3800–3807 | .omp/i18n/ | Voir §2.10 | 🟡 Plan | — (localisation) | 0/3 | 0/8 AC |
@@ -178,43 +178,74 @@ Interface complète de partage entre partenaires : écran dédié à deux sectio
 
 ---
 
-### 2.4. Memories Complete (P4)
+### 2.4. Memories Complete (P4) — ✅ Terminé (2026-09-13)
 
 **Fichier spec** : `.omp/memories-complete/memories-complete.specs.md`
-**Card AC** : `.opencode/scratch/memories-complete.acceptance.md`
+**Card AC** : `.opencode/scratch/memories-complete.acceptance.md` (réécrite le 2026-09-13 sur le contrat réel — AC-3200…AC-3208)
 **UI brief** : `.omp/memories-complete/memories-complete.ui.md`
-**AC Cards** : AC-3200 – AC-3208
 **Phase** : P4 — Discovery
+**Issue** : #15
+
+#### Résultat (2026-09-13)
+**9/9 AC PASS.** Suite **749 → 772 tests, TEST SUCCEEDED** (iPhone 17) + `test_08_memories` de bout en bout contre le stub **committé** `UITests/stubs/immich_stub_memories.py` (nouveau : il sert aussi le handshake OAuth, 8 assets de bibliothèque en un bucket, `POST /api/search/metadata` pour la grille de sélection, et quatre comportements que le scénario vérifie sur le fil).
+
+Livré : `MemoryCreateDto` / `MemoryUpdateDto` / `MemoryStatisticsResponseDto` (`DTOs+Social.swift`) ; 7 méthodes sur `ImmichClient` + `ImmichAPIClient` ; `MemoriesViewModel` (save/unsave, create, delete, add/remove assets, flux de sélection paginé) ; `MemoriesView` (bookmark par carte, menu contextuel, bouton « + », `CreateMemorySheet`, `AddPhotosToMemorySheet`, confirmation de suppression) ; `MemoryMomentView` (rangée d'actions : save, ajouter des photos, retirer la photo affichée, supprimer — et fermeture automatique quand la mémoire perd sa dernière photo) ; `AssetMultiSelectGrid` (NEW, `Sources/Features/Timeline/`) qui remplace `StackPhotoPicker.swift` **supprimé** et sert les 4 feuilles (créer/étendre une pile, créer/étendre une mémoire).
+
+#### Corrections du 2026-09-13 (avant implémentation)
+
+Vérifié sur l'OpenAPI publié (`main` sha `bace1792…`, `v1.135.0`) et les sources serveur (`memory.controller.ts`, `memory.repository.ts`, `memory.service.ts`, `dtos/memory.dto.ts`). Quatre erreurs de la fiche d'origine :
+
+- **`PATCH /api/memories/:id` n'existe pas** → `PUT` (`@Put(':id')`). Un PATCH rend 404, même famille que le `PUT` des shared links.
+- **`POST /api/memories/:id/assets` n'existe pas** → `PUT` (la route est `put|delete`). Les deux routes prennent **`BulkIdsDto` (`{ids}`)** et répondent **`BulkIdResponseDto`** (champ **`id`**, erreur `NO_PERMISSION` en majuscules) — à ne pas confondre avec `AssetIdsDto`/`AssetIdsResponseDto` des shared links (`assetIds`, `no_permission`).
+- **`MemoryType.first_day` / `.yearly_recap` n'existent pas** : l'enum serveur est `["on_this_day"]` seul dans les deux versions. Un POST qui les envoie part en 400.
+- **Le champ « titre » de `CreateMemorySheet` est sans objet** : aucun DTO mémoire ne porte de nom. `MemoryCreateDto` requiert `data:{year}`, `memoryAt` et `type` (+ `assetIds` optionnel) ; le libellé affiché vient de la date.
+
+Deux comportements serveur qui dictent l'UI : `GET /api/memories` **filtre les mémoires sans asset** (`MemoryService.search`) — d'où la fermeture de l'écran après le retrait de la dernière photo ; et le ménage `MemoryRepository.cleanup` supprime les mémoires **non sauvegardées** de plus de 30 jours — la création envoie donc `isSaved: true`.
+
+#### Résidu i18n (même classe que celui du backup)
+Les ~18 chaînes neuves de cette feature (« New Memory », « Save Memory », « Unsave Memory », « Add Photos », « Delete Memory », « Delete this memory? », « Memory date », les messages de sélection, …) **n'ont pas d'entrée dans `Resources/Localizable.xcstrings`** : l'extraction de Xcode ne tourne pas en build CLI, et un build déclenché depuis Xcode **supprime des clés valides** (`Copy link`, `Custom URL` — parcourues par un build incrémental partiel), donc le catalogue n'est pas touché ici. Les chaînes de la grille de piles (`Nothing to add`, « Pick at least 2 photos… ») n'y étaient déjà pas. Périmètre de §2.10 i18n / issue #21.
 
 #### Objectif
-Compléter le module Memories avec CRUD complet : save/unsave, create custom memory, delete, add/remove assets, et nouveaux types (first_day, yearly_recap). Currently read-only (`getMemories()` only).
+Compléter le module Memories avec CRUD complet : save/unsave, create, delete, add/remove assets. Currently read-only (`getMemories()` only).
+
+> **Trois demandes de la fiche d'origine sont sans objet serveur** (vérifié 2026-09-13) : `MemoryType` = `["on_this_day"]` seul (pas de `first_day`/`yearly_recap`), et aucun DTO mémoire ne porte de **titre** — le libellé affiché vient de `data`/`memoryAt`. `CreateMemorySheet` ne doit donc exposer ni sélecteur de type multi-valeurs ni champ titre.
 
 #### Points d'entrée
 - `MemoryCreateDto` + `MemoryUpdateDto` — `DTOs+Social.swift`
-- `MemoryType` — Ajouter `.first_day`, `.yearly_recap`
-- `MemoriesViewModel` — saveMemory, unsaveMemory, createMemory, deleteMemory, memoryTitle, memoryDate, selectedType, selectedPhotos
-- `CreateMemorySheet` — Type selector + title + date picker + photo count
+- `MemoryType` — reste `on_this_day` (enum serveur d'une seule valeur)
+- `MemoriesViewModel` — saveMemory, unsaveMemory, createMemory, deleteMemory, memoryDate, selectedAssets
+- `CreateMemorySheet` — date picker + sélection de photos → `POST /api/memories`
 
-#### Endpoint API (7 nouveaux)
+#### Endpoint API (7 nouveaux — verbes vérifiés le 2026-09-13 sur l'OpenAPI publié)
 - `GET /api/memories/:id` — getMemory
-- `PATCH /api/memories/:id` — updateMemory
+- `PUT /api/memories/:id` — updateMemory (**PUT**, pas PATCH — `MemoryUpdateDto` : `isSaved?`, `memoryAt?`, `seenAt?`, tous optionnels — c'est **tout** le schéma serveur)
 - `DELETE /api/memories/:id` — deleteMemory
-- `POST /api/memories` — createMemory
-- `POST /api/memories/:id/assets` — addAssetsToMemory
+- `POST /api/memories` — createMemory (`MemoryCreateDto` : `data:{year}` **requis**, `memoryAt` **requis**, `type` **requis**, `assetIds` — pas de champ titre ni de `slug`)
+- `PUT /api/memories/:id/assets` — addAssetsToMemory (**PUT**, pas POST)
 - `DELETE /api/memories/:id/assets` — removeAssetsFromMemory
 - `GET /api/memories/statistics` — getMemoriesStatistics
 
-#### Étapes d'implémentation
-1. Créer `MemoryCreateDto`, `MemoryUpdateDto`, ajouter `first_day`/`yearly_recap` à `MemoryType`
-2. Ajouter 7 méthodes dans `ImmichClient` + `ImmichAPIClient`
-3. Étendre `MemoriesViewModel` avec CRUD + state (title, date, type, photos)
-4. Étendre `MemoriesView` avec save/unsave context menu, create FAB, type badges
-5. Créer `CreateMemorySheet`
-6. Mock + tests ≥8
+⚠ **Corrections du 2026-09-13** (OpenAPI `main` sha `bace1792…` et `v1.135.0`, `jq '.paths|keys'` → `PUT /memories/{id}`, `PUT /memories/{id}/assets`) : la fiche annonçait `PATCH /memories/:id` et `POST /memories/:id/assets` — les deux rendraient 404/405. Elle demandait aussi d'ajouter `MemoryType.first_day` / `.yearly_recap` et un champ **titre** dans `CreateMemorySheet` : l'enum serveur est `["on_this_day"]` **seul** dans les deux versions, et aucun DTO mémoire ne porte de titre (`MemoryResponseDto` expose `data: OnThisDayDto`, `assets`, `memoryAt`…). Ces trois points sont tombés avant implémentation ; la carte `memories-complete.acceptance.md` a été réécrite sur le contrat réel le même jour.
 
-#### Tests attendus
-- `Tests/MemoriesViewModelTests.swift` ≥8 tests : save, unsave, create, delete, first_day, yearly_recap, type variants, error
-- Regression : suite ≥ baseline
+Deux comportements serveur que l'UI doit respecter : `PUT`/`DELETE /api/memories/{id}/assets` prennent **`BulkIdsDto` (`{ids}`)** et répondent **`BulkIdResponseDto`** (champ `id`, erreur `NO_PERMISSION`) — pas les DTOs `AssetIds*` des liens partagés ; et `GET /api/memories` **filtre les mémoires sans asset** (`MemoryService.search`), d'où la fermeture de l'écran après le retrait de la dernière photo.
+
+#### Étapes d'implémentation (livrées)
+1. `MemoryCreateDto` (`data:{year}`, `memoryAt`, `type`, `assetIds`, `isSaved`) + `MemoryUpdateDto` (`isSaved?`, `memoryAt?`, `seenAt?`) + `MemoryStatisticsResponseDto` (`{total}`) — `MemoryType` inchangé
+2. 7 méthodes dans `ImmichClient` + `ImmichAPIClient` (**`PUT`** pour `updateMemory` et `addAssetsToMemory`, corps `BulkIdsDto` pour les routes assets)
+3. `MemoriesViewModel` : CRUD + flux de sélection paginé (`beginPicking` / `loadMoreAssets` / `orderedSelection`)
+4. `MemoriesView` : bookmark par carte, menu contextuel, bouton « + », dialogues
+5. `CreateMemorySheet` + `AddPhotosToMemorySheet` (date + sélection, pas de titre) ; `MemoryMomentView` gagne sa rangée d'actions
+6. `AssetMultiSelectGrid` extrait (`Sources/Features/Timeline/`) et partagé par les 4 feuilles ; `StackPhotoPicker.swift` supprimé
+7. `MockImmichClient` : 7 méthodes + fixtures par id
+8. Tests : `MemoriesViewModelTests` +16, `ImmichAPIClientTests` +7 (transport)
+9. Stub **committé** `UITests/stubs/immich_stub_memories.py` + scénario `test_08_memories`
+10. `xcodegen generate` + suite complète
+
+#### Tests livrés
+- `Tests/MemoriesViewModelTests.swift` : 16 tests (save/unsave + échec, create — payload, année/`memoryAt` UTC, échec qui garde la feuille —, delete, add/remove assets, dernière photo = fermeture, picker/ordre)
+- `Tests/ImmichAPIClientTests.swift` : 7 tests de transport `test_mem_*` (verbes, chemins, corps, `BulkIdErrorReason`)
+- `UITests/ImmichRenderScreenshots.swift/test_08_memories` + stub committé
+- Regression : suite 749 → **772**, TEST SUCCEEDED
 
 ---
 
@@ -666,17 +697,21 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 | PUT | /api/partners/:id | updatePartner() | Partners — **PUT**, et valide uniquement sur une ligne `shared-with` |
 | DELETE | /api/partners/:id | removePartner() | Partners — valide uniquement sur une ligne `shared-by` |
 | GET | /api/memories | getMemories() | Memories read |
-| POST | /api/memories/:id/assets | addAssetsToMemory() | **NEW** |
-| PATCH | /api/memories/:id | updateMemory() | **NEW** |
-| DELETE | /api/memories/:id | deleteMemory() | **NEW** |
-| POST | /api/memories | createMemory() | **NEW** |
-| GET | /api/memories/:id | getMemory() | **NEW** |
-| GET | /api/memories/statistics | getMemoriesStatistics() | **NEW** |
-| DELETE | /api/memories/:id/assets | removeAssetsFromMemory() | **NEW** |
+| PUT | /api/memories/:id/assets | addAssetsToMemory() | Memories — **PUT** depuis le 2026-09-13 (un `POST` rend 404), corps `BulkIdsDto` (`{ids}`), réponse `BulkIdResponseDto` |
+| PUT | /api/memories/:id | updateMemory() | Memories — **PUT** depuis le 2026-09-13 (un `PATCH` rend 404) |
+| DELETE | /api/memories/:id | deleteMemory() | Memories — 204 |
+| POST | /api/memories | createMemory() | Memories — `data:{year}` + `memoryAt` + `type` requis, pas de champ nom |
+| GET | /api/memories/:id | getMemory() | Memories |
+| GET | /api/memories/statistics | getMemoriesStatistics() | Memories — compte les lignes, sans le filtre « a des assets » de la liste |
+| DELETE | /api/memories/:id/assets | removeAssetsFromMemory() | Memories — corps `BulkIdsDto`, réponse 200 (pas 204) |
 | POST | /api/shared-links | createSharedLink() | Shared links |
 | PATCH | /api/shared-links/:id | updateSharedLink() | Shared links — **PATCH** (le `PUT` envoyé jusqu'au 2026-09-13 rendait 404) |
 | PUT | /api/shared-links/:id/assets | addAssetsToSharedLink() | Shared links — propriétaire, corps `AssetIdsDto`, type `INDIVIDUAL` seulement |
 | DELETE | /api/shared-links/:id | deleteSharedLink() | Shared links |
+| GET | /api/shared-links/me?key=\|slug= | getSharedLinkMine(_:) | **Visiteur** — 401 `"Password required"` tant que le cookie de login manque |
+| POST | /api/shared-links/login?key=\|slug= | loginToSharedLink(_:password:) | **Visiteur** — réponse **201** + `Set-Cookie: immich_shared_link_token`, rejoué ensuite |
+| POST | /api/search/metadata?key= | getSharedLinkAlbumAssets(_:albumId:page:size:) | **Visiteur** — `albumIds` **obligatoire** sous auth partagée |
+| POST | /api/assets?key= | uploadAssetToSharedLink(...) | **Visiteur** — 401 nu si `allowUpload` est faux |
 | GET | /api/stacks | searchStacks() | Stacks |
 | POST | /api/stacks | createStack() | Stacks — **sert aussi à étendre une pile** (contrat de fusion, cf. §2.9) |
 | GET | /api/stacks/:id | getStack() | Stacks |
@@ -719,11 +754,12 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 **Memories Complete** : 7 nouvelles méthodes ImmichClient + `CreateMemorySheet.swift`
 **Push Notifications** : 4 nouveaux fichiers (Service, Store, ViewModel, View) + 3 intégrations
 **Shared Links Enriched** : 3 nouvelles méthodes + `ExternalLinkPreviewView.swift` + `UploadFromLinkView.swift`
-**Offline Download** : `OfflineAssetStore.swift` + `OfflineDownloadViewModel.swift` + `OfflineAssetsView.swift`
+**Offline Download** (P4, carte révisée le 2026-09-13) : `Sources/Services/OfflineAssetStore.swift` + `Sources/Services/ImageDownsampler.swift` + `Sources/Features/Offline/{OfflineAssetIndex,OfflineDownloadViewModel,OfflineAssetsView}.swift` ; étage local dans `AuthenticatedAsyncImage`, badge `offlineBadge` dans `AssetThumbnailCell`, section « Offline » de `PhotoShareSheet`, lien dans `ProfileView`, câblage `DependencyContainer`+`RootView`, clés i18n EN+FR, `Tests/OfflineAssetStoreTests` + `Tests/OfflineDownloadViewModelTests`, stub committé `UITests/stubs/immich_stub_offline.py` + `test_09_offlineDownload`. ⚠ Le cache vit sous **Application Support** (jamais `Caches`, purgeable) ; ⚠ l'index est réconcilié avec le disque ; ⚠ sans l'étage `localFileURL` d'`AuthenticatedAsyncImage` rien ne se voit hors-ligne.
 **Widgets** : 3 Widget + `WidgetDataProvider.swift` + ImmichWidgetsBundle
-**Stacks UI** : ✅ terminé (724 tests verts, 12/12 AC PASS le 2026-09-13). Fichiers : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `StackPhotoPicker.swift` + `CreateStackSheet.swift` + `AddToStackSheet.swift` (`Sources/Features/Stacks/`) ; `withStacked = true` dans `TimelineViewModel` + badge `+N` dans `AssetThumbnailCell` + routage du tap vers la pile dans `TimelineView` ; lien «Stacks» dans `ProfileView`. ⚠ `StackSheet` (PhotoViewer) est **inchangée** — elle faisait déjà couverture/membre/dissolution ; l'AC d'origine qui la visait était déjà PASS avant implémentation. ⚠ **Aucune route n'ajoute un asset à une pile** : `addPhotos` étend une pile en re-postant `POST /api/stacks` avec la couverture en tête (contrat de fusion), ce qui **change l'id de la pile** — l'écran doit suivre le nouvel id. ⚠ Le tap d'une grille de vignettes passe par `onTap:` d'`AssetThumbnailCell` : l'envelopper dans un `Button` **avale** le tap (défaut silencieux, invisible aux tests unitaires).
+Stacks UI : ✅ terminé (724 tests verts, 12/12 AC PASS le 2026-09-13). Fichiers : `StacksViewModel.swift` + `StackView.swift` + `StackDetailView.swift` + `CreateStackSheet.swift` + `AddToStackSheet.swift` (`Sources/Features/Stacks/`) — la grille de sélection partagée vit désormais dans `Sources/Features/Timeline/AssetMultiSelectGrid.swift` (`StackPhotoPicker.swift` supprimé le 2026-09-13, cf. §2.4) ; `withStacked = true` dans `TimelineViewModel` + badge `+N` dans `AssetThumbnailCell` + routage du tap vers la pile dans `TimelineView` ; lien «Stacks» dans `ProfileView`. ⚠ `StackSheet` (PhotoViewer) est **inchangée** — elle faisait déjà couverture/membre/dissolution ; l'AC d'origine qui la visait était déjà PASS avant implémentation. ⚠ **Aucune route n'ajoute un asset à une pile** : `addPhotos` étend une pile en re-postant `POST /api/stacks` avec la couverture en tête (contrat de fusion), ce qui **change l'id de la pile** — l'écran doit suivre le nouvel id. ⚠ Le tap d'une grille de vignettes passe par `onTap:` d'`AssetThumbnailCell` : l'envelopper dans un `Button` **avale** le tap (défaut silencieux, invisible aux tests unitaires).
 **i18n** : Localizable.xcstrings ≥200 clés + tous les Views migrés + `LanguageSettingsView.swift` + `AppDateFormat.swift`
+**Shared Link Viewer** (issue #22) : ✅ terminé (805 tests verts, 6/6 AC PASS le 2026-09-13). Fichiers : `SharedLinkViewerViewModel.swift` + `SharedLinkViewerView.swift` (`Sources/Features/SharedLinks/`), `sendSharedLinkRaw` + 4 méthodes visiteur dans `ImmichAPIClient`/`ImmichClient`, `SharedLinkCredential` + `SharedLinkLoginDto` (`DTOs+SharedLink.swift`), `SharedLinkURL.reference(from:)`. Stub committé `UITests/stubs/immich_stub_shared_link_viewer.py` + `test_SLV_viewer`. ⚠ Le chemin visiteur ne doit **jamais** passer par `sendAuthedRaw` (token requis) **ni** par `validate` (un 401 prévient `authDelegate` et déconnecte) ; ⚠ un lien ALBUM n'a pas d'`assets` dans son DTO — ses photos viennent de `POST /search/metadata` avec `albumIds` ; ⚠ ne pas « rétablir » `getSharedLinkPublic`/`checkSharedLinkPassword`/`uploadToSharedLink` : ces routes n'existent pas (AC-4004 les interdit).
 
 ---
 
-*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 : **Partners UI** ✅ clôturé (14/14 AC PASS, 724 → 736 tests, `test_06_partners` de bout en bout sur le premier stub **committé** du dépôt) après révision complète du contrat serveur (`direction` **requis** sur `GET /api/partners` — l'appel sans query rendait 400 au runtime ; création par `sharedWithId` et non par email ; `PUT`/`DELETE` valides chacun sur une seule direction ; rattachement au hub « Me ») — **Stacks UI** ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`.*
+*Généré depuis les specs .omp/ et les acceptance cards .opencode/scratch/ — 2026-09-08, mis à jour le 2026-09-13 : **Offline Download** (P4, issue #18) préparé — carte réécrite (AC-3500–AC-3512) sur la baseline mesurée **805 tests TEST SUCCEEDED**, cache sous Application Support et non `Caches`, étage `localFileURL` d'`AuthenticatedAsyncImage` comme chemin de rendu hors-ligne, index réconcilié avec le disque (§2.7) ; **Shared Link Viewer** ✅ clôturé (#22, 6/6 AC PASS, 772 → 805 tests, `test_SLV_viewer` vert deux fois de suite sur le stub **committé** `UITests/stubs/immich_stub_shared_link_viewer.py`) ; feature sans équivalent Flutter — contrat réel : `GET /shared-links/me?key=|slug=`, `POST /shared-links/login` (+ cookie), `POST /search/metadata` avec `albumIds`, `POST /assets?key=`) — **Memories Complete** ✅ clôturé (9/9 AC PASS, 749 → 772 tests, `test_08_memories` de bout en bout sur le stub **committé** `UITests/stubs/immich_stub_memories.py`) après révision du contrat serveur (`PUT` et non `PATCH` sur `/memories/{id}` ; `PUT`/`DELETE` et non `POST` sur `{id}/assets`, corps `BulkIdsDto`, réponse `BulkIdResponseDto` ; `MemoryType` mono-valeur — `first_day`/`yearly_recap` n'existent pas ; aucun champ titre dans l'API ; la liste filtre les mémoires sans asset, la création est `isSaved: true` pour échapper au ménage des 30 jours) — **Partners UI** ✅ clôturé (14/14 AC PASS, 724 → 736 tests, `test_06_partners` de bout en bout sur le premier stub **committé** du dépôt) après révision complète du contrat serveur (`direction` **requis** sur `GET /api/partners` — l'appel sans query rendait 400 au runtime ; création par `sharedWithId` et non par email ; `PUT`/`DELETE` valides chacun sur une seule direction ; rattachement au hub « Me ») — **Stacks UI** ✅ clôturé : 12/12 AC PASS, dont l'ajout de photos à une pile — **aucune route serveur ne l'expose**, le contrat réel est la fusion de `POST /api/stacks` : couverture en tête du payload et **id de pile neuf à suivre** ; carte AC réécrite sur la surface réelle + 3 scénarios XCUITest de bout en bout, et un tap de grille mort corrigé dans le picker partagé — baseline 695 → 724 tests. Précédemment : Backup Auto ✅ clôturé le 2026-09-10 avec ses 5 suites P2 ; OAuth2 UI ✅ clôturé le 2026-09-10, 8/8 AC PASS après réécriture de la carte/spec/UI brief sur la surface réelle et correction de la fuite de `isLoading`.*

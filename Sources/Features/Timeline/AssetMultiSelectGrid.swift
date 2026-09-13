@@ -1,35 +1,52 @@
 import SwiftUI
 
-/// Multi-select grid of the newest photos, paged from `POST /api/search/metadata`.
+/// Multi-select grid of the newest photos, paged through
+/// `POST /api/search/metadata`.
 ///
-/// Shared by `CreateStackSheet` (start a stack) and `AddToStackSheet` (extend
-/// one): the picking surface is identical, only the CTA and the call differ, so
-/// there is one grid to keep right instead of two drifting copies.
+/// Shared by the stack sheets (`CreateStackSheet`, `AddToStackSheet`) and the
+/// memory sheets (`CreateMemorySheet`, `AddPhotosToMemorySheet`): the picking
+/// surface is identical — only the state it reads and the sheet's CTA differ —
+/// so there is one grid to keep right instead of one drifting copy per feature.
 ///
-/// Owns no state — it reads and writes the picker state on `StacksViewModel`
-/// and expects the host sheet to have opened the flow (`beginPicking`).
-struct StackPhotoPicker: View {
-    @Bindable var vm: StacksViewModel
+/// Owns no state: it renders what it is handed and reports taps back. The host
+/// sheet is responsible for having opened the flow (`beginPicking`).
+struct AssetMultiSelectGrid: View {
+    let assets: [AssetReactItem]
+    let selectedIds: Set<String>
+    let isLoading: Bool
+    /// False once the server reported no next page — the end of the library.
+    let canLoadMore: Bool
+    let errorMessage: String?
     let baseURL: URL
     let token: String?
 
-    /// Members to leave out of the grid (the stack being extended). Kept out of
-    /// the selection rather than merely unchecked: "adding" a photo the stack
-    /// already holds would re-create the stack for nothing.
+    /// Members to leave out of the grid (a stack's existing photos, a memory's
+    /// current ones). Kept out of the selection rather than merely unchecked:
+    /// sending a member the collection already holds is a needless round-trip.
     var excluding: Set<String> = []
+
+    /// The rule the sheet's CTA enforces, spelled out so a disabled button is
+    /// explained rather than mysterious.
+    let selectionHint: String
+
+    /// Shown when the library has nothing left to offer.
+    let emptyMessage: String
+
+    let onLoadMore: () async -> Void
+    let onToggle: (String) -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
-    /// What the grid actually renders — the picker's page minus the excluded
+    /// What the grid actually renders — the picker's pages minus the excluded
     /// members. Empty while pages keep turning up nothing new is handled by
-    /// `emptyButMore`, not by a dead-end empty state.
+    /// `emptyState`, not by a dead-end empty state.
     private var visibleAssets: [AssetReactItem] {
-        vm.recentAssets.filter { !excluding.contains($0.id) }
+        assets.filter { !excluding.contains($0.id) }
     }
 
     var body: some View {
         Group {
-            if vm.isLoadingAssets && vm.recentAssets.isEmpty {
+            if isLoading && assets.isEmpty {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visibleAssets.isEmpty {
@@ -41,19 +58,19 @@ struct StackPhotoPicker: View {
     }
 
     /// Nothing to show yet. Only a dead end once the library is exhausted —
-    /// otherwise a page was entirely made of photos already in the stack, and
-    /// the next page is on its way.
+    /// otherwise a page was entirely made of already-included photos, and the
+    /// next page is on its way.
     @ViewBuilder
     private var emptyState: some View {
-        if vm.canLoadMoreAssets {
+        if canLoadMore {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .task(id: vm.recentAssets.count) { await vm.loadMoreAssets() }
+                .task(id: assets.count) { await onLoadMore() }
         } else {
             ContentUnavailableView {
                 Label("Nothing to add", systemImage: "photo.on.rectangle.angled")
             } description: {
-                Text(vm.errorMessage ?? "Every photo in your library is already in a stack you can see here.")
+                Text(errorMessage ?? emptyMessage)
             }
         }
     }
@@ -73,52 +90,41 @@ struct StackPhotoPicker: View {
                         baseURL: baseURL,
                         token: token,
                         selectionMode: true,
-                        isSelected: vm.selectedIds.contains(asset.id),
-                        onTap: { vm.toggleSelection(id: asset.id) }
+                        isSelected: selectedIds.contains(asset.id),
+                        onTap: { onToggle(asset.id) }
                     )
                     .accessibilityIdentifier("pickerAsset_\(asset.id)")
                     .onAppear {
                         // Prefetch the next page a screenful early so the grid
                         // never dead-ends on a spinner.
-                        if asset.id == visibleAssets.last?.id, vm.canLoadMoreAssets {
-                            Task { await vm.loadMoreAssets() }
+                        if asset.id == visibleAssets.last?.id, canLoadMore {
+                            Task { await onLoadMore() }
                         }
                     }
                 }
             }
             .padding(.horizontal, PVSpacing.s4)
 
-            if vm.isLoadingAssets {
+            if isLoading {
                 ProgressView()
                     .padding(.vertical, PVSpacing.s16)
             }
         }
     }
 
-    /// Live count + the rule the server enforces, so a disabled CTA is
-    /// explained rather than mysterious.
     private var selectionSummary: some View {
         VStack(alignment: .leading, spacing: PVSpacing.s2) {
-            Text(vm.selectedIds.count == 1
+            Text(selectedIds.count == 1
                  ? "1 selected"
-                 : "\(vm.selectedIds.count) selected")
+                 : "\(selectedIds.count) selected")
                 .font(.pvSubhead.weight(.semibold))
                 .foregroundStyle(Color.textPrimaryPV)
-            Text(minimumSelectionHint)
+            Text(selectionHint)
                 .font(.pvCaption)
                 .foregroundStyle(Color.textSecondaryPV)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, PVSpacing.s16)
         .padding(.vertical, PVSpacing.s8)
-    }
-
-    /// The hint differs because the minimum does: a new stack needs 2 ids
-    /// (`.min(2)` on `StackCreateDto`), while extending one already has a member
-    /// — its cover — to lead the payload.
-    private var minimumSelectionHint: String {
-        excluding.isEmpty
-            ? "Pick at least 2 photos. The newest one becomes the cover."
-            : "Pick at least 1 photo. The stack's current cover stays its cover."
     }
 }

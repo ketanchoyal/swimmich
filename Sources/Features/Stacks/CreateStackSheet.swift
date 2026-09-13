@@ -11,10 +11,18 @@ struct CreateStackSheet: View {
 
     var body: some View {
         NavigationStack {
-            StackPhotoPicker(
-                vm: vm,
+            AssetMultiSelectGrid(
+                assets: vm.recentAssets,
+                selectedIds: vm.selectedIds,
+                isLoading: vm.isLoadingAssets,
+                canLoadMore: vm.canLoadMoreAssets,
+                errorMessage: vm.errorMessage,
                 baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
-                token: auth.accessToken
+                token: auth.accessToken,
+                selectionHint: "Pick at least 2 photos. The newest one becomes the cover.",
+                emptyMessage: "Every photo in your library is already in a stack you can see here.",
+                onLoadMore: { await vm.loadMoreAssets() },
+                onToggle: { vm.toggleSelection(id: $0) }
             )
             .navigationTitle("New Stack")
             .navigationBarTitleDisplayMode(.inline)

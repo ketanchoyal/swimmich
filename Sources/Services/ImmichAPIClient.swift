@@ -368,10 +368,50 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.activity.path("/\(id)"), body: nil)
     }
 
-    // MARK: - Memories (P0 api-surface-expansion)
+    // MARK: - Memories (P0 api-surface-expansion; CRUD added 2026-09-13)
 
     func getMemories() async throws -> [MemoryResponseDto] {
         try await sendAuthed(.GET, path: ImmichAPI.memories.path(""))
+    }
+
+    func getMemory(id: String) async throws -> MemoryResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.memories.path("/\(id)"))
+    }
+
+    /// `PUT` — the route is `get|put|delete` in the published OpenAPI; a PATCH
+    /// is not exposed and would 404.
+    func updateMemory(id: String, dto: MemoryUpdateDto) async throws -> MemoryResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.memories.path("/\(id)"), body: AnyEncodable(dto))
+    }
+
+    func deleteMemory(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.memories.path("/\(id)"), body: nil)
+    }
+
+    func createMemory(dto: MemoryCreateDto) async throws -> MemoryResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.memories.path(""), body: AnyEncodable(dto))
+    }
+
+    @discardableResult
+    func addAssetsToMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto] {
+        try await sendAuthed(
+            .PUT,
+            path: ImmichAPI.memories.path("/\(id)/assets"),
+            body: AnyEncodable(BulkIdsDto(ids: assetIds))
+        )
+    }
+
+    @discardableResult
+    func removeAssetsFromMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto] {
+        try await sendAuthed(
+            .DELETE,
+            path: ImmichAPI.memories.path("/\(id)/assets"),
+            body: AnyEncodable(BulkIdsDto(ids: assetIds))
+        )
+    }
+
+    func getMemoriesStatistics() async throws -> MemoryStatisticsResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.memories.path("/statistics"))
     }
 
     // MARK: - Duplicates (P0 api-surface-expansion)

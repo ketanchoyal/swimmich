@@ -193,6 +193,24 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastDeleteActivityId: String?
     var memoriesResponse: [MemoryResponseDto]?
     var memoriesError: Error?
+    /// Per-id answers for `getMemory` — the CRUD paths re-read a memory after a
+    /// mutation that answers with per-asset results.
+    var memoryDetailResponses: [String: MemoryResponseDto] = [:]
+    var lastGetMemoryId: String?
+    var lastUpdateMemoryId: String?
+    var lastUpdateMemoryDto: MemoryUpdateDto?
+    var updateMemoryResponse: MemoryResponseDto?
+    var lastDeleteMemoryId: String?
+    var deleteMemoryCallCount = 0
+    var lastCreateMemoryDto: MemoryCreateDto?
+    var createMemoryResponse: MemoryResponseDto?
+    var lastAddAssetsMemoryId: String?
+    var lastAddAssetsMemoryIds: [String]?
+    var addAssetsMemoryResponse: [BulkIdResponseDto]?
+    var lastRemoveAssetsMemoryId: String?
+    var lastRemoveAssetsMemoryIds: [String]?
+    var removeAssetsMemoryResponse: [BulkIdResponseDto]?
+    var memoriesStatisticsResponse: MemoryStatisticsResponseDto?
     var duplicatesResponse: [DuplicateResponseDto]?
     var duplicatesError: Error?
     var serverStatisticsResponse: ServerStatsResponseDto?
@@ -724,6 +742,74 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? memoriesError { throw e }
         return memoriesResponse ?? []
+    }
+
+    func getMemory(id: String) async throws -> MemoryResponseDto {
+        bump()
+        lastGetMemoryId = id
+        if let e = globalError ?? memoriesError { throw e }
+        return memoryDetailResponses[id] ?? MemoryResponseDto(
+            id: id, createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z",
+            memoryAt: "2023-06-15T00:00:00.000Z", ownerId: "owner", type: .on_this_day,
+            data: OnThisDayDto(year: 2023), assets: [], isSaved: false
+        )
+    }
+
+    func updateMemory(id: String, dto: MemoryUpdateDto) async throws -> MemoryResponseDto {
+        bump()
+        lastUpdateMemoryId = id
+        lastUpdateMemoryDto = dto
+        if let e = globalError ?? memoriesError { throw e }
+        if let r = updateMemoryResponse { return r }
+        return MemoryResponseDto(
+            id: id, createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z",
+            memoryAt: dto.memoryAt ?? "2023-06-15T00:00:00.000Z", ownerId: "owner",
+            type: .on_this_day, data: OnThisDayDto(year: 2023), assets: [],
+            isSaved: dto.isSaved ?? false
+        )
+    }
+
+    func deleteMemory(id: String) async throws {
+        bump()
+        deleteMemoryCallCount += 1
+        lastDeleteMemoryId = id
+        if let e = globalError ?? memoriesError { throw e }
+    }
+
+    func createMemory(dto: MemoryCreateDto) async throws -> MemoryResponseDto {
+        bump()
+        lastCreateMemoryDto = dto
+        if let e = globalError ?? memoriesError { throw e }
+        if let r = createMemoryResponse { return r }
+        return MemoryResponseDto(
+            id: "new-memory", createdAt: "2024-01-01T00:00:00.000Z", updatedAt: "2024-01-01T00:00:00.000Z",
+            memoryAt: dto.memoryAt, ownerId: "owner", type: dto.type,
+            data: dto.data, assets: [], isSaved: dto.isSaved ?? false
+        )
+    }
+
+    func addAssetsToMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto] {
+        bump()
+        lastAddAssetsMemoryId = id
+        lastAddAssetsMemoryIds = assetIds
+        if let e = globalError ?? memoriesError { throw e }
+        return addAssetsMemoryResponse
+            ?? assetIds.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
+    }
+
+    func removeAssetsFromMemory(id: String, assetIds: [String]) async throws -> [BulkIdResponseDto] {
+        bump()
+        lastRemoveAssetsMemoryId = id
+        lastRemoveAssetsMemoryIds = assetIds
+        if let e = globalError ?? memoriesError { throw e }
+        return removeAssetsMemoryResponse
+            ?? assetIds.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
+    }
+
+    func getMemoriesStatistics() async throws -> MemoryStatisticsResponseDto {
+        bump()
+        if let e = globalError ?? memoriesError { throw e }
+        return memoriesStatisticsResponse ?? MemoryStatisticsResponseDto(total: memoriesResponse?.count ?? 0)
     }
 
     // MARK: - Duplicates (P0 api-surface-expansion)

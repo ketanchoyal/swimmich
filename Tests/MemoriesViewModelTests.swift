@@ -3,7 +3,24 @@ import XCTest
 
 final class MemoriesViewModelTests: XCTestCase {
 
-    private func makeMemory(id: String, year: Int, assetCount: Int = 2) -> MemoryResponseDto {
+    private func asset(_ id: String) -> AssetResponseDto {
+        AssetResponseDto(
+            id: id, type: "IMAGE", thumbhash: nil, localDateTime: "2024-07-01T00:00:00.000Z",
+            duration: nil, hasMetadata: true, width: 100, height: 100, createdAt: "2024-07-01T00:00:00.000Z",
+            ownerId: "owner", originalPath: "/\(id).jpg", originalFileName: "\(id).jpg",
+            fileCreatedAt: "2024-07-01T00:00:00.000Z", fileModifiedAt: "2024-07-01T00:00:00.000Z",
+            updatedAt: "2024-07-01T00:00:00.000Z", isFavorite: false, isArchived: false,
+            isTrashed: false, isOffline: false, visibility: "timeline", checksum: "abc", isEdited: false
+        )
+    }
+
+    private func searchPage(ids: [String], nextPage: String?) -> SearchResponseDto {
+        SearchResponseDto(
+            assets: SearchAssetResponseDto(count: ids.count, items: ids.map(asset), nextPage: nextPage)
+        )
+    }
+
+    private func makeMemory(id: String, year: Int, assetCount: Int = 2, isSaved: Bool = false) -> MemoryResponseDto {
         let assets = (0..<assetCount).map { i in
             AssetResponseDto(
                 id: "\(id)-a\(i)", type: "IMAGE", thumbhash: nil, localDateTime: "2024-07-01T00:00:00.000Z",
@@ -17,7 +34,7 @@ final class MemoriesViewModelTests: XCTestCase {
         return MemoryResponseDto(
             id: id, createdAt: "2024-07-01T00:00:00.000Z", updatedAt: "2024-07-01T00:00:00.000Z",
             memoryAt: "\(year)-07-01T00:00:00.000Z", ownerId: "owner", type: .on_this_day,
-            data: OnThisDayDto(year: year), assets: assets, isSaved: false,
+            data: OnThisDayDto(year: year), assets: assets, isSaved: isSaved,
             showAt: nil, hideAt: nil, seenAt: nil, deletedAt: nil
         )
     }
@@ -112,6 +129,277 @@ final class MemoriesViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.memories.isEmpty)
         XCTAssertEqual(vm.errorMessage?.contains("memories boom"), true)
+    }
+
+    // MARK: - Save / unsave
+
+    @MainActor
+    func test_saveMemory_sendsIsSavedTrueAndUpdatesTheRow() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022), makeMemory(id: "m2", year: 2023)]
+        mock.updateMemoryResponse = makeMemory(id: "m1", year: 2022, isSaved: true)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        await vm.saveMemory(id: "m1")
+
+        XCTAssertEqual(mock.lastUpdateMemoryId, "m1")
+        XCTAssertEqual(mock.lastUpdateMemoryDto?.isSaved, true)
+        XCTAssertEqual(vm.memories.first { $0.id == "m1" }?.isSaved, true)
+        XCTAssertEqual(vm.memories.map(\.id), ["m2", "m1"], "saving must not reorder the list")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func test_unsaveMemory_sendsIsSavedFalse() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, isSaved: true)]
+        mock.updateMemoryResponse = makeMemory(id: "m1", year: 2022)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        await vm.unsaveMemory(id: "m1")
+
+        XCTAssertEqual(mock.lastUpdateMemoryDto?.isSaved, false)
+        XCTAssertEqual(vm.memories.first?.isSaved, false)
+    }
+
+    /// A failed save must not leave the bookmark claiming the server accepted
+    /// it — the flag is only ever taken from the server's response.
+    @MainActor
+    func test_saveMemory_failureKeepsTheRowAndReportsIt() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022)]
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        mock.memoriesError = APIError.serverError(500, "nope")
+        await vm.saveMemory(id: "m1")
+
+        XCTAssertEqual(vm.memories.first?.isSaved, false)
+        XCTAssertEqual(vm.errorMessage?.contains("nope"), true)
+    }
+
+    // MARK: - Create
+
+    /// The create payload is the whole contract: `data.year` and `memoryAt`
+    /// must agree (both required server-side), the type is the enum's only
+    /// value, and the memory is born saved — the server's cleanup job deletes
+    /// unsaved memories older than 30 days.
+    @MainActor
+    func test_createMemory_sendsYearTimestampAndSavedFlag() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = searchPage(ids: ["a1", "a2", "a3"], nextPage: nil)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.beginPicking()
+        vm.toggleSelection(id: "a3")
+        vm.toggleSelection(id: "a1")
+        vm.memoryDate = Calendar.current.date(from: DateComponents(year: 2019, month: 5, day: 4))!
+
+        await vm.createMemory()
+
+        let dto = try? XCTUnwrap(mock.lastCreateMemoryDto)
+        XCTAssertEqual(dto?.assetIds, ["a1", "a3"], "the grid order is what the payload carries")
+        XCTAssertEqual(dto?.data.year, 2019)
+        XCTAssertEqual(dto?.type, .on_this_day)
+        XCTAssertEqual(dto?.isSaved, true, "an unsaved memory is deleted by the server after 30 days")
+        XCTAssertEqual(dto?.memoryAt.hasPrefix("2019-05-04T"), true, "memoryAt carries the picked day")
+        XCTAssertFalse(vm.showCreate, "a successful create closes the sheet")
+        XCTAssertTrue(vm.selectedIds.isEmpty, "the picker does not keep the selection")
+    }
+
+    /// The picked day must survive the round trip, whatever the device's UTC
+    /// offset: the anchor is that day's UTC midnight and the card reads it back
+    /// in UTC, so "May 4" picked in Tokyo must still read "May 4". Formatting the
+    /// picker's instant directly shifted the day west by one for every positive
+    /// offset (the create test caught it; this one pins the reason).
+    func test_memoryAtString_anchorsThePickedDayAtUTCMidnight() {
+        var tokyo = Calendar(identifier: .gregorian)
+        tokyo.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let pickedInTokyo = tokyo.date(from: DateComponents(year: 2019, month: 5, day: 4, hour: 9))!
+
+        XCTAssertEqual(
+            MemoriesViewModel.memoryAtString(for: pickedInTokyo, calendar: tokyo),
+            "2019-05-04T00:00:00.000Z"
+        )
+        XCTAssertEqual(MemoriesViewModel.dayComponents(of: pickedInTokyo, calendar: tokyo).year, 2019)
+
+        let memory = MemoryResponseDto(
+            id: "m1", createdAt: "2019-05-04T00:00:00.000Z", updatedAt: "2019-05-04T00:00:00.000Z",
+            memoryAt: MemoriesViewModel.memoryAtString(for: pickedInTokyo, calendar: tokyo),
+            ownerId: "owner", type: .on_this_day, data: OnThisDayDto(year: 2019), assets: [],
+            isSaved: true, showAt: nil, hideAt: nil, seenAt: nil, deletedAt: nil
+        )
+        XCTAssertEqual(MemoryCardPresentation.dayLabel(for: memory, locale: enUS), "May 4")
+    }
+
+    @MainActor
+    func test_createMemory_withoutSelectionSendsNothing() async {
+        let mock = MockImmichClient()
+        let vm = MemoriesViewModel(client: mock)
+
+        await vm.createMemory()
+
+        XCTAssertNil(mock.lastCreateMemoryDto)
+    }
+
+    @MainActor
+    func test_createMemory_failureKeepsSheetOpenAndTheSelection() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = searchPage(ids: ["a1"], nextPage: nil)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.beginPicking()
+        vm.toggleSelection(id: "a1")
+        vm.showCreate = true
+        mock.memoriesError = APIError.serverError(400, "bad year")
+
+        await vm.createMemory()
+
+        XCTAssertTrue(vm.showCreate, "a failed create must leave the sheet up for a retry")
+        XCTAssertEqual(vm.selectedIds, ["a1"])
+        XCTAssertEqual(vm.errorMessage?.contains("bad year"), true)
+    }
+
+    // MARK: - Delete
+
+    @MainActor
+    func test_deleteMemory_dropsTheRow() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022), makeMemory(id: "m2", year: 2023)]
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        await vm.deleteMemory(id: "m1")
+
+        XCTAssertEqual(mock.lastDeleteMemoryId, "m1")
+        XCTAssertEqual(vm.memories.map(\.id), ["m2"])
+    }
+
+    @MainActor
+    func test_deleteMemory_failureKeepsTheRowAndReportsIt() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022)]
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        mock.memoriesError = APIError.serverError(403, "forbidden")
+        await vm.deleteMemory(id: "m1")
+
+        XCTAssertEqual(vm.memories.map(\.id), ["m1"])
+        XCTAssertEqual(vm.errorMessage?.contains("forbidden"), true)
+    }
+
+    // MARK: - Assets
+
+    /// `PUT /api/memories/{id}/assets` answers per-asset results, not the
+    /// memory — so the member list has to come back from the server.
+    @MainActor
+    func test_addAssets_sendsIdsAndRefreshesTheMemberList() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, assetCount: 2)]
+        mock.memoryDetailResponses["m1"] = makeMemory(id: "m1", year: 2022, assetCount: 3)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        let added = await vm.addAssets(toMemoryId: "m1", assetIds: ["new1"])
+
+        XCTAssertTrue(added)
+        XCTAssertEqual(mock.lastAddAssetsMemoryId, "m1")
+        XCTAssertEqual(mock.lastAddAssetsMemoryIds, ["new1"])
+        XCTAssertEqual(vm.memories.first?.assets.count, 3)
+    }
+
+    @MainActor
+    func test_addAssets_failureReportsItAndKeepsTheSheetOpen() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, assetCount: 2)]
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        mock.memoriesError = APIError.serverError(400, "not yours")
+        let added = await vm.addAssets(toMemoryId: "m1", assetIds: ["new1"])
+
+        XCTAssertFalse(added)
+        XCTAssertEqual(vm.memories.first?.assets.count, 2)
+        XCTAssertEqual(vm.errorMessage?.contains("not yours"), true)
+    }
+
+    /// Dropping the last photo deletes the memory from the client's point of
+    /// view: `GET /api/memories` filters out memories with no asset, so the
+    /// screen showing it must close instead of holding a memory that no longer
+    /// exists.
+    @MainActor
+    func test_removeAssets_lastPhotoDropsTheMemoryAndClosesTheScreen() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, assetCount: 1)]
+        mock.memoryDetailResponses["m1"] = makeMemory(id: "m1", year: 2022, assetCount: 0)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        let stillExists = await vm.removeAssets(fromMemoryId: "m1", assetIds: ["m1-a0"])
+
+        XCTAssertFalse(stillExists, "the caller must be told to dismiss")
+        XCTAssertTrue(vm.memories.isEmpty)
+    }
+
+    @MainActor
+    func test_removeAssets_keepsTheMemoryWhilePhotosRemain() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, assetCount: 3)]
+        mock.memoryDetailResponses["m1"] = makeMemory(id: "m1", year: 2022, assetCount: 2)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        let stillExists = await vm.removeAssets(fromMemoryId: "m1", assetIds: ["m1-a0"])
+
+        XCTAssertTrue(stillExists)
+        XCTAssertEqual(mock.lastRemoveAssetsMemoryIds, ["m1-a0"])
+        XCTAssertEqual(vm.memories.first?.assets.count, 2)
+    }
+
+    @MainActor
+    func test_removeAssets_failureKeepsTheScreenAndReportsIt() async {
+        let mock = MockImmichClient()
+        mock.memoriesResponse = [makeMemory(id: "m1", year: 2022, assetCount: 1)]
+        let vm = MemoriesViewModel(client: mock)
+        await vm.load()
+
+        mock.memoriesError = APIError.serverError(500, "nope")
+        let stillExists = await vm.removeAssets(fromMemoryId: "m1", assetIds: ["m1-a0"])
+
+        XCTAssertTrue(stillExists, "a failed removal must not dismiss the screen")
+        XCTAssertEqual(vm.memories.first?.assets.count, 1)
+        XCTAssertEqual(vm.errorMessage?.contains("nope"), true)
+    }
+
+    // MARK: - Picker
+
+    @MainActor
+    func test_beginPicking_loadsFirstPageAndClearsSelection() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = searchPage(ids: ["a1", "a2"], nextPage: nil)
+        let vm = MemoriesViewModel(client: mock)
+
+        await vm.beginPicking()
+        vm.toggleSelection(id: "a1")
+        await vm.beginPicking()
+
+        XCTAssertEqual(vm.recentAssets.map(\.id), ["a1", "a2"])
+        XCTAssertTrue(vm.selectedIds.isEmpty, "reopening the picker must not resurrect an old selection")
+        XCTAssertEqual(mock.lastMetadataSearchDto?.order, "desc", "newest first")
+    }
+
+    @MainActor
+    func test_orderedSelection_followsGridOrderNotSetOrder() async {
+        let mock = MockImmichClient()
+        mock.searchMetadataResponse = searchPage(ids: ["newest", "middle", "oldest"], nextPage: nil)
+        let vm = MemoriesViewModel(client: mock)
+        await vm.beginPicking()
+
+        vm.toggleSelection(id: "oldest")
+        vm.toggleSelection(id: "newest")
+
+        XCTAssertEqual(vm.orderedSelection, ["newest", "oldest"])
     }
 
     // MARK: - MemoryCardPresentation
