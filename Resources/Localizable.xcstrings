@@ -371,6 +371,9 @@
         }
       }
     },
+    "Adding re-creates the stack on the server, so this stack gets a new id. A photo that already belongs to another stack moves into this one." : {
+
+    },
     "Adjust Date" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -827,6 +830,9 @@
         }
       }
     },
+    "Cover" : {
+
+    },
     "Create" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1155,6 +1161,9 @@
           }
         }
       }
+    },
+    "Every photo stays in your timeline — only the grouping is removed." : {
+
     },
     "Every photo was backed up." : {
 
@@ -1815,6 +1824,9 @@
         }
       }
     },
+    "No one to invite" : {
+
+    },
     "No other people yet." : {
       "localizations" : {
         "fr" : {
@@ -1953,6 +1965,9 @@
           }
         }
       }
+    },
+    "Nobody is sharing their library with you yet." : {
+
     },
     "Not selected" : {
       "extractionState" : "stale",
@@ -2122,6 +2137,9 @@
           }
         }
       }
+    },
+    "People you share your library with. Sharing is one-way: to see their photos, they have to add you as well." : {
+
     },
     "Photo" : {
       "extractionState" : "stale",
@@ -2756,7 +2774,13 @@
         }
       }
     },
+    "Shared with me" : {
+
+    },
     "Shared with you" : {
+
+    },
+    "Sharing" : {
 
     },
     "Sign in" : {
@@ -2869,6 +2893,9 @@
     "The certificate of %@ cannot be verified. Trust it anyway?" : {
 
     },
+    "The cover is what your timeline shows for this stack." : {
+
+    },
     "The next backup will re-check every photo against the server. Nothing is deleted — already-uploaded photos are simply skipped again." : {
 
     },
@@ -2895,7 +2922,10 @@
     "The suggested copies are kept. This cannot be undone." : {
 
     },
-    "Their photos will disappear from your timeline and their access to your library is revoked." : {
+    "Their photos can appear alongside yours in the timeline. The switch decides that per partner." : {
+
+    },
+    "They lose access to your library. Your photos stay on the server, and your own timeline is unaffected." : {
 
     },
     "They will no longer be able to view or edit this album." : {
@@ -2957,6 +2987,9 @@
           }
         }
       }
+    },
+    "This server does not expose its user list, or everyone on it is already a partner." : {
+
     },
     "This server has no other users to invite." : {
       "extractionState" : "stale",
@@ -3246,6 +3279,9 @@
           }
         }
       }
+    },
+    "You are not sharing your library with anyone yet." : {
+
     },
     "You have no albums yet." : {
       "localizations" : {
