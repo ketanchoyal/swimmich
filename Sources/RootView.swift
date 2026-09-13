@@ -1,3 +1,4 @@
+import ImmichSharedKit
 import SwiftUI
 
 /// Auth-gated root router. Shows login flow until authenticated, then timeline.
@@ -164,6 +165,27 @@ private struct AuthenticatedRoot: View {
                 await people.load(force: true)
                 await memories.load()
                 await offline.load()
+            }
+        }
+        // Widget deep links (issue #19), parsed by the shared framework so the
+        // widget extension and this router cannot drift: an asset lands on the
+        // Photos tab with the timeline primed to its bucket + day (a not-yet-
+        // loaded asset still resolves), memories lands on the Memories tab, and
+        // backup lands on Photos while kicking the gated engine. Anything else
+        // (the OAuth callback included) is not ours — no state changes.
+        .onOpenURL { url in
+            switch WidgetDeepLink.parse(url) {
+            case let .asset(id, day):
+                pendingTimelineScrollID = id
+                pendingTimelineScrollDay = day
+                selection = .photos
+            case .memories:
+                selection = .memories
+            case .backup:
+                selection = .photos
+                container.kickOffAutoBackup()
+            case nil:
+                break
             }
         }
         .onChange(of: selection) { _, newValue in

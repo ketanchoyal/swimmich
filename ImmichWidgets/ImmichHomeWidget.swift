@@ -1,31 +1,39 @@
+import ImmichSharedKit
 import SwiftUI
 import WidgetKit
 
-/// Home-screen widget (P5 widgets-appintents): static "launch" tile that opens
-/// the app (and triggers a backup via the `app.immich://backup` deep link).
-/// The widget process cannot reach the app's view models, so it stays
-/// data-free — the Live Activity covers live progress.
+/// Launcher tile: opens the app and starts a backup.
+///
+/// The widget process cannot reach the app's view models and holds no photo
+/// cache of its own, so this one stays data-free — the Live Activity covers the
+/// progress, the other three widgets cover the content. Its whole job is the
+/// `app.immich://backup` deep link, which the app routes to the Photos tab and
+/// the gated engine.
 struct ImmichHomeWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "ImmichHomeWidget", provider: ImmichHomeTimelineProvider()) { _ in
             VStack(spacing: 8) {
-                Image("AppIcon")
-                    .resizable()
-                    .frame(width: 44, height: 44)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Image(systemName: "camera.aperture")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(widgetBrandGradient)
                 Text("Immich")
                     .font(.headline)
-                Text("Back up now")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("Back up now")
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(widgetBrandGradient))
             }
-            .containerBackground(for: .widget) {
-                Color(UIColor.systemBackground)
-            }
-            .widgetURL(URL(string: "app.immich://backup"))
+            .widgetCanvas()
+            .widgetURL(WidgetDeepLink.backup.url)
         }
-        .configurationDisplayName("Immich")
-        .description("Open Immich and start a backup.")
+        .configurationDisplayName("Immich Backup")
+        .description("Start a backup from the Home Screen.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

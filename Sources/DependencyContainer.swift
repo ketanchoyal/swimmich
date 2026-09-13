@@ -1,4 +1,5 @@
 import Foundation
+import ImmichSharedKit
 
 /// App-wide composition root. Provides pre-built service graph + view models.
 @MainActor
@@ -71,7 +72,14 @@ final class DependencyContainer {
     }
 
     func makeAuthViewModel() -> AuthViewModel {
-        AuthViewModel(client: client as any ImmichClient, keychain: keychain, realtime: realtime)
+        AuthViewModel(
+            client: client as any ImmichClient,
+            keychain: keychain,
+            realtime: realtime,
+            // Widgets read the session from the shared keychain group, not from
+            // this process (issue #19).
+            widgetSession: WidgetSessionStore()
+        )
     }
 
     func makeTimelineViewModel() -> TimelineViewModel {

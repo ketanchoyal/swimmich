@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Read side of the widget session: the extension declares the app's own
+	     keychain group so it can read the token the app saved. Without this
+	     file the widget process only reaches its own bundle's group and every
+	     authenticated fetch comes back 401.
+	     The widget never writes to the keychain, so no group of its own is
+	     listed. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)fr.millianlmx.immich-ios</string>
+	</array>
+</dict>
+</plist>

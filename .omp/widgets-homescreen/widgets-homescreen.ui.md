@@ -1,5 +1,12 @@
 # Task: widgets-homescreen — UI Brief (Liquid Glass Primary)
 
+> **Corrections du 2026-09-13 (avant implémentation)** — trois demandes de ce brief ne tiennent pas côté WidgetKit, et ce qui a été livré les remplace :
+> - **`glassEffect(.regular)` sur les cellules est impossible** : la Liquid Glass API est réservée à l'UI de l'app, un widget rend sa propre platter et le système ne lui accorde pas d'effet de verre. Le « vitré » est obtenu autrement : pastilles `.ultraThinMaterial`, scrim dégradé sur la photo, `containerBackground` opaque et `contentMarginsDisabled()` pour que la mosaïque saigne jusqu'au bord (comme le widget Photos d'Apple). Vérifié au rendu.
+> - **Un `widgetURL` par widget, pas par cellule** : les deep links par photo sont des `Link(destination:)` (et un seul `widgetURL` racine, qui ouvre l'app / l'onglet Souvenirs).
+> - **Pas de « configuration » ni de « pull-to-refresh »** : aucun des deux n'existe dans WidgetKit (l'édition d'un widget se fait par `AppIntentConfiguration`, jamais construite ici).
+>
+> Ce qui a été gardé du brief : le watermark cœur (mais **par-dessus** la mosaïque : dessous, il est invisible — constat de rendu), la capsule vitrée par photo, le contour, les pastilles de type en dégradé de marque, l'état vide centré, zéro parallaxe (Reduce Motion). Les widgets Favoris/Photos/Souvenirs existent en small/medium (grand en plus pour Photos et Favoris) + familles Lock Screen circulaire/rectangulaire/inline.
+
 ## Design Philosophy
 
 Les widgets sont des **fenêtres vitrées** sur le contenu Immich. Ils flottent sur le Home Screen avec du glass, des photos visibles à travers, et des contours vitrés. Le tout est cohérent avec le widget Photos de Apple mais en mieux vitré.

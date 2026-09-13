@@ -3700,6 +3700,316 @@
           }
         }
       }
+    },
+    "%@ favorites" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ favoris"
+          }
+        }
+      }
+    },
+    "%@ on %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ le %@"
+          }
+        }
+      }
+    },
+    "%@ today" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ aujourd'hui"
+          }
+        }
+      }
+    },
+    "%@ yesterday" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hier"
+          }
+        }
+      }
+    },
+    "%lldy" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%llda"
+          }
+        }
+      }
+    },
+    "1 favorite" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 favori"
+          }
+        }
+      }
+    },
+    "1 year ago" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "il y a 1 an"
+          }
+        }
+      }
+    },
+    "Add to favorites" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter aux favoris"
+          }
+        }
+      }
+    },
+    "Back up now" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegarder maintenant"
+          }
+        }
+      }
+    },
+    "Immich Favorites" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favoris Immich"
+          }
+        }
+      }
+    },
+    "Immich Memories" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Souvenirs Immich"
+          }
+        }
+      }
+    },
+    "Immich Photos" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos Immich"
+          }
+        }
+      }
+    },
+    "No favorites yet" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore de favoris"
+          }
+        }
+      }
+    },
+    "No memories today" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de souvenir aujourd'hui"
+          }
+        }
+      }
+    },
+    "No photos yet" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore de photos"
+          }
+        }
+      }
+    },
+    "Open Immich to sign in or start a backup." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez Immich pour vous connecter ou lancer une sauvegarde."
+          }
+        }
+      }
+    },
+    "Photos you took on this day will show up here." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos prises ce jour-là apparaîtront ici."
+          }
+        }
+      }
+    },
+    "Remove from favorites" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer des favoris"
+          }
+        }
+      }
+    },
+    "Shuffle memories" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mélanger les souvenirs"
+          }
+        }
+      }
+    },
+    "Start a backup from the Home Screen." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lancez une sauvegarde depuis l'écran d'accueil."
+          }
+        }
+      }
+    },
+    "Tap the heart on a photo to keep it here." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez le cœur d'une photo pour la garder ici."
+          }
+        }
+      }
+    },
+    "The photos you kept." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos que vous avez gardées."
+          }
+        }
+      }
+    },
+    "This year" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette année"
+          }
+        }
+      }
+    },
+    "Video" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vidéo"
+          }
+        }
+      }
+    },
+    "What you were doing on this day, years ago." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que vous faisiez ce jour-là, il y a des années."
+          }
+        }
+      }
+    },
+    "Your newest photos, with the heart to keep one." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos photos les plus récentes, avec le cœur pour en garder une."
+          }
+        }
+      }
+    },
+    "favorite" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "favori"
+          }
+        }
+      }
+    },
+    "from %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "du %@"
+          }
+        }
+      }
+    },
+    "from today" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "d'aujourd'hui"
+          }
+        }
+      }
+    },
+    "from yesterday" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "d'hier"
+          }
+        }
+      }
+    },
+    "now" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "maintenant"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

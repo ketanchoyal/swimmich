@@ -1,0 +1,398 @@
+import XCTest
+@testable import ImmichSwiftUI
+
+/// Behaviour of the widget data path (issue #19).
+///
+/// A widget is the least forgiving surface in the app: it runs in its own
+/// process, it cannot show an error, and it draws whatever the provider
+/// returns. So the properties defended here are the ones a user would
+/// otherwise see as a broken tile — the hero is the newest photo and it is
+/// fetched at preview size while the mosaic cells stay small, the favorites
+/// widget asks the server for favorites only, a shuffle offset really rotates
+/// the memories, and every failure (no session, 401, 500, missing thumbnail)
+/// degrades to an empty or partial wall instead of a crash.
+final class WidgetDataProviderTests: XCTestCase {
+
+    // MARK: - Doubles
+
+    /// Records the requests the provider made and answers them from a script.
+    /// Lock-protected: the provider fetches the thumbnails concurrently.
+    private final class TransportSpy: WidgetDataTransport, @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: [URLRequest] = []
+        private let responder: @Sendable (URLRequest) -> (Int, Data)
+
+        init(responder: @escaping @Sendable (URLRequest) -> (Int, Data)) {
+            self.responder = responder
+        }
+
+        var requests: [URLRequest] {
+            lock.lock()
+            defer { lock.unlock() }
+            return recorded
+        }
+
+        func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+            lock.lock()
+            recorded.append(request)
+            lock.unlock()
+            let (status, data) = responder(request)
+            let response = HTTPURLResponse(
+                url: request.url ?? URL(string: "https://example.com")!,
+                statusCode: status,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (data, response)
+        }
+    }
+
+    private struct StubSessionStore: WidgetSessionStoring {
+        let session: WidgetSession?
+        func save(_ session: WidgetSession) {}
+        func load() -> WidgetSession? { session }
+        func clear() {}
+    }
+
+    private func provider(
+        _ spy: TransportSpy,
+        session: WidgetSession? = WidgetSession(baseURL: "https://photos.example.com", token: "widget-jwt")
+    ) -> WidgetDataProvider {
+        WidgetDataProvider(sessionStore: StubSessionStore(session: session), transport: spy)
+    }
+    private func url(_ request: URLRequest) -> String {
+        request.url?.absoluteString ?? ""
+    }
+
+    // MARK: - Photos wall
+
+    func test_recentPhotos_heroIsNewest_fetchedAtPreviewSize() async {
+        let spy = TransportSpy { request in
+            let path = request.url?.path ?? ""
+            switch path {
+            case "/api/timeline/buckets":
+                return (200, Data(#"[{"timeBucket":"2026-09-13T00:00:00.000Z","count":42},{"timeBucket":"2026-09-12T00:00:00.000Z","count":100}]"#.utf8))
+            case "/api/timeline/bucket":
+                return (200, Data(#"{"id":["hero","second","third"],"isImage":[true,false,true]}"#.utf8))
+            default:
+                return (200, Data([0xFF, 0xD8, 0xFF]))
+            }
+        }
+
+        let wall = await provider(spy).recentPhotos(limit: 3)
+
+        XCTAssertEqual(wall.photos.map(\.id), ["hero", "second", "third"])
+        XCTAssertEqual(wall.totalCount, 142, "the total is the sum of every bucket, not just the newest")
+        XCTAssertEqual(wall.newestBucket, "2026-09-13T00:00:00.000Z")
+        XCTAssertEqual(wall.newestCount, 42)
+        XCTAssertTrue(wall.photos[0].isVideo == false)
+        XCTAssertTrue(wall.photos[1].isVideo, "isImage == false is a video")
+        XCTAssertTrue(wall.photos.allSatisfy { $0.imageData != nil }, "every cell got bytes")
+
+        let requests = spy.requests
+        XCTAssertEqual(requests.count, 5, "2 calls + 3 thumbnails")
+        XCTAssertTrue(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer widget-jwt" })
+
+        let api = requests.filter { $0.url?.path.contains("/api/timeline/") == true }
+        XCTAssertEqual(url(api[0]), "https://photos.example.com/api/timeline/buckets", "the buckets come first")
+        XCTAssertFalse(url(api[0]).contains("isFavorite"), "the photos wall is not the favorites one")
+        XCTAssertEqual(url(api[1]), "https://photos.example.com/api/timeline/bucket?timeBucket=2026-09-13T00:00:00.000Z")
+
+        // The thumbnails are fetched concurrently, so assert the set, not the order.
+        let thumbnails = requests.filter { $0.url?.path.contains("/thumbnail") == true }
+        XCTAssertEqual(thumbnails.count, 3)
+        let previews = thumbnails.filter { url($0).contains("size=preview") }
+        XCTAssertEqual(previews.count, 1, "the hero is the one big render")
+        XCTAssertTrue(url(previews[0]).contains("/api/assets/hero/thumbnail"))
+        XCTAssertEqual(thumbnails.filter { url($0).contains("size=thumbnail") }.count, 2)
+        XCTAssertTrue(wall.photos[0].day == "2026-09-13T00:00:00.000Z", "the tile carries its bucket so a tap can deep-link")
+    }
+
+    func test_favoritePhotos_asksTheServerForFavoritesOnly() async {
+        let spy = TransportSpy { request in
+            if request.url?.path == "/api/timeline/buckets" {
+                return (200, Data(#"[{"timeBucket":"2026-08-01T00:00:00.000Z","count":7}]"#.utf8))
+            }
+            if request.url?.path == "/api/timeline/bucket" {
+                return (200, Data(#"{"id":["fav"],"isFavorite":[true]}"#.utf8))
+            }
+            return (200, Data([0xFF, 0xD8]))
+        }
+
+        let wall = await provider(spy).favoritePhotos(limit: 2)
+
+        XCTAssertEqual(wall.photos.map(\.id), ["fav"])
+        XCTAssertEqual(wall.totalCount, 7)
+        XCTAssertTrue(wall.photos[0].isFavorite)
+        XCTAssertTrue(url(spy.requests[0]).contains("isFavorite=true"), "a favorites widget must not fetch the whole timeline")
+    }
+
+    // MARK: - Memories
+
+    func test_memories_rotateWithOffset_andDropEmptyOnes() async {
+        let payload = #"""
+        [
+          {"id":"m2019","memoryAt":"2019-09-13T00:00:00.000Z","data":{"year":2019},
+           "assets":[{"id":"a1","type":"IMAGE","isFavorite":true}]},
+          {"id":"m2020","memoryAt":"2020-09-13T00:00:00.000Z","data":{"year":2020},
+           "assets":[{"id":"a2","type":"VIDEO"}]},
+          {"id":"empty","memoryAt":"2021-09-13T00:00:00.000Z","data":{"year":2021},"assets":[]},
+          {"id":"trashed","memoryAt":"2022-09-13T00:00:00.000Z","data":{"year":2022},
+           "assets":[{"id":"a3","type":"IMAGE","isTrashed":true}]}
+        ]
+        """#
+        let spy = TransportSpy { request in
+            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, Data([0xFF, 0xD8]))
+        }
+        let year = Calendar.current.component(.year, from: Date())
+
+        let first = await provider(spy).memories(limit: 2, offset: 0)
+        let second = await provider(spy).memories(limit: 2, offset: 1)
+
+        XCTAssertEqual(first.map(\.id), ["m2020", "m2019"], "empty and fully trashed memories never reach the widget, newest first")
+        XCTAssertEqual(second.map(\.id), ["m2019", "m2020"], "the shuffle offset really rotates the list")
+        XCTAssertEqual(first[0].yearsAgo, year - 2020)
+        XCTAssertEqual(first[1].yearsAgo, year - 2019)
+        XCTAssertEqual(first[0].photos.map(\.id), ["a2"])
+        XCTAssertTrue(first[0].photos[0].isVideo)
+        XCTAssertTrue(first[1].photos[0].isFavorite, "the payload's favorite flag rides along")
+        XCTAssertNotNil(first[0].photos[0].imageData, "memory thumbnails are hydrated too")
+        XCTAssertTrue(spy.requests.allSatisfy { $0.url?.path != "/api/timeline/buckets" },
+                      "a memory payload already carries its assets — no bucket call")
+    }
+
+    func test_memories_withMoreCardsThanAvailable_wrapsInsteadOfCrashing() async {
+        let payload = #"[{"id":"only","memoryAt":"2019-01-01T00:00:00.000Z","data":{"year":2019},"assets":[{"id":"a1","type":"IMAGE"}]}]"#
+        let spy = TransportSpy { request in
+            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, Data([0xFF, 0xD8]))
+        }
+
+        let cards = await provider(spy).memories(limit: 2, offset: 7)
+
+        XCTAssertEqual(cards.map(\.id), ["only"], "an offset past the end wraps instead of returning nothing")
+    }
+
+    // MARK: - Degradation
+
+    func test_noSession_returnsEmptyAndMakesNoRequest() async {
+        let spy = TransportSpy { _ in (200, Data()) }
+
+        let wall = await provider(spy, session: nil).recentPhotos(limit: 3)
+        let favorites = await provider(spy, session: nil).favoritePhotos(limit: 3)
+        let cards = await provider(spy, session: nil).memories(limit: 2, offset: 0)
+
+        XCTAssertTrue(wall.isEmpty)
+        XCTAssertTrue(favorites.isEmpty)
+        XCTAssertTrue(cards.isEmpty)
+        XCTAssertTrue(spy.requests.isEmpty, "signed out: the widget must not talk to the server at all")
+    }
+
+    func test_serverFailure_degradesToAnEmptyWall() async {
+        let unauthorized = TransportSpy { _ in (401, Data(#"{"message":"unauthorized"}"#.utf8)) }
+        let broken = TransportSpy { _ in (500, Data()) }
+
+        let rejected = await provider(unauthorized).recentPhotos(limit: 3)
+        let failed = await provider(broken).recentPhotos(limit: 3)
+
+        XCTAssertTrue(rejected.isEmpty)
+        XCTAssertTrue(failed.isEmpty)
+    }
+
+    func test_malformedPayload_degradesToAnEmptyWall() async {
+        let spy = TransportSpy { request in
+            request.url?.path == "/api/timeline/buckets" ? (200, Data("<html>not json</html>".utf8)) : (200, Data())
+        }
+
+        let wall = await provider(spy).recentPhotos(limit: 3)
+
+        XCTAssertTrue(wall.isEmpty)
+    }
+
+    func test_thumbnailFailure_keepsTheCellWithoutBytes() async {
+        let spy = TransportSpy { request in
+            let path = request.url?.path ?? ""
+            if path == "/api/timeline/buckets" {
+                return (200, Data(#"[{"timeBucket":"2026-09-13T00:00:00.000Z","count":2}]"#.utf8))
+            }
+            if path == "/api/timeline/bucket" {
+                return (200, Data(#"{"id":["broken","fine"]}"#.utf8))
+            }
+            return request.url?.absoluteString.contains("broken") == true ? (500, Data()) : (200, Data([0xFF, 0xD8]))
+        }
+
+        let wall = await provider(spy).recentPhotos(limit: 2)
+
+        XCTAssertEqual(wall.photos.count, 2, "one failed thumbnail does not drop the photo")
+        XCTAssertNil(wall.photos[0].imageData)
+        XCTAssertNotNil(wall.photos[1].imageData)
+    }
+
+    // MARK: - Copy
+
+    func test_dayLabel_speaksTheUsersCalendar() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13, hour: 15))!
+
+        XCTAssertEqual(WidgetCopy.dayLabel(bucket: "2026-09-13T00:00:00.000Z", now: now, calendar: calendar), .today)
+        XCTAssertEqual(WidgetCopy.dayLabel(bucket: "2026-09-12T00:00:00.000Z", now: now, calendar: calendar), .yesterday)
+        XCTAssertNil(WidgetCopy.dayLabel(bucket: nil, now: now, calendar: calendar))
+        XCTAssertNil(WidgetCopy.dayLabel(bucket: "2026-09", now: now, calendar: calendar))
+
+        // An older bucket is a real date, in the user's locale — assert the
+        // shape, not the spelling.
+        guard case .date(let text)? = WidgetCopy.dayLabel(bucket: "2024-07-01T00:00:00.000Z", now: now, calendar: calendar) else {
+            return XCTFail("an older bucket should render as a date")
+        }
+        XCTAssertEqual(text, calendar.date(from: DateComponents(year: 2024, month: 7, day: 1))!
+            .formatted(.dateTime.day().month(.abbreviated)))
+    }
+
+    func test_copyReadsAsASentence() {
+        let wall = PhotoWall(
+            photos: [],
+            totalCount: 12483,
+            newestBucket: "2026-09-13T00:00:00.000Z",
+            newestCount: 42
+        )
+
+        XCTAssertEqual(WidgetCopy.grouped(12483, locale: Locale(identifier: "en_US")), "12,483")
+        XCTAssertEqual(WidgetCopy.grouped(12483, locale: Locale(identifier: "fr_FR")).replacingOccurrences(of: "\u{202F}", with: " "), "12 483")
+
+        // The catalog translates these, and the test runner's language is not
+        // ours to pick: assert the shape that would break (singular vs plural,
+        // count carried through), not the words.
+        XCTAssertNotEqual(WidgetCopy.photosText(1), WidgetCopy.photosText(2), "the singular has its own string")
+        XCTAssertNotEqual(WidgetCopy.favoritesText(1), WidgetCopy.favoritesText(2))
+        XCTAssertNotEqual(WidgetCopy.yearsAgoText(1), WidgetCopy.yearsAgoText(2), "“1 years ago” is the bug this catches")
+        XCTAssertEqual(WidgetCopy.photosText(2), WidgetCopy.photosText(3).replacingOccurrences(of: "3", with: "2"))
+        XCTAssertEqual(WidgetCopy.yearsAgoText(5), WidgetCopy.yearsAgoText(6).replacingOccurrences(of: "6", with: "5"))
+        XCTAssertNotEqual(WidgetCopy.yearsAgoText(0), WidgetCopy.yearsAgoText(1), "a same-year memory is not “1 year ago”")
+        XCTAssertNotNil(WidgetCopy.newestDayText(wall))
+        XCTAssertNil(WidgetCopy.newestDayText(.empty), "no bucket, nothing to strand on screen")
+    }
+
+    // MARK: - Shared session
+
+    func test_sessionStore_roundTripsAndClears() {
+        // Its own service so the test never touches the real widget session.
+        let store = WidgetSessionStore(service: "app.immich.swiftui.widget.tests")
+        defer { store.clear() }
+
+        store.save(WidgetSession(baseURL: "https://photos.example.com", token: "jwt", userName: "Milian", userId: "u1"))
+
+        let loaded = store.load()
+        XCTAssertEqual(loaded?.baseURL, "https://photos.example.com")
+        XCTAssertEqual(loaded?.token, "jwt")
+        XCTAssertEqual(loaded?.userName, "Milian")
+
+        store.clear()
+        XCTAssertNil(store.load())
+    }
+
+    func test_sessionStore_ignoresAnEmptyToken() {
+        let store = WidgetSessionStore(service: "app.immich.swiftui.widget.tests")
+        defer { store.clear() }
+
+        store.save(WidgetSession(baseURL: "https://photos.example.com", token: ""))
+
+        XCTAssertNil(store.load(), "a blank token would make every widget fetch a 401")
+    }
+}
+
+/// The app publishes what the widgets read: without these, every widget shows
+/// the empty state even though the user is signed in.
+final class WidgetSessionPublishingTests: XCTestCase {
+
+    private final class SessionSpy: WidgetSessionStoring, @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: WidgetSession?
+        private var clears = 0
+
+        var session: WidgetSession? {
+            lock.lock()
+            defer { lock.unlock() }
+            return stored
+        }
+
+        var clearCount: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return clears
+        }
+
+        func save(_ session: WidgetSession) {
+            lock.lock()
+            stored = session
+            lock.unlock()
+        }
+
+        func load() -> WidgetSession? { session }
+
+        func clear() {
+            lock.lock()
+            stored = nil
+            clears += 1
+            lock.unlock()
+        }
+    }
+
+    private func makeDefaults() -> (UserDefaults, String) {
+        let suite = "widget-session-tests-\(UUID().uuidString)"
+        return (UserDefaults(suiteName: suite)!, suite)
+    }
+
+    private func loginResponse(token: String, name: String) -> LoginResponseDto {
+        LoginResponseDto(
+            accessToken: token, userId: "u1", userEmail: "t@e.com", name: name,
+            profileImagePath: "", isAdmin: false, shouldChangePassword: false, isOnboarded: true
+        )
+    }
+
+    @MainActor
+    func test_login_publishesTheWidgetSession() async {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = loginResponse(token: "widget-jwt", name: "Milian")
+        let spy = SessionSpy()
+        let auth = AuthViewModel(
+            client: mock,
+            keychain: MockKeychainStore(),
+            defaults: defaults,
+            widgetSession: spy
+        )
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "t@e.com", password: "secret")
+
+        XCTAssertEqual(spy.session?.token, "widget-jwt")
+        XCTAssertEqual(spy.session?.baseURL, "https://photos.example.com")
+        XCTAssertEqual(spy.session?.userName, "Milian")
+    }
+
+    @MainActor
+    func test_signOut_clearsTheWidgetSession() async {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = loginResponse(token: "widget-jwt", name: "Milian")
+        let spy = SessionSpy()
+        let auth = AuthViewModel(
+            client: mock,
+            keychain: MockKeychainStore(),
+            defaults: defaults,
+            widgetSession: spy
+        )
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+        await auth.login(email: "t@e.com", password: "secret")
+        XCTAssertNotNil(spy.session)
+
+        await auth.logout()
+
+        XCTAssertNil(spy.session, "a widget must never keep showing a signed-out account's photos")
+        XCTAssertGreaterThanOrEqual(spy.clearCount, 1)
+    }
+}

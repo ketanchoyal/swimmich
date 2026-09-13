@@ -2,13 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>application-identifier</key>
-	<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<!-- The widget extension reads the session (server URL + token) the app
+	     writes, so both binaries must sit in the SAME keychain group. The group
+	     is the app's own app-id-derived group: the app keeps saving with no
+	     explicit access group (its default), and the extension lists that group
+	     to be allowed to read it. Written as a build setting so the Team ID
+	     never appears in the source; the appex declares the same list. -->
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+		<string>$(AppIdentifierPrefix)fr.millianlmx.immich-ios</string>
 	</array>
-	<key>get-task-allow</key>
-	<true/>
 </dict>
 </plist>

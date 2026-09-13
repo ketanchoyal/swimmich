@@ -1,4 +1,5 @@
 import Foundation
+import ImmichSharedKit
 import SwiftUI
 
 /// Authoritative app-wide auth state. Drives RootView routing.
@@ -77,6 +78,10 @@ final class AuthViewModel: AuthSessionDelegate {
     private let defaults: UserDefaults
     private let trustStore: TrustedServerStore
     private let realtime: RealtimeService
+    /// Publishes the credentials widgets need (issue #19): a widget runs in its
+    /// own process and cannot read this object, so every sign-in, restore and
+    /// account switch mirrors the session into the shared keychain.
+    private let widgetSession: any WidgetSessionStoring
     private var _cachedBaseURL: URL?
 
     init(
@@ -84,13 +89,15 @@ final class AuthViewModel: AuthSessionDelegate {
         keychain: KeychainStore,
         defaults: UserDefaults = .standard,
         trustStore: TrustedServerStore = TrustedServerStoreImpl(),
-        realtime: RealtimeService = RealtimeService()
+        realtime: RealtimeService = RealtimeService(),
+        widgetSession: any WidgetSessionStoring = WidgetSessionStore()
     ) {
         self.client = client
         self.keychain = keychain
         self.defaults = defaults
         self.trustStore = trustStore
         self.realtime = realtime
+        self.widgetSession = widgetSession
         self.serverURLString = defaults.string(forKey: Self.serverURLDefaultsKey) ?? ""
         self.userEmail = defaults.string(forKey: Self.userEmailDefaultsKey)
         self.userName = defaults.string(forKey: Self.userNameDefaultsKey)
@@ -133,7 +140,23 @@ final class AuthViewModel: AuthSessionDelegate {
         // shared link would fall back to the server's internal address.
         if isAuthenticated {
             serverConfig = try? await client.serverConfig()
+            publishWidgetSession()
         }
+    }
+
+    /// Mirrors the active session into the shared keychain group the widget
+    /// extension reads. Called on every path that establishes a session
+    /// (password login, OAuth, stored-session restore, account switch) — a
+    /// widget cannot see any of this state otherwise, and a stale mirror shows
+    /// the previous account's photos.
+    func publishWidgetSession() {
+        guard let token = accessToken, let baseURL else { return }
+        widgetSession.save(WidgetSession(
+            baseURL: baseURL.absoluteString,
+            token: token,
+            userName: userName,
+            userId: userId
+        ))
     }
 
     // MARK: - URL helpers
@@ -311,6 +334,7 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.set(isAdmin, forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: token)
         if let baseURL { realtime.connect(baseURL: baseURL, token: token) }
+        publishWidgetSession()
         addCurrentAccountToSaved()
     }
 
@@ -331,6 +355,7 @@ final class AuthViewModel: AuthSessionDelegate {
         userId = nil
         isAdmin = false
         keychain.deleteToken()
+        widgetSession.clear()
         defaults.removeObject(forKey: Self.userEmailDefaultsKey)
         defaults.removeObject(forKey: Self.userNameDefaultsKey)
         defaults.removeObject(forKey: Self.userIdDefaultsKey)
@@ -416,6 +441,7 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.set(account.isAdmin, forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: url, token: token)
         realtime.connect(baseURL: url, token: token)
+        publishWidgetSession()
         do {
             _ = try await client.validateToken()
         } catch APIError.unauthorized {

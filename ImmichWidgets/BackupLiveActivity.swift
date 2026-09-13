@@ -51,11 +51,3 @@ struct BackupLiveActivity: Widget {
         }
     }
 }
-
-@main
-struct ImmichWidgetsBundle: WidgetBundle {
-    var body: some Widget {
-        BackupLiveActivity()
-        ImmichHomeWidget()
-    }
-}
