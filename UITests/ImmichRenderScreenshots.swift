@@ -555,4 +555,151 @@ final class ImmichRenderScreenshots: XCTestCase {
             .matching(identifier: "partnerRemove-\(outgoingId)").firstMatch.exists,
             "the removed partner is still listed")
     }
+
+    /// Shared links (issue #17) against a committed stub. What can only be seen
+    /// by running the app:
+    ///
+    /// 1. the public URL really uses `externalDomain` and the link's **slug** —
+    ///    the app used to hardcode `<serverURL>/share/<key>`, so the displayed
+    ///    URL is the proof: the stub's config advertises
+    ///    `https://photos.stub.test` while the app dials `127.0.0.1`;
+    /// 2. the slug really goes out on the wire (`POST /api/shared-links` is
+    ///    checked through the stub's own request log);
+    /// 3. copying is reachable and acknowledged — XCTest cannot read the
+    ///    pasteboard without the iOS consent prompt, so the in-app feedback is
+    ///    the evidence that the tap landed (the `.buttonStyle(.plain)` defect
+    ///    class shows a perfect screen and a dead button).
+    ///
+    /// Needs the committed stub:
+    ///
+    ///     python3 UITests/stubs/immich_stub_shared_links.py 8421
+    func test_07_sharedLinks() throws {
+        setProvider("auto")
+        resetStacks()
+        app.launch()
+        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        openSharedTab()
+        shot("28-shared-empty")
+
+        let create = app.buttons["newSharedLinkButton"]
+        XCTAssertTrue(create.waitForExistence(timeout: 15), "no create CTA on the empty state")
+        create.tap()
+        sleep(3)
+
+        // The link is album-typed: pick the single album the stub serves.
+        let picker = app.descendants(matching: .any)
+            .matching(identifier: "sharedLinkAlbumPicker").firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 15), "album picker missing in the create sheet")
+        picker.tap()
+        sleep(2)
+        let album = app.buttons["Stub Album"]
+        XCTAssertTrue(album.waitForExistence(timeout: 10), "album list did not open")
+        album.tap()
+        sleep(2)
+
+        let slugField = app.textFields["sharedLinkSlugField"]
+        XCTAssertTrue(slugField.waitForExistence(timeout: 10), "no custom-URL field")
+        if !slugField.isHittable { app.swipeUp() }
+        slugField.tap()
+        slugField.typeText("trip-2026")
+
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "sharedLinkExpiryPicker").firstMatch.exists,
+            "no expiry preset picker in the create sheet")
+        shot("29-create-shared-link")
+
+        let confirm = app.buttons["confirmCreateSharedLink"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "Create CTA missing")
+        XCTAssertTrue(confirm.isEnabled, "picking the album did not arm the CTA")
+        confirm.tap()
+        sleep(4)
+
+        // The "link ready" panel: the URL carries the stub's external domain and
+        // the slug. Before the fix it read 127.0.0.1/…/share/<key>.
+        let readyURL = app.staticTexts["sharedLinkReadyURL"]
+        if !readyURL.waitForExistence(timeout: 8) {
+            print("APP TREE AFTER CREATE:\n\(app.debugDescription)")
+        }
+        XCTAssertTrue(readyURL.waitForExistence(timeout: 7), "the ready panel did not appear")
+        let shown = readyURL.label
+        XCTAssertEqual(shown, "https://photos.stub.test/s/trip-2026",
+                       "the public URL must use externalDomain + /s/<slug>, not the dialled server + /share/<key>")
+        shot("30-shared-link-ready")
+
+        // Copy is acknowledged in-app (the pasteboard itself needs a system
+        // consent prompt).
+        let copy = app.buttons["sharedLinkReadyCopy"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 10), "no copy button on the ready panel")
+        copy.tap()
+        // The label flips to "Copied" — a predicate on "Copi" would already match
+        // "Copy link" and prove nothing.
+        let copied = NSPredicate(format: "label CONTAINS 'Copied' OR label CONTAINS 'Copié'")
+        let acknowledged = expectation(for: copied, evaluatedWith: copy)
+        XCTAssertEqual(XCTWaiter().wait(for: [acknowledged], timeout: 10), .completed,
+                       "tapping copy produced no feedback")
+
+        XCTAssertTrue(app.buttons["sharedLinkReadyShare"].exists, "no share button beside copy")
+        let done = app.buttons["closeSharedLinkSheet"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "no Done button")
+        done.tap()
+        sleep(3)
+        shot("31-shared-link-row")
+
+        // The created link is listed, and its row copies the same URL.
+        let rowCopy = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sharedLinkCopy-'")
+        ).firstMatch
+        XCTAssertTrue(rowCopy.waitForExistence(timeout: 15), "the created link is not in the list")
+        rowCopy.tap()
+        XCTAssertTrue(app.staticTexts["sharedLinkCopyFeedback"].waitForExistence(timeout: 10),
+                      "the row's copy button produced no feedback")
+
+        assertStubRecordedSlug("trip-2026")
+    }
+
+    /// Reads the stub's request log: the slug must have been on the wire —
+    /// a form field that never reaches `POST /api/shared-links` would still
+    /// produce a link, just one whose URL falls back to `/share/<key>`.
+    private func assertStubRecordedSlug(_ slug: String) {
+        struct Entry: Decodable { let method: String; let path: String; let slug: String? }
+        var request = URLRequest(url: URL(string: "\(stub)/__requests")!)
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        var body = ""
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            if let data { body = String(decoding: data, as: UTF8.self) }
+            done.signal()
+        }.resume()
+        XCTAssertEqual(done.wait(timeout: .now() + 6), .success, "stub did not answer /__requests")
+
+        let entries = (try? JSONDecoder().decode([Entry].self, from: Data(body.utf8))) ?? []
+        XCTAssertTrue(
+            entries.contains { $0.method == "POST" && $0.path == "/api/shared-links" && $0.slug == slug },
+            "no POST /api/shared-links carried slug=\(slug) — got \(entries.map { "\($0.method) \($0.path) slug=\($0.slug ?? "-")" })"
+        )
+        XCTAssertFalse(entries.contains { $0.method == "PUT" }, "the app sent a PUT the server does not expose")
+    }
+
+    /// The "Shared" tab, whichever language the catalog resolves it in
+    /// ("Shared" → "Partagé" in `fr`). Falls back to tab position so the
+    /// scenario never depends on the simulator's locale.
+    private func openSharedTab() {
+        for label in ["Shared", "Partagé"] {
+            let tab = app.tabBars.buttons[label]
+            if tab.waitForExistence(timeout: 5) {
+                tab.tap()
+                return
+            }
+        }
+        app.tabBars.buttons.element(boundBy: 3).tap()
+    }
 }

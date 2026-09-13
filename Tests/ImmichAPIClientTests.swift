@@ -588,29 +588,88 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.url?.path, "/api/server/statistics")
     }
 
-    func test_P0_updateSharedLink_hitsPutEndpoint() async throws {
+    /// `PATCH /api/shared-links/{id}` — the verb the server actually exposes
+    /// (`@Patch(':id')`). The client sent `PUT` for months, which answered 404
+    /// at runtime while the old test happily asserted the wrong verb.
+    func test_SL_updateSharedLink_sendsSlugToPatchEndpoint() async throws {
         let session = makeMockedSession()
         let client = ImmichAPIClient(session: session)
         client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
         CapturingURLProtocol.nextData = """
-        {"id": "l1", "description": "Updated", "password": null, "userId": "me", "key": "a2V5", "type": "ALBUM", "createdAt": "2024-01-01T00:00:00.000Z", "expiresAt": "2025-01-01T00:00:00.000Z", "assets": [], "album": null, "allowUpload": true, "allowDownload": true, "showMetadata": true, "slug": null}
+        {"id": "l1", "description": "Updated", "password": null, "userId": "me", "key": "a2V5", "type": "ALBUM", "createdAt": "2024-01-01T00:00:00.000Z", "expiresAt": null, "assets": [], "album": null, "allowUpload": true, "allowDownload": true, "showMetadata": true, "slug": "trip-2026"}
         """.data(using: .utf8)!
 
         let link = try await client.updateSharedLink(
             id: "l1",
-            dto: SharedLinkEditDto(password: nil, expiresAt: "2025-01-01T00:00:00.000Z", allowUpload: true, allowDownload: nil, showMetadata: nil, description: "Updated")
+            dto: SharedLinkEditDto(description: "Updated", slug: "trip-2026")
         )
 
-        XCTAssertEqual(link.description, "Updated")
-        XCTAssertTrue(link.allowUpload)
+        XCTAssertEqual(link.slug, "trip-2026")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "PATCH")
+        XCTAssertEqual(captured.url?.path, "/api/shared-links/l1")
+        let body = try decodedBody()
+        XCTAssertEqual(body["slug"] as? String, "trip-2026")
+        XCTAssertEqual(body["description"] as? String, "Updated")
+    }
+
+    /// `POST /api/shared-links` carries the custom slug — the field the client
+    /// never sent, so a custom URL could not be created at all.
+    func test_SL_createSharedLink_sendsSlug() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        {"id": "l1", "description": "Trip", "password": null, "userId": "me", "key": "a2V5", "type": "ALBUM", "createdAt": "2024-01-01T00:00:00.000Z", "expiresAt": null, "assets": [], "album": null, "allowUpload": true, "allowDownload": true, "showMetadata": true, "slug": "trip-2026"}
+        """.data(using: .utf8)!
+
+        let link = try await client.createSharedLink(dto: SharedLinkCreateDto(
+            type: .album,
+            albumId: "a1",
+            description: "Trip",
+            expiresAt: "2026-12-31T23:59:59.000Z",
+            slug: "trip-2026"
+        ))
+
+        XCTAssertEqual(link.slug, "trip-2026")
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/shared-links")
+        let body = try decodedBody()
+        XCTAssertEqual(body["slug"] as? String, "trip-2026")
+        XCTAssertEqual(body["albumId"] as? String, "a1")
+        XCTAssertEqual(body["expiresAt"] as? String, "2026-12-31T23:59:59.000Z")
+    }
+
+    /// `PUT /api/shared-links/{id}/assets` — the owner's add route. Its body is
+    /// `AssetIdsDto` (`assetIds`, NOT the album routes' `ids`) and its response
+    /// is `AssetIdsResponseDto` (`assetId`, and the **lowercase** error values
+    /// of the deprecated enum — not `BulkIdResponseDto`'s).
+    func test_SL_addAssetsToSharedLink_putsAssetIdsDto() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = """
+        [{"assetId": "a1", "success": true}, {"assetId": "a2", "success": false, "error": "no_permission"}]
+        """.data(using: .utf8)!
+
+        let results = try await client.addAssetsToSharedLink(id: "l1", assetIds: ["a1", "a2"])
+
+        XCTAssertEqual(results.map(\.assetId), ["a1", "a2"])
+        XCTAssertEqual(results[0].error, nil)
+        XCTAssertEqual(results[1].error, .noPermission)
         guard let captured = CapturingURLProtocol.lastRequest else {
             return XCTFail("no request captured")
         }
         XCTAssertEqual(captured.httpMethod, "PUT")
-        XCTAssertEqual(captured.url?.path, "/api/shared-links/l1")
-        let body = String(decoding: CapturingURLProtocol.lastBody, as: UTF8.self)
-        XCTAssertTrue(body.contains(#""expiresAt":"2025-01-01T00:00:00.000Z""#))
-        XCTAssertFalse(body.contains("allowDownload"), "nil fields must be omitted")
+        XCTAssertEqual(captured.url?.path, "/api/shared-links/l1/assets")
+        let body = try decodedBody()
+        XCTAssertEqual(body["assetIds"] as? [String], ["a1", "a2"])
+        XCTAssertNil(body["ids"], "this route takes assetIds, unlike the album routes")
     }
 
     func test_P0_bulkUpdateAssets_hitsPutAssets204() async throws {

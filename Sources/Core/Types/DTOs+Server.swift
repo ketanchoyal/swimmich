@@ -25,7 +25,14 @@ struct UsageByUserDto: Codable, Equatable {
 
 // MARK: - Shared link edit DTOs (P0 api-surface-expansion)
 
-/// `PUT /api/shared-links/{id}` — all fields optional, only provided fields are updated.
+/// `PATCH /api/shared-links/{id}` — all fields optional, only provided fields
+/// are updated.
+///
+/// One asymmetry matters: `SharedLinkService.update` writes
+/// `slug: dto.slug || null`, so an **omitted** slug is CLEARED, unlike
+/// `password`/`expiresAt` which the repository leaves untouched. A caller
+/// editing anything else on a link carrying a slug must therefore send the
+/// current slug back (the Flutter client does the same).
 struct SharedLinkEditDto: Codable, Equatable {
     var password: String?
     var expiresAt: String?
@@ -33,4 +40,5 @@ struct SharedLinkEditDto: Codable, Equatable {
     var allowDownload: Bool?
     var showMetadata: Bool?
     var description: String?
+    var slug: String?
 }

@@ -290,14 +290,22 @@ final class AlbumDetailViewModel {
         }
     }
 
-    func createSharedLink(password: String?, description: String?) async {
+    func createSharedLink(
+        password: String?,
+        description: String?,
+        slug: String? = nil,
+        expiresAt: Date? = nil
+    ) async {
         let trimmedPassword = password?.trimmingCharacters(in: .whitespacesAndNewlines)
         let pw = (trimmedPassword?.isEmpty ?? true) ? nil : trimmedPassword
+        let trimmedSlug = slug?.trimmingCharacters(in: .whitespacesAndNewlines)
         let dto = SharedLinkCreateDto(
             type: .album,
             albumId: albumId,
             description: description,
-            password: pw
+            password: pw,
+            expiresAt: expiresAt.map(SharedLinksViewModel.isoString(from:)),
+            slug: (trimmedSlug?.isEmpty ?? true) ? nil : trimmedSlug
         )
         do {
             let link = try await client.createSharedLink(dto: dto)

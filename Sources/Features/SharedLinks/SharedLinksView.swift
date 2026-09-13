@@ -44,6 +44,7 @@ struct SharedLinksView: View {
                         Button("Create Link") { presentingCreate = true }
                             .buttonStyle(PVPrimaryButtonStyle())
                             .padding(.horizontal, PVSpacing.s48)
+                            .accessibilityIdentifier("newSharedLinkButton")
                     }
                 } else {
                     linkList
@@ -64,7 +65,7 @@ struct SharedLinksView: View {
                 await vm.refresh()
             }
             .sheet(isPresented: $presentingCreate) {
-                CreateSharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+                CreateSharedLinkSheet(vm: vm)
             }
             .sheet(item: $editLinkItem) { item in
                 EditSharedLinkSheet(link: item.link) { dto in
@@ -111,12 +112,15 @@ struct SharedLinksView: View {
     // MARK: - List
 
     private var linkList: some View {
-        let baseURL = auth.baseURL ?? URL(string: "https://example.com")!
+        let sharedLinkBase = SharedLinkURL(
+            serverURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            externalDomain: auth.serverConfig?.externalDomain ?? ""
+        )
         return List {
             ForEach(vm.sharedLinks, id: \.id) { link in
                 SharedLinkRow(
                     link: link,
-                    baseURL: baseURL,
+                    sharedLinkBase: sharedLinkBase,
                     isPendingRevoke: pendingRevokeId == link.id,
                     onRevoke: { pendingRevokeId = link.id }
                 )
@@ -177,7 +181,10 @@ struct EditLinkItem: Identifiable {
 /// enabled the slide is replaced by an opacity crossfade.
 struct SharedLinkRow: View {
     let link: SharedLinkResponseDto
-    let baseURL: URL
+    /// Base for the public URL — `externalDomain` when the server advertises
+    /// one, the server URL otherwise. Built by the caller so the row never has
+    /// to know about auth.
+    let sharedLinkBase: SharedLinkURL
     let isPendingRevoke: Bool
     let onRevoke: () -> Void
     var cardBackground: Color = Color.bgSecondary
@@ -189,7 +196,11 @@ struct SharedLinkRow: View {
     @State private var rowHeight: CGFloat = 84
 
     private var url: String {
-        baseURL.appendingPathComponent("/share/\(link.key)").absoluteString
+        sharedLinkBase.urlString(slug: link.slug, key: link.key)
+    }
+
+    private var publicURL: URL {
+        sharedLinkBase.url(slug: link.slug, key: link.key)
     }
 
     private var title: String {
@@ -269,13 +280,22 @@ struct SharedLinkRow: View {
                     .lineLimit(1)
                 Spacer()
             }
-            HStack {
+            HStack(spacing: PVSpacing.s8) {
                 Text(url)
                     .font(.pvCaption).monospacedDigit()
                     .foregroundStyle(Color.textSecondaryPV)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
+                if copied {
+                    Text("Copied")
+                        .font(.pvCaption)
+                        .foregroundStyle(Color.immichPrimary)
+                        .accessibilityIdentifier("sharedLinkCopyFeedback")
+                }
+                // No `.buttonStyle(.plain)` here: inside a List it swallows the
+                // tap (the row looks tappable and nothing happens). The default
+                // list style + an explicit hit shape is what works.
                 Button {
                     UIPasteboard.general.string = url
                     copied = true
@@ -285,8 +305,20 @@ struct SharedLinkRow: View {
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .foregroundStyle(Color.immichPrimary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("sharedLinkCopy-\(link.id)")
+                .accessibilityLabel("Copy link")
+
+                ShareLink(item: publicURL) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(Color.immichPrimary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("sharedLinkShare-\(link.id)")
+                .accessibilityLabel("Share link")
             }
         }
         .padding(PVSpacing.s16)
@@ -299,67 +331,168 @@ struct SharedLinkRow: View {
 // MARK: - Create sheet
 
 /// Creates a new album-typed shared link. Picks an album from the user's list,
-/// optional description + password. Reuses `SharedLinksViewModel.createAlbumLink`.
+/// optional description + password, optional custom slug and expiry — then
+/// switches to a "link is ready" panel that has already copied the URL.
+///
+/// The second state mirrors Flutter (`shared_link_edit.page.dart`): after a
+/// successful create the client copies the link and shows it, instead of
+/// dismissing and leaving the user to hunt for the fresh row.
 struct CreateSharedLinkSheet: View {
     @Bindable var vm: SharedLinksViewModel
-    let baseURL: URL
+    @Environment(AuthViewModel.self) private var auth
     @Environment(AlbumsViewModel.self) private var albumsVM
     @Environment(\.dismiss) private var dismiss
     @State private var selectedAlbumId: String?
     @State private var description = ""
     @State private var usePassword = false
     @State private var password = ""
+    @State private var slug = ""
+    @State private var expiresAt: Date?
+    @State private var created: SharedLinkResponseDto?
     @State private var createTick = 0
+    @State private var copiedTick = 0
+    @State private var didCopyLink = false
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Album") {
-                    if albumsVM.albums.isEmpty {
-                        Text("You have no albums yet.")
-                            .foregroundStyle(Color.textSecondaryPV)
-                    } else {
-                        Picker("Album", selection: $selectedAlbumId) {
-                            ForEach(albumsVM.albums, id: \.id) { album in
-                                Text(album.albumName).tag(Optional(album.id))
-                            }
-                        }
-                    }
-                }
-                Section("Options") {
-                    TextField("Description (optional)", text: $description)
-                    Toggle("Password protect", isOn: $usePassword)
-                    if usePassword {
-                        SecureField("Password", text: $password)
-                    }
+            Group {
+                if let created {
+                    readyPanel(for: created)
+                } else {
+                    form
                 }
             }
-            .navigationTitle("New Shared Link")
+            .navigationTitle(created == nil ? "New Shared Link" : "Link ready")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(created == nil ? "Cancel" : "Done") { dismiss() }
+                        .accessibilityIdentifier(created == nil ? "cancelCreateSharedLink" : "closeSharedLinkSheet")
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        guard let albumId = selectedAlbumId else { return }
-                        Task {
-                            let ok = await vm.createAlbumLink(
-                                albumId: albumId,
-                                description: description.isEmpty ? nil : description,
-                                password: usePassword ? password : nil
-                            )
-                            if ok {
-                                createTick &+= 1
-                                dismiss()
-                            }
-                        }
+                if created == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Create") { create() }
+                            .fontWeight(.semibold)
+                            .disabled(selectedAlbumId == nil)
+                            .accessibilityIdentifier("confirmCreateSharedLink")
                     }
-                    .fontWeight(.semibold)
-                    .disabled(selectedAlbumId == nil)
                 }
             }
         }
         .sensoryFeedback(.success, trigger: createTick)
+    }
+
+    private var form: some View {
+        Form {
+            Section("Album") {
+                if albumsVM.albums.isEmpty {
+                    Text("You have no albums yet.")
+                        .foregroundStyle(Color.textSecondaryPV)
+                } else {
+                    Picker("Album", selection: $selectedAlbumId) {
+                        ForEach(albumsVM.albums, id: \.id) { album in
+                            Text(album.albumName).tag(Optional(album.id))
+                        }
+                    }
+                    .accessibilityIdentifier("sharedLinkAlbumPicker")
+                }
+            }
+            Section("Options") {
+                TextField("Description (optional)", text: $description)
+                Toggle("Password protect", isOn: $usePassword)
+                if usePassword {
+                    SecureField("Password", text: $password)
+                }
+                // The stored slug never carries the prefix: the server builds
+                // `…/s/<slug>` itself, and the public URL helper joins it the
+                // same way. The prefix is an affordance of the field.
+                HStack(spacing: 0) {
+                    if !slug.isEmpty {
+                        Text("/s/")
+                            .foregroundStyle(Color.textSecondaryPV)
+                            .accessibilityHidden(true)
+                    }
+                    TextField("Custom URL", text: $slug)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("sharedLinkSlugField")
+                }
+            }
+            Section("Expiration") {
+                SharedLinkExpiryPicker(date: $expiresAt)
+            }
+        }
+    }
+
+    /// Post-create panel: the URL, already on the pasteboard, with the same
+    /// copy/share pair the list rows offer.
+    private func readyPanel(for link: SharedLinkResponseDto) -> some View {
+        let url = sharedLinkBase.url(slug: link.slug, key: link.key)
+        return VStack(spacing: PVSpacing.s16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 44)) // DS-exempt: hero confirmation glyph
+                .foregroundStyle(Color.immichSuccess)
+            Text(url.absoluteString)
+                .font(.pvCaption).monospacedDigit()
+                .foregroundStyle(Color.textSecondaryPV)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .truncationMode(.middle)
+                .accessibilityIdentifier("sharedLinkReadyURL")
+            HStack(spacing: PVSpacing.s12) {
+                Button {
+                    UIPasteboard.general.string = url.absoluteString
+                    didCopyLink = true
+                    copiedTick &+= 1
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { didCopyLink = false }
+                } label: {
+                    Label(didCopyLink ? "Copied" : "Copy link",
+                          systemImage: didCopyLink ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(PVPrimaryButtonStyle())
+                .accessibilityIdentifier("sharedLinkReadyCopy")
+                ShareLink(item: url) {
+                    Label("Share link", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("sharedLinkReadyShare")
+            }
+            .padding(.horizontal, PVSpacing.s24)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(PVSpacing.s24)
+        // No identifier on this container: an `.accessibilityIdentifier` set on a
+        // container propagates to every descendant and OVERWRITES theirs — the
+        // URL text and both buttons all came back as "sharedLinkReadyScreen",
+        // which is invisible on screen and makes the identifiers useless.
+        .sensoryFeedback(.success, trigger: copiedTick)
+        .task {
+            // Flutter copies the link as soon as it exists — the user came here
+            // to get one.
+            UIPasteboard.general.string = url.absoluteString
+        }
+    }
+
+    private var sharedLinkBase: SharedLinkURL {
+        SharedLinkURL(
+            serverURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            externalDomain: auth.serverConfig?.externalDomain ?? ""
+        )
+    }
+
+    private func create() {
+        guard let albumId = selectedAlbumId else { return }
+        Task {
+            let link = await vm.createAlbumLink(
+                albumId: albumId,
+                description: description.isEmpty ? nil : description,
+                password: usePassword ? password : nil,
+                slug: slug,
+                expiresAt: expiresAt
+            )
+            guard let link else { return }
+            createTick &+= 1
+            created = link
+        }
     }
 }

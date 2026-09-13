@@ -165,7 +165,7 @@ private struct AuthenticatedRoot: View {
             CreateAlbumSheet(vm: albums, preselectedAssetIds: nil)
         }
         .sheet(isPresented: $showCreateSharedLink) {
-            CreateSharedLinkSheet(vm: sharedLinks, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+            CreateSharedLinkSheet(vm: sharedLinks)
         }
         // Native map photo sheet, owned by AuthenticatedRoot (never deallocated
         // while the tab tree lives): the only presentation active while browsing

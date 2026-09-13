@@ -124,6 +124,12 @@ final class AuthViewModelTests: XCTestCase {
         let keychain = MockKeychainStore()
         makeStoredSession(defaults: defaults, keychain: keychain)
         let mock = MockImmichClient()
+        mock.serverConfigResponse = ServerConfigDto(
+            oauthButtonText: "", loginPageMessage: "", trashDays: 30, userDeleteDelay: 7,
+            isInitialized: true, isOnboarded: true, externalDomain: "https://photos.public.example",
+            publicUsers: false, mapDarkStyleUrl: "", mapLightStyleUrl: "",
+            maintenanceMode: false, minFaces: 3
+        )
         let auth = AuthViewModel(client: mock, keychain: keychain, defaults: defaults)
 
         XCTAssertTrue(auth.isAuthenticated, "token restored from keychain")
@@ -135,7 +141,13 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertEqual(mock.configuredBaseURL?.absoluteString, "https://photos.example.com")
         XCTAssertTrue(auth.isAuthenticated)
         XCTAssertFalse(auth.isRestoringSession)
-        XCTAssertEqual(mock.requestCount, 1, "validateToken called once")
+        // validateToken + serverConfig. The config is what carries
+        // `externalDomain`, and it used to be fetched only while walking
+        // onboarding — so a relaunched session could not build a public shared
+        // link URL pointing at the server's public domain.
+        XCTAssertEqual(mock.requestCount, 2, "validateToken then serverConfig")
+        XCTAssertEqual(auth.serverConfig?.externalDomain, "https://photos.public.example",
+                       "a relaunch must learn the public domain, not only the onboarding walk")
     }
 
     // AC-720: invalid token → session reset + keychain cleared (clean re-login).

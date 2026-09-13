@@ -18,6 +18,8 @@ final class PhotoShareViewModel {
     let asset: AssetReactItem
     let client: any ImmichClient
     let baseURL: URL
+    /// `ServerConfigDto.externalDomain` — empty when the server advertises none.
+    let externalDomain: String
 
     var users: [UserResponseDto] = []
     var albums: [AlbumResponseDto] = []
@@ -36,10 +38,11 @@ final class PhotoShareViewModel {
     private(set) var lastAddAlbumId: String?
     private(set) var lastCreateLinkDto: SharedLinkCreateDto?
 
-    init(asset: AssetReactItem, client: any ImmichClient, baseURL: URL) {
+    init(asset: AssetReactItem, client: any ImmichClient, baseURL: URL, externalDomain: String = "") {
         self.asset = asset
         self.client = client
         self.baseURL = baseURL
+        self.externalDomain = externalDomain
     }
 
     /// Albums that are shared (`shared == true`) — candidates for "add to an
@@ -125,7 +128,10 @@ final class PhotoShareViewModel {
             )
             lastCreateLinkDto = dto
             let link = try await client.createSharedLink(dto: dto)
-            linkURL = baseURL.appendingPathComponent("/share/\(link.key)").absoluteString
+            // Same builder as the Shared tab: a server behind a reverse proxy
+            // must hand out its public domain, not the address the app dials.
+            linkURL = SharedLinkURL(serverURL: baseURL, externalDomain: externalDomain)
+                .urlString(slug: link.slug, key: link.key)
         } catch let e {
             errorMessage = e.localizedDescription
         }

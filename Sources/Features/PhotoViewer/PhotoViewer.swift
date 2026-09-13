@@ -910,6 +910,7 @@ private struct PhotoShareSheet: View {
     let token: String?
     let client: any ImmichClient
 
+    @Environment(AuthViewModel.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var vm: PhotoShareViewModel?
     @State private var saveVM: SaveToLibraryViewModel?
@@ -926,7 +927,12 @@ private struct PhotoShareSheet: View {
             }
         }
         .task {
-            let new = PhotoShareViewModel(asset: asset, client: client, baseURL: baseURL)
+            let new = PhotoShareViewModel(
+                asset: asset,
+                client: client,
+                baseURL: baseURL,
+                externalDomain: auth.serverConfig?.externalDomain ?? ""
+            )
             vm = new
             await new.load()
             let saver = SaveToLibraryViewModel(asset: asset, client: client, baseURL: baseURL, token: token)
@@ -1229,6 +1235,8 @@ enum ActivityPresenter {
 
 #if DEBUG
 // Standalone preview — handy for iterating on the viewer chrome in Xcode.
+// The share sheet reads the auth environment for `externalDomain`, so the
+// preview supplies one (a nil `serverConfig` simply means "no external domain").
 #Preview("Photo Viewer") {
     PhotoViewer(
         assets: [
@@ -1239,5 +1247,6 @@ enum ActivityPresenter {
         baseURL: URL(string: "https://example.com")!,
         token: nil
     )
+    .environment(DependencyContainer.shared.makeAuthViewModel())
 }
 #endif

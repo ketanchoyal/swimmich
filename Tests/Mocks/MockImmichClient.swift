@@ -17,6 +17,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     }
     var authDelegate: (any AuthSessionDelegate)?
 
+    /// Overrides `GET /api/server/config` (its `externalDomain` decides the base
+    /// of a public shared-link URL).
+    var serverConfigResponse: ServerConfigDto?
+
     var lastLoginBody: LoginCredentialDto?
     var loginResponse: LoginResponseDto?
     var loginError: Error?
@@ -195,6 +199,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastUpdateSharedLinkId: String?
     var lastUpdateSharedLinkDto: SharedLinkEditDto?
     var updateSharedLinkResponse: SharedLinkResponseDto?
+    var lastAddAssetsSharedLinkId: String?
+    var lastAddAssetsSharedLinkIds: [String]?
+    var addAssetsSharedLinkResponse: [AssetIdsResponseDto]?
+    var addAssetsSharedLinkError: Error?
     var lastBulkUpdateDto: AssetBulkUpdateDto?
 
     // Album users capture (album share)
@@ -264,6 +272,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     func serverConfig() async throws -> ServerConfigDto {
         bump()
         if let e = globalError { throw e }
+        if let r = serverConfigResponse { return r }
         return ServerConfigDto(
             oauthButtonText: "", loginPageMessage: "", trashDays: 30, userDeleteDelay: 7,
             isInitialized: true, isOnboarded: true, externalDomain: "", publicUsers: false,
@@ -561,7 +570,8 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
             id: "link-new", description: dto.description, password: dto.password, userId: "owner",
             key: "a2V5", type: dto.type, createdAt: "2024-01-01T00:00:00.000Z", expiresAt: dto.expiresAt,
             assets: [], album: nil, allowUpload: dto.allowUpload ?? false,
-            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true, slug: nil
+            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true,
+            slug: dto.slug ?? nil
         )
     }
 
@@ -582,8 +592,18 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
             id: id, description: dto.description, password: dto.password, userId: "owner",
             key: "a2V5", type: .album, createdAt: "2024-01-01T00:00:00.000Z", expiresAt: dto.expiresAt,
             assets: [], album: nil, allowUpload: dto.allowUpload ?? false,
-            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true, slug: nil
+            allowDownload: dto.allowDownload ?? true, showMetadata: dto.showMetadata ?? true,
+            slug: dto.slug ?? nil
         )
+    }
+
+    func addAssetsToSharedLink(id: String, assetIds: [String]) async throws -> [AssetIdsResponseDto] {
+        bump()
+        lastAddAssetsSharedLinkId = id
+        lastAddAssetsSharedLinkIds = assetIds
+        if let e = globalError ?? addAssetsSharedLinkError { throw e }
+        return addAssetsSharedLinkResponse
+            ?? assetIds.map { AssetIdsResponseDto(assetId: $0, success: true, error: nil) }
     }
 
     // MARK: - People (P0 api-surface-expansion)

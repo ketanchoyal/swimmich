@@ -83,8 +83,8 @@ final class SharedLinksViewModelTests: XCTestCase {
     func test_createAlbumLink_success() async {
         let mock = MockImmichClient()
         let vm = SharedLinksViewModel(client: mock)
-        let ok = await vm.createAlbumLink(albumId: "a1", description: "Trip", password: nil)
-        XCTAssertTrue(ok)
+        let created = await vm.createAlbumLink(albumId: "a1", description: "Trip", password: nil)
+        XCTAssertNotNil(created)
         XCTAssertEqual(mock.lastCreateSharedLinkDto?.type, .album)
         XCTAssertEqual(mock.lastCreateSharedLinkDto?.albumId, "a1")
         XCTAssertEqual(mock.lastCreateSharedLinkDto?.description, "Trip")
@@ -93,20 +93,57 @@ final class SharedLinksViewModelTests: XCTestCase {
         XCTAssertNil(vm.errorMessage)
     }
 
+    /// The create sheet shows the link on a "link ready" panel, so the call must
+    /// hand back the server's answer — with the slug it was given — not just a
+    /// success flag.
+    func test_createAlbumLink_sendsSlugAndExpiryAndReturnsLink() async {
+        let mock = MockImmichClient()
+        let vm = SharedLinksViewModel(client: mock)
+        let expiry = Date().addingTimeInterval(24 * 60 * 60)
+
+        let created = await vm.createAlbumLink(
+            albumId: "a1",
+            description: "Trip",
+            password: nil,
+            slug: "  trip-2026  ",
+            expiresAt: expiry
+        )
+
+        XCTAssertEqual(created?.slug, "trip-2026", "the returned link carries the slug")
+        XCTAssertEqual(mock.lastCreateSharedLinkDto?.slug, "trip-2026", "trimmed before the wire")
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let sent = try? XCTUnwrap(mock.lastCreateSharedLinkDto?.expiresAt)
+        XCTAssertEqual(iso.date(from: sent ?? "")?.timeIntervalSince1970 ?? 0, expiry.timeIntervalSince1970, accuracy: 1)
+        XCTAssertEqual(vm.sharedLinks.first?.slug, "trip-2026", "the appended row is the created link")
+        XCTAssertNil(vm.errorMessage)
+    }
+
     func test_createAlbumLink_whitespacePasswordTrimmedToNil() async {
         let mock = MockImmichClient()
         let vm = SharedLinksViewModel(client: mock)
-        let ok = await vm.createAlbumLink(albumId: "a1", description: nil, password: "   ")
-        XCTAssertTrue(ok)
+        let created = await vm.createAlbumLink(albumId: "a1", description: nil, password: "   ")
+        XCTAssertNotNil(created)
         XCTAssertNil(mock.lastCreateSharedLinkDto?.password, "whitespace-only password must be nil")
+        XCTAssertNil(mock.lastCreateSharedLinkDto?.slug, "no slug requested, none sent")
+        XCTAssertNil(mock.lastCreateSharedLinkDto?.expiresAt, "no expiry chosen, none sent")
+    }
+
+    func test_createAlbumLink_blankSlugIsNotASlug() async {
+        let mock = MockImmichClient()
+        let vm = SharedLinksViewModel(client: mock)
+        _ = await vm.createAlbumLink(albumId: "a1", description: nil, password: nil, slug: "   ")
+        // The server stores `dto.slug || null`; a blank string would be a
+        // meaningless slug that still shadows the link's key in the URL.
+        XCTAssertNil(mock.lastCreateSharedLinkDto?.slug)
     }
 
     func test_createAlbumLink_error_appendsNothing() async {
         let mock = MockImmichClient()
         mock.createSharedLinkError = Boom()
         let vm = SharedLinksViewModel(client: mock)
-        let ok = await vm.createAlbumLink(albumId: "a1", description: nil, password: nil)
-        XCTAssertFalse(ok)
+        let created = await vm.createAlbumLink(albumId: "a1", description: nil, password: nil)
+        XCTAssertNil(created, "no link to show on the ready panel")
         XCTAssertTrue(vm.sharedLinks.isEmpty)
         XCTAssertNotNil(vm.errorMessage)
     }

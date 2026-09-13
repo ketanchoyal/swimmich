@@ -270,7 +270,7 @@ struct AlbumDetailView: View {
         }
         .task { await vm.load() }
         .sheet(isPresented: $presentingShare) {
-            SharedLinkSheet(vm: vm, baseURL: auth.baseURL ?? URL(string: "https://example.com")!)
+            SharedLinkSheet(vm: vm)
         }
         .sheet(isPresented: $presentingEditAlbum) {
             EditAlbumSheet(vm: vm)

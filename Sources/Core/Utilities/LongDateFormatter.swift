@@ -16,6 +16,21 @@ enum LongDateFormatter {
         return parser
     }()
 
+    /// Immich timestamps carry milliseconds (`"2024-07-29T14:30:00.000Z"`), which
+    /// the plain `.withInternetDateTime` parser REJECTS — it needs the fractional
+    /// option. Both parsers are needed because neither accepts both shapes.
+    private static let fractionalParser: ISO8601DateFormatter = {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return parser
+    }()
+
+    private static let plainParser: ISO8601DateFormatter = {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime]
+        return parser
+    }()
+
     /// `.long` date style (e.g. "July 29, 2024"), no time, current locale.
     private static let longFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -36,9 +51,15 @@ enum LongDateFormatter {
         return longFormatter.string(from: date)
     }
 
-    /// Parses a full ISO timestamp (`"2024-07-29T14:30:00.000Z"`) to a Date;
-    /// nil when malformed. Needed for relative-time rendering (activity feed).
+    /// Parses a full ISO timestamp to a Date; nil when malformed. Handles both
+    /// the server's millisecond form (`"2024-07-29T14:30:00.000Z"`) and a plain
+    /// one (`"2024-07-29T14:30:00Z"`).
+    ///
+    /// Needed for relative-time rendering (activity feed) and for the shared-link
+    /// expiry picker — where a nil used to be indistinguishable from "never
+    /// expires", so editing any other field of a link that HAD an expiry silently
+    /// cleared it.
     static func parse(isoTimestamp: String) -> Date? {
-        ISO8601DateFormatter().date(from: isoTimestamp)
+        fractionalParser.date(from: isoTimestamp) ?? plainParser.date(from: isoTimestamp)
     }
 }

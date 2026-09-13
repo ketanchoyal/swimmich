@@ -83,8 +83,18 @@ protocol ImmichClient: AnyObject, Sendable {
     // MARK: - Shared Links (AC-500..AC-518)
     func getSharedLinks(albumId: String?) async throws -> [SharedLinkResponseDto]
     func createSharedLink(dto: SharedLinkCreateDto) async throws -> SharedLinkResponseDto
-    /// `PUT /api/shared-links/{id}` — edit expiry, upload/download toggles, metadata visibility.
+    /// `PATCH /api/shared-links/{id}` — edit slug, expiry, upload/download
+    /// toggles, metadata visibility. The server exposes **PATCH**, not PUT.
+    ///
+    /// `dto.slug` is always applied: an omitted slug clears the link's slug
+    /// server-side, so callers must echo the current value when they are not
+    /// changing it.
     func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto
+    /// `PUT /api/shared-links/{id}/assets` body `AssetIdsDto` — the OWNER adds
+    /// assets to an `INDIVIDUAL` link (an `ALBUM` link answers 400). A visitor
+    /// cannot call this: it needs the `SharedLinkUpdate` permission.
+    @discardableResult
+    func addAssetsToSharedLink(id: String, assetIds: [String]) async throws -> [AssetIdsResponseDto]
     func deleteSharedLink(id: String) async throws
 
     // MARK: - Tags (gap #2)

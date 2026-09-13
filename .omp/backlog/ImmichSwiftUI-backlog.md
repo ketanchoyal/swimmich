@@ -27,7 +27,7 @@
 | 3 | **Partners UI** | P3 | AC-3100–3113 | .omp/partners-ui/ | Voir §2.3 | ✅ Terminé | — (2 wire, 1 corrigé) | 14 + 4 + 1 XCUITest | 14/14 AC |
 | 4 | **Memories Complete** | P4 | AC-3200–3208 | .omp/memories-complete/ | Voir §2.4 | 🟡 Plan | 7 (CRUD + stats) | 0/8 | 0/9 AC |
 | 5 | **Push Notifications** | P5 | AC-3300–3308 | .omp/push-notifications/ | Voir §2.5 | 🟡 Plan | device-token reg/unreg | 0/9 | 0/9 AC |
-| 6 | **Shared Links Enriched** | P3 | AC-3400–3409 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | getPublic, uploadTo, checkPW | 0/7 | 0/10 AC |
+| 6 | **Shared Links Enriched** | P3 | AC-3900–3909 | .omp/shared-links-enriched/ | Voir §2.6 | 🟡 Plan | slug + URL builder + presets | 0/10 | 0/10 AC |
 | 7 | **Offline Download** | P4 | AC-3500–3508 | .omp/offline-download/ | Voir §2.7 | 🟡 Plan | — (FileManager) | 0/8 | 0/9 AC |
 | 8 | **Widgets Home Screen** | P5 | AC-3600–3608 | .omp/widgets-homescreen/ | Voir §2.8 | 🟡 Plan | — (WidgetKit) | 0/4 | 0/9 AC |
 | 9 | **Stacks UI** | P3 | AC-3700–3709 | .omp/stacks-ui/ | Voir §2.9 | ✅ Terminé | — (100% wire) | 13 + 7 + 3 + 1 | 10/10 AC |
@@ -260,35 +260,31 @@ Notifications push APNs pour uploads terminés, activity de shared albums, et no
 **Fichier spec** : `.omp/shared-links-enriched/shared-links-enriched.specs.md`
 **Card AC** : `.opencode/scratch/shared-links-enriched.acceptance.md`
 **UI brief** : `.omp/shared-links-enriched/shared-links-enriched.ui.md`
-**AC Cards** : AC-3400 – AC-3409
+**AC Cards** : AC-3900 – AC-3909 (réécrites le 2026-09-13 ; les AC-3400–3409 d'origine pinnaient une surface inexistante)
 **Phase** : P3 — Social
+**Issue** : #17 — Viewer public scindé dans **#22** (`shared-link-viewer`)
 
 #### Objectif
-Enrichir les shared links : preview WKWebView in-app, copy-link, upload-from-link, expiry date picker, password verification. CRUD de base existant.
+Fermer les 5 écarts réels vs Flutter : builder d'URL publique (bug), champ `slug`, presets d'expiration, `ShareLink` à côté du copier, écran « lien prêt » après création. Le CRUD de base, le copier-lien et le `DatePicker` d'expiration existaient déjà.
 
 #### Points d'entrée
-- `SharedLinksViewModel` — copyLink, buildPublicURL, openPreview, startUploadFromLink, checkPassword
-- `ExternalLinkPreviewView` — WKWebView + toolbar Close/Copy URL/Share
-- `UploadFromLinkView` — Form choose photos + link info + upload CTA
-- `EditSharedLinkSheet` — UIDatePicker expiresAt + quick presets (1d, 7d, 30d, Never)
+- NEW `Sources/Core/Utilities/SharedLinkURL.swift` — builder unique (`externalDomain` sinon serveur ; `/s/<slug>` sinon `/share/<key>`), les 2 appelants migrés
+- `SharedLinkCreateDto` / `SharedLinkEditDto` — champ `slug`
+- `ImmichAPIClient` — `PATCH /shared-links/{id}` (le `PUT` rendait 404) + `addAssetsToSharedLink` (`PUT /shared-links/{id}/assets`)
+- NEW `Sources/Features/SharedLinks/SharedLinkExpiryPicker.swift` — 9 presets + date/heure
+- `CreateSharedLinkSheet` — slug + presets + écran « lien prêt » ; `EditSharedLinkSheet` — slug + presets
+- `SharedLinkRow` — URL du builder + `ShareLink` ; `PhotoShareViewModel` — URL du builder
+- `AuthViewModel.restoreSession()` — charge `serverConfig()` (sinon `externalDomain` inconnu après relaunch)
 
-#### Endpoint API (3 manquants)
-- `GET /api/shared-links/public/:slug` — **manquant** (getSharedLinkPublic)
-- `POST /api/shared-links/:slug/assets` — **manquant** (uploadToSharedLink)
-- `POST /api/shared-links/:slug/check-password` — **manquant** (checkSharedLinkPassword)
-
-#### Étapes d'implémentation
-1. Ajouter 3 nouvelles méthodes dans `ImmichClient` + `ImmichAPIClient`
-2. Étendre `SharedLinksViewModel` avec copy/link/preview/upload/password
-3. Créer `ExternalLinkPreviewView` (WKWebView) dans `Features/SharedLinks/`
-4. Créer `UploadFromLinkView` dans `Features/SharedLinks/`
-5. Ajouter expiry picker dans `EditSharedLinkSheet`
-6. Ajouter MoreActionsButton (preview/copy/upload/edit/revoke) dans `SharedLinksView`
-7. Mock + tests ≥6
+#### Endpoints
+Aucun endpoint manquant : les 3 routes annoncées ici (`public/:slug`, `:slug/assets`, `:slug/check-password`) **n'existent pas** — voir « Endpoints fantômes retirés ». Le seul verbe fautif était `PUT /api/shared-links/{id}`, corrigé en `PATCH`.
 
 #### Tests attendus
-- `Tests/SharedLinksViewModelTests.swift` ≥6 tests : copy link, public URL, upload from link, password check, error, expiry picker
-- Regression : suite ≥ baseline
+- `Tests/SharedLinkURLTests.swift` : 4 cas d'URL
+- `ImmichAPIClientTests` : POST avec slug, PATCH avec slug, `PUT /shared-links/{id}/assets` + `AssetIdsDto`
+- `SharedLinksViewModelTests` : création slug + expiration, ajout d'assets
+- `UITests/ImmichRenderScreenshots.swift/test_07_sharedLinks` sur stub committé `UITests/stubs/immich_stub_shared_links.py`
+- Regression : suite ≥ 736
 
 ---
 
@@ -678,6 +674,8 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 | GET | /api/memories/statistics | getMemoriesStatistics() | **NEW** |
 | DELETE | /api/memories/:id/assets | removeAssetsFromMemory() | **NEW** |
 | POST | /api/shared-links | createSharedLink() | Shared links |
+| PATCH | /api/shared-links/:id | updateSharedLink() | Shared links — **PATCH** (le `PUT` envoyé jusqu'au 2026-09-13 rendait 404) |
+| PUT | /api/shared-links/:id/assets | addAssetsToSharedLink() | Shared links — propriétaire, corps `AssetIdsDto`, type `INDIVIDUAL` seulement |
 | DELETE | /api/shared-links/:id | deleteSharedLink() | Shared links |
 | GET | /api/stacks | searchStacks() | Stacks |
 | POST | /api/stacks | createStack() | Stacks — **sert aussi à étendre une pile** (contrat de fusion, cf. §2.9) |
@@ -693,14 +691,11 @@ iOS n'a pas d'équivalent des content-URI triggers Android utilisés par Flutter
 |---|----------|---------|----------|
 | 1 | `POST /api/partners` | Partners UI (create) | P3 |
 | 2 | `GET /api/partners?direction=` | Partners UI (directional) | P3 |
-| 3 | `GET /api/shared-links/public/:slug` | Shared Links Enriched | P3 |
-| 4 | `POST /api/shared-links/:slug/assets` | Shared Links Enriched | P3 |
-| 5 | `POST /api/shared-links/:slug/check-password` | Shared Links Enriched | P3 |
-| 6 | `POST /api/users/me/device-token` | Push Notifications | P5 |
+| 3 | `POST /api/users/me/device-token` | Push Notifications | P5 |
 
 **Champs manquants (pas des endpoints)** — `POST /api/assets` n'envoie ni `deviceAssetId` ni `deviceId` (`ImmichAPIClient.swift:480-491`). Corrigé par §2.13 ; prérequis de toute réconciliation par appareil.
 
-**Endpoints fantômes retirés** — `POST /api/assets/:stackId/assets` était listé ici comme « addAssetToStack ». Il **n'existe pas** : l'OpenAPI publié ne l'expose ni sur `main` (7 opérations `stacks`) ni sur `v1.135.0` (6), et `server/src/controllers/stack.controller.ts` ne déclare aucun ajout de membre. Étendre une pile = `POST /api/stacks` avec la couverture **en tête** du payload (contrat de fusion — cf. §2.9). Corollaire de méthode : une route recopiée de mémoire dans un backlog finit par être crue ; chaque endpoint cité doit être adossé à l'OpenAPI du serveur.
+**Endpoints fantômes retirés** — `POST /api/assets/:stackId/assets` était listé ici comme « addAssetToStack ». Il **n'existe pas** : l'OpenAPI publié ne l'expose ni sur `main` (7 opérations `stacks`) ni sur `v1.135.0` (6), et `server/src/controllers/stack.controller.ts` ne déclare aucun ajout de membre. Étendre une pile = `POST /api/stacks` avec la couverture **en tête** du payload (contrat de fusion — cf. §2.9). Trois autres routes fantômes sont retirées de la même façon le 2026-09-13 : `GET /api/shared-links/public/:slug`, `POST /api/shared-links/:slug/assets` et `POST /api/shared-links/:slug/check-password` n'existent ni dans `server/src/controllers/shared-link.controller.ts` ni dans l'OpenAPI publié (sha256 `bace1792…`) — l'équivalent réel est `GET /shared-links/me?key=…|?slug=…` pour la visite publique, `PUT /shared-links/{id}/assets` pour l'ajout par le propriétaire, `POST /shared-links/login` pour le mot de passe, et `POST /api/assets?key=…` pour l'upload invité (cf. §2.6 et la carte `shared-link-viewer`, issue #22). Corollaire de méthode : une route recopiée de mémoire dans un backlog finit par être crue ; chaque endpoint cité doit être adossé à l'OpenAPI du serveur.
 
 ---
 

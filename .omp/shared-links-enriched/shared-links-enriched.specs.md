@@ -1,115 +1,101 @@
-# Task: shared-links-enriched
+# Task: shared-links-enriched — Spécification
 
-**Objectif** : Enrichir l'expérience des shared links dans ImmichSwiftUI. Le CRUD de base (create/edit/revoke) est fait, mais il manque le prévisualisation externe, le copy-link, l'upload-from-link, et l'expiration UI. Parité avec Flutter `SharedLinkRoute`, `SharedLinkEditRoute`.
+**Statut** : spécification **réécrite le 2026-09-13** sur le contrat réel du serveur et sur le dépôt réel. La version d'origine (8 septembre) décrivait trois routes qui n'existent pas et cinq « enrichissements » dont deux étaient déjà livrés ; elle est conservée en fin de fichier, sous « Version d'origine — ce qu'elle affirmait à tort ».
 
-**Hypothèses** :
-- `SharedLinksView.swift` + `SharedLinksViewModel.swift` existants.
-- `SharedLinkSheet.swift` + `EditSharedLinkSheet.swift` existants.
-- `SharedLinkResponseDto` (DTOs+SharedLink.swift) expose `id`, `description`, `password`, `key`, `type`, `createdAt`, `expiresAt`, `allowUpload`, `allowDownload`, `showMetadata`, `slug`.
-- Le slug est le chemin URL : `https://immich.domain.com/share/{slug}`.
-- `SharedLinkCreateDto` : type, albumId, assetIds, description, password, expiresAt, allowUpload, allowDownload, showMetadata.
-- `SharedLinkEditDto` : password, expiresAt, allowUpload, allowDownload, showMetadata, description.
-- `SharedLinksView` a déjà un "create" sheet (CreateSharedLinkSheet).
-- La navigation vers une page de prévisualisation peut se faire via `URLSession.shared.load` pour récupérer la preview HTML.
+**Objectif** : fermer les cinq écarts réels avec le client Flutter sur les shared links — builder d'URL publique (bug), champ `slug` à la création et à l'édition, presets d'expiration, feuille de partage, écran « lien prêt » après création.
 
-**Endpoints à ajouter** :
-- `POST /api/shared-links/{id}/password` — vérifier le password (déjà dans Flutter).
-- `GET /api/shared-links/{slug}` — accès public (sans token) pour preview.
-- `POST /api/shared-links/{slug}/assets` — upload depuis un lien public.
+**Hors périmètre** (carte + issue **#22**, `.opencode/scratch/shared-link-viewer.acceptance.md`) : le viewer public — ouvrir un lien reçu, saisie de mot de passe, upload par un visiteur. Feature neuve, **sans parité Flutter** (le client mobile n'a qu'une page liste + une page création/édition), et qui exige une plomberie d'auth absente : `sendAuthedRaw` exige un bearer et jette `APIError.unauthorized` sinon, et `ImmichHeader` n'a aucune notion de clé de partage.
 
-**Approche retenue** : A — ajouter preview WebView, copy-to-clipboard, upload-from-link sheet, expiry date picker, et password check.
-- **B (rejetée)** : nouvelle tab dédiée. Inutile, le Shared tab existe déjà.
-- **C (rejetée)** : juste copy-link. C'est 20% de la feature.
+## Contrat serveur vérifié (2026-09-13)
 
-## Étapes
+Vérifié sur l'OpenAPI publié (`main`, `open-api/immich-openapi-specs.json`, sha256 `bace1792…`) et sur les sources serveur (`shared-link.controller.ts`, `shared-link.service.ts`, `shared-link.repository.ts`).
 
-1. **ImmichClient** — Ajouter :
-   - `func getSharedLinkPublic(slug: String) async throws -> SharedLinkResponseDto` (GET public, no auth).
-   - `func uploadToSharedLink(slug: String, dto: AssetBulkUploadCheckRequest.Item) async throws -> AssetMediaResponseDto` (POST upload from public link).
-   - `func checkSharedLinkPassword(slug: String, password: String) async throws -> Bool` (POST password check).
-2. **ImmichAPIClient** — Implémenter les 3 nouvelles méthodes.
-3. **SharedLinksViewModel** — Étendre avec :
-   - `func copyLink(slug: String)` — copier l'URL dans le clipboard (UIPasteboard).
-   - `func buildPublicURL(slug: String) -> URL` — construire `baseURL/share/{slug}`.
-   - `func openPreview(slug: String)` — ouvrir dans un WKWebView (sheet).
-   - `func startUploadFromLink(slug: String)` — picker d'assets → upload.
-   - `func checkPassword(slug: String, password: String) async throws -> Bool`.
-   - `var editingPassword: String?` pour le edit sheet.
-4. **SharedLinksView** — Étendre :
-   - Bouton "Copy link" (share icon) sur chaque shared link row.
-   - Bouton "Preview" (globe icon) → WKWebView sheet.
-   - Ajouter "expires at" date picker dans EditSharedLinkSheet (déjà DTO existant, juste l'UI).
-   - Bouton "Upload from link" → picker d'assets → call uploadToSharedLink.
-5. **Public link preview sheet** — NEW `SharedLinkPreviewView` :
-   - WKWebView naviguant vers `baseURL/share/{slug}`.
-   - Toolbar avec "Copy link", "Close", "Download".
-6. **Tests** — `SharedLinksViewModelTests` + tests (copy link, public URL build, upload from link, password check).
-7. **xcodegen + suite**.
+| Route | Contrat |
+|---|---|
+| `GET /api/shared-links` | params `albumId?`, `id?` — permission `SharedLinkRead` |
+| `POST /api/shared-links` | body `SharedLinkCreateDto` — `type` requis, `slug` optionnel (« Custom URL slug ») |
+| `PATCH /api/shared-links/{id}` | body `SharedLinkEditDto` — **`patch`, pas `put`** (le `PUT` du client rendait 404) |
+| `GET /api/shared-links/{id}` | permission `SharedLinkRead` |
+| `DELETE /api/shared-links/{id}` | 204 |
+| `GET /api/shared-links/me` | `?key=<base64url>` ou `?slug=<slug>` — scope `sharedLink` : c'est LA route de visite d'un lien public |
+| `POST /api/shared-links/login` | `?key=`/`?slug=` + body `{password}` → DTO + cookie |
+| `PUT /api/shared-links/{id}/assets` | body `AssetIdsDto` — propriétaire (`SharedLinkUpdate`), `type == INDIVIDUAL` sinon 400 |
+| `DELETE /api/shared-links/{id}/assets` | idem, retrait |
 
-## Acceptance Contract
+Routes **inexistantes**, inventées par la carte d'origine : `GET /shared-links/public/:slug`, `POST /shared-links/:slug/assets`, `POST /shared-links/:slug/check-password`. L'upload par un visiteur est la route ordinaire `POST /api/assets?key=…`, gardée par `requireUploadAccess` (401 si `sharedLink.allowUpload` est faux) — cf. carte #22.
 
-### Approches candidates
-**A (retenue)** : Copy link + public preview WKWebView + upload from link + expiry picker + password check. Couvre les gaps listés dans l'audit.
-**B** : Nouvelle tab. Inutile, le Shared tab existe.
-**C** : Juste copy-link. 20% de la feature.
+**Trois subtilités qui décident du code :**
 
-### Approche retenue + rationale
-**A**. Toutes les opérations de lien partagés enrichies en une seule extension de SharedLinksView/ViewModel, réutilisant les DTOs existants.
+1. `SharedLinkService.update` écrit `slug: dto.slug || null` : un slug **omis est effacé** (contrairement à `password` et `expiresAt`, que le repository laisse intacts quand le champ est absent). Le formulaire d'édition renvoie donc **toujours** le slug courant.
+2. `SharedLinkService.create` pose `allowUpload: dto.allowUpload ?? true` et `allowDownload: dto.showMetadata === false ? false : (dto.allowDownload ?? true)` — les booleens sont optionnels côté client.
+3. `addAssets` filtre les doublons (`DUPLICATE`) et les assets sans permission `AssetShare` (`NO_PERMISSION`) puis réécrit la liste complète des assets du lien.
 
-### Critères
+## Format d'URL publique (bug n° 1)
 
-```
-### AC-SL01 [type: new]
-Assertion: ImmichClient expose getSharedLinkPublic(slug:), uploadToSharedLink(slug:), checkSharedLinkPassword(slug:password:).
-Check post-impl: sh -c 'f=Sources/Core/Protocols/ImmichClient.swift; grep -q "func getSharedLinkPublic" "$f" && grep -q "func uploadToSharedLink" "$f" && grep -q "func checkSharedLinkPassword" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
+Référence Flutter — `mobile/lib/utils/url_helper.dart` :
+
+```dart
+String? buildSharedLinkUrl({required String? baseUrl, required String key, String? slug}) {
+  final normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+  final path = (slug != null && slug.isNotEmpty) ? 's/$slug' : 'share/$key';
+  return '$normalizedBaseUrl$path';
+}
 ```
 
-```
-### AC-SL02 [type: new]
-Assertion: SharedLinksViewModel expose copyLink, buildPublicURL, openPreview, startUploadFromLink, checkPassword.
-Check post-impl: sh -c 'f=Sources/Features/SharedLinks/SharedLinksViewModel.swift; grep -q "func copyLink" "$f" && grep -q "func buildPublicURL" "$f" && grep -q "func openPreview" "$f" && grep -q "func startUploadFromLink" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+Appelants Flutter (`shared_link_item.dart`, `shared_link_edit.page.dart`) : `base = externalDomain.isNotEmpty ? externalDomain : getServerUrl()`. Côté web, les routes correspondantes sont `(user)/s/[slug]` et `/share/[key]`.
 
-```
-### AC-SL03 [type: new]
-Assertion: EditSharedLinkSheet intègre un UIDatePicker pour expiresAt.
-Check post-impl: sh -c 'f=Sources/Features/SharedLinks/EditSharedLinkSheet.swift; grep -q "DatePicker\|expiresAt" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL (si pas de picker)
-Post-state attendu: PASS
-```
+L'app hardcode `baseURL.appendingPathComponent("/share/\(link.key)")` à deux endroits — `SharedLinkRow.url` (`SharedLinksView.swift`) et `PhotoShareViewModel.createPublicLink` — donc elle ignore le slug **et** `externalDomain` : lien mort pour un lien à slug, et pour tout serveur derrière un reverse-proxy. `ServerConfigDto.externalDomain` existe déjà (`Sources/Core/Types/DTOs.swift`) et est affiché à l'onboarding.
 
-```
-### AC-SL04 [type: new]
-Assertion: SharedLinksView expose Copy link button + Preview button + Upload from link sur chaque row.
-Check post-impl: sh -c 'f=Sources/Features/SharedLinks/SharedLinksView.swift; grep -q "copyLink\|openPreview\|uploadToSharedLink\|UIPasteboard" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+**Correctif** : un seul builder `Sources/Core/Utilities/SharedLinkURL.swift` (struct portant `serverURL` + `externalDomain`), les deux appelants migrent, l'ancien code disparaît. `AuthViewModel.restoreSession()` charge en plus `serverConfig()`, sinon `externalDomain` reste inconnu après un relaunch (il n'était chargé qu'en passant par l'onboarding).
 
-```
-### AC-SL05 [type: new]
-Assertion: ImmichAPIClient implémente les 3 méthodes public/shared-link.
-Check post-impl: sh -c 'f=Sources/Services/ImmichAPIClient.swift; grep -q "getSharedLinkPublic" "$f" && grep -q "uploadToSharedLink" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+## Périmètre livré
 
-```
-### AC-SL06 [type: new]
-Assertion: MockImmichClient implémente les 3 méthodes.
-Check post-impl: sh -c 'f=Tests/Mocks/MockImmichClient.swift; grep -q "getSharedLinkPublic" "$f" && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+| # | Écart vs Flutter | Livrable |
+|---|---|---|
+| 1 | URL publique | `SharedLinkURL` (un builder), 2 appelants migrés |
+| 2 | champ `slug` | `slug` sur `SharedLinkCreateDto` + `SharedLinkEditDto` ; champ `/s/` à la création (onglet Shared + feuille album) et à l'édition |
+| 3 | expiration | `SharedLinkExpiryPicker` : 9 presets (Never, 30 min, 1 h, 6 h, 1 j, 7 j, 30 j, 90 j, 1 an) + date/heure, partagé création/édition |
+| 4 | feuille de partage | `ShareLink` à côté du bouton copier dans `SharedLinkRow` (onglet Shared **et** feuille d'album) |
+| 5 | retour post-création | écran « lien prêt » après création : lien copié, URL affichée, `ShareLink` |
 
-```
-### AC-SL07 [type: regression]
-Assertion: Suite ≥ baseline, TEST SUCCEEDED.
-Check post-impl: sh -c 'grep -q "TEST SUCCEEDED" /tmp/immich_sharedlinks_test_summary.txt && n=$(grep -o "Executed [0-9]* tests" /tmp/immich_sharedlinks_test_summary.txt | grep -o "[0-9]*" | sort -n | tail -1) && test "$n" -ge 200 && echo PASS || echo FAIL'
-Pre-state attendu: FAIL
-Post-state attendu: PASS
-```
+Plus, sur la même surface : `updateSharedLink` passe en `PATCH` (le `PUT` rendait 404), et `addAssetsToSharedLink(id:assetIds:)` entre au protocole comme miroir de surface (`PUT /shared-links/{id}/assets`, convention `api-surface-expansion` — le protocole porte déjà des méthodes sans consommateur UI, `getExploreData` par exemple).
+
+## Fichiers
+
+| Fichier | Nature |
+|---|---|
+| `Sources/Core/Utilities/SharedLinkURL.swift` | NEW — builder unique |
+| `Sources/Core/Types/DTOs+SharedLink.swift` | `slug` sur `SharedLinkCreateDto` |
+| `Sources/Core/Types/DTOs+Server.swift` | `slug` sur `SharedLinkEditDto`, route `PATCH` |
+| `Sources/Core/Protocols/ImmichClient.swift` | `addAssetsToSharedLink`, doc `PATCH` |
+| `Sources/Services/ImmichAPIClient.swift` | `PATCH`, `addAssetsToSharedLink` |
+| `Sources/Features/Auth/AuthViewModel.swift` | `serverConfig()` au restore |
+| `Sources/Features/SharedLinks/SharedLinkExpiryPicker.swift` | NEW — presets + date/heure |
+| `Sources/Features/SharedLinks/SharedLinksViewModel.swift` | création (slug + expiration, renvoie le lien), `addAssets` |
+| `Sources/Features/SharedLinks/SharedLinksView.swift` | slug + presets à la création, écran « lien prêt », URL + `ShareLink` dans la ligne |
+| `Sources/Features/SharedLinks/EditSharedLinkSheet.swift` | slug + presets |
+| `Sources/Features/SharedLinks/SharedLinkSheet.swift` | slug + presets (création album), `SharedLinkURL` |
+| `Sources/Features/PhotoViewer/PhotoShareViewModel.swift` | URL via le builder |
+| `Tests/Mocks/MockImmichClient.swift` | `addAssetsToSharedLink` |
+| `UITests/stubs/immich_stub_shared_links.py` | NEW — stub committé |
+| `UITests/ImmichRenderScreenshots.swift` | `test_07_sharedLinks` |
+
+## Tests
+
+- `Tests/SharedLinkURLTests.swift` : slug → `/s/<slug>` ; sans slug → `/share/<key>` ; `externalDomain` prioritaire sur l'URL du serveur ; URL du serveur quand `externalDomain` est vide.
+- `Tests/ImmichAPIClientTests.swift` (transport asservi `CapturingURLProtocol`) : `POST /api/shared-links` porte le slug ; `PATCH /api/shared-links/{id}` porte le slug ; `PUT /api/shared-links/{id}/assets` porte `AssetIdsDto`. Le test `test_P0_updateSharedLink_hitsPutEndpoint` est **remplacé** : il pinnait un verbe faux (le serveur n'expose que `PATCH`).
+- `Tests/SharedLinksViewModelTests.swift` : création avec slug + expiration, lien renvoyé ; ajout d'assets.
+- `UITests/ImmichRenderScreenshots.swift/test_07_sharedLinks` contre le stub committé : créer un lien à slug, lire l'URL affichée (elle doit porter l'`externalDomain` du stub et `/s/<slug>`), la copier et voir le retour visuel. XCUITest ne peut pas lire un presse-papier inter-processus sans l'invite de consentement iOS : le feedback in-app est la preuve du tap (même classe de garde que le `.buttonStyle(.plain)` avalant les taps).
+
+**Pièges du dépôt à respecter** : `.buttonStyle(.plain)` sur un `Button` dans une `List` avale le tap ; `.accessibilityLabel` sur un conteneur fusionne ses enfants ; le hub « Me » et toute `Form`/`List` sont paresseux (scroller avant d'assertir) ; les CTA sont localisés → viser les `accessibilityIdentifier`.
+
+## Version d'origine — ce qu'elle affirmait à tort
+
+Conservée pour la traçabilité (carte `.opencode/scratch/shared-links-enriched.acceptance.md` et issue #17 : même dérive).
+
+- **`GET public/:slug`, `POST :slug/assets`, `POST :slug/check-password`** : inexistantes. Voir le tableau du contrat.
+- **« copy-link manquant »** : déjà livré (`UIPasteboard` dans `SharedLinkRow`, `PhotoShareViewModel`).
+- **« expiry picker manquant »** : le `DatePicker` + `hasExpiry` existaient dans `EditSharedLinkSheet` ; seuls les presets manquaient.
+- **« le slug est le chemin URL `/share/{slug}` »** : faux — `/s/<slug>` quand un slug existe, `/share/<key>` sinon.
+- **`PUT /api/shared-links/{id}`** : le serveur n'expose que `PATCH`.
+- **`checkSharedLinkPassword(slug:), uploadToSharedLink(slug:)`** annoncés comme endpoints manquants côté client : ce sont des routes inventées ; l'équivalent réel côté propriétaire est `PUT /api/shared-links/{id}/assets` (id, pas slug ; `INDIVIDUAL` seulement).

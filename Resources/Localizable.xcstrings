@@ -250,6 +250,12 @@
         }
       }
     },
+    "1 day" : {
+
+    },
+    "1 hour" : {
+
+    },
     "1 photo" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -284,7 +290,25 @@
         }
       }
     },
+    "1 year" : {
+
+    },
+    "30 days" : {
+
+    },
+    "30 minutes" : {
+
+    },
     "360°" : {
+
+    },
+    "6 hours" : {
+
+    },
+    "7 days" : {
+
+    },
+    "90 days" : {
 
     },
     "Account" : {
@@ -703,6 +727,9 @@
         }
       }
     },
+    "Copied" : {
+
+    },
     "Copy" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -713,6 +740,9 @@
           }
         }
       }
+    },
+    "Copy link" : {
+
     },
     "Could not reach server." : {
       "extractionState" : "stale",
@@ -927,6 +957,12 @@
           }
         }
       }
+    },
+    "Custom URL" : {
+
+    },
+    "Custom…" : {
+
     },
     "Date" : {
       "extractionState" : "stale",
@@ -1189,6 +1225,15 @@
           }
         }
       }
+    },
+    "Expiration" : {
+
+    },
+    "Expires %@" : {
+
+    },
+    "Expiry date" : {
+
     },
     "Explore" : {
       "extractionState" : "stale",
@@ -1510,6 +1555,9 @@
     "Libraries (%@)" : {
 
     },
+    "Link ready" : {
+
+    },
     "Links you create to share albums will appear here." : {
       "localizations" : {
         "fr" : {
@@ -1668,6 +1716,9 @@
           }
         }
       }
+    },
+    "Never" : {
+
     },
     "New Album" : {
       "extractionState" : "stale",
@@ -2719,6 +2770,9 @@
           }
         }
       }
+    },
+    "Share link" : {
+
     },
     "Share with other users" : {
       "localizations" : {

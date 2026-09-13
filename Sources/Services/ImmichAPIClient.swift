@@ -254,8 +254,21 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sharedLinks.path("/\(id)"), body: nil)
     }
 
+    /// `PATCH /api/shared-links/{id}` — the server exposes PATCH for edits (the
+    /// PUT this client used to send answered 404 at runtime).
     func updateSharedLink(id: String, dto: SharedLinkEditDto) async throws -> SharedLinkResponseDto {
-        try await sendAuthed(.PUT, path: ImmichAPI.sharedLinks.path("/\(id)"), body: AnyEncodable(dto))
+        try await sendAuthed(.PATCH, path: ImmichAPI.sharedLinks.path("/\(id)"), body: AnyEncodable(dto))
+    }
+
+    /// `PUT /api/shared-links/{id}/assets` — owner-side add of assets to an
+    /// INDIVIDUAL link; the response reports per-asset success.
+    @discardableResult
+    func addAssetsToSharedLink(id: String, assetIds: [String]) async throws -> [AssetIdsResponseDto] {
+        try await sendAuthed(
+            .PUT,
+            path: ImmichAPI.sharedLinks.path("/\(id)/assets"),
+            body: AnyEncodable(AssetIdsDto(assetIds: assetIds))
+        )
     }
 
     // MARK: - Tags (gap #2)

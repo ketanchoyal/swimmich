@@ -1,22 +1,35 @@
 import SwiftUI
 
 /// Shared-link management sheet for an album (AC-512, AC-513).
-/// Create new link (optional password) + list/revoke existing links + copy URL.
+/// Create new link (optional password, custom slug, expiry) + list/revoke
+/// existing links + copy URL.
 ///
 /// `SharedLinkResponseDto.password` is the server-returned password string —
 /// it is NEVER displayed in the UI (VM-J security). We only show a lock icon
 /// when the link is password-protected.
 struct SharedLinkSheet: View {
     @Bindable var vm: AlbumDetailViewModel
-    let baseURL: URL
+    @Environment(AuthViewModel.self) private var auth
 
     @Environment(\.dismiss) private var dismiss
     @State private var description = ""
     @State private var usePassword = false
     @State private var password = ""
+    @State private var slug = ""
+    @State private var expiresAt: Date?
     @State private var pendingRevokeId: String?
     @State private var showRevokeConfirm = false
     @State private var editLinkItem: EditLinkItem?
+
+    /// `externalDomain` when the server advertises one, the server URL
+    /// otherwise — via the shared builder, so this sheet cannot drift from the
+    /// Shared tab.
+    private var sharedLinkBase: SharedLinkURL {
+        SharedLinkURL(
+            serverURL: auth.baseURL ?? URL(string: "https://example.com")!,
+            externalDomain: auth.serverConfig?.externalDomain ?? ""
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -88,15 +101,37 @@ struct SharedLinkSheet: View {
                         .padding(.vertical, PVSpacing.s12)
                 }
                 Divider()
+                HStack(spacing: 0) {
+                    if !slug.isEmpty {
+                        Text("/s/")
+                            .foregroundStyle(Color.textSecondaryPV)
+                            .accessibilityHidden(true)
+                    }
+                    TextField("Custom URL", text: $slug)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("sharedLinkSlugField")
+                }
+                .padding(.horizontal, PVSpacing.s16)
+                .padding(.vertical, PVSpacing.s12)
+                Divider()
+                SharedLinkExpiryPicker(date: $expiresAt)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.vertical, PVSpacing.s8)
+                Divider()
                 Button {
                     Task {
                         await vm.createSharedLink(
                             password: usePassword ? password : nil,
-                            description: description.isEmpty ? nil : description
+                            description: description.isEmpty ? nil : description,
+                            slug: slug,
+                            expiresAt: expiresAt
                         )
                         description = ""
                         password = ""
                         usePassword = false
+                        slug = ""
+                        expiresAt = nil
                     }
                 } label: {
                     Label("Create Link", systemImage: "square.and.arrow.up")
@@ -124,7 +159,7 @@ struct SharedLinkSheet: View {
             ForEach(vm.sharedLinks, id: \.id) { link in
                 SharedLinkRow(
                     link: link,
-                    baseURL: baseURL,
+                    sharedLinkBase: sharedLinkBase,
                     isPendingRevoke: pendingRevokeId == link.id,
                     onRevoke: { pendingRevokeId = link.id },
                     cardBackground: Color(uiColor: .systemBackground)

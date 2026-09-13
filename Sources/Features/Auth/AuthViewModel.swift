@@ -127,6 +127,13 @@ final class AuthViewModel: AuthSessionDelegate {
         } catch {
             // Network / decode: keep the session; don't wipe on transient offline.
         }
+        // `serverConfig` is otherwise only fetched by `connectServer()`, i.e.
+        // while walking onboarding. A relaunch with a stored session would
+        // therefore leave `externalDomain` unknown — and the public URL of a
+        // shared link would fall back to the server's internal address.
+        if isAuthenticated {
+            serverConfig = try? await client.serverConfig()
+        }
     }
 
     // MARK: - URL helpers
