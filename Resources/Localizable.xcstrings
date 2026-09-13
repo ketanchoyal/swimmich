@@ -1313,6 +1313,17 @@
         }
       }
     },
+    "Enable Notifications" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer les notifications"
+          }
+        }
+      }
+    },
     "Error" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1519,6 +1530,28 @@
     },
     "Immich remembers which photos are already backed up so it never re-reads your whole iCloud library on every run. A photo stays on this list until the server is found to no longer have it." : {
 
+    },
+    "Immich tells you when a backup finishes, so a background backup isn't silent." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich vous prévient quand une sauvegarde se termine, pour qu'une sauvegarde en arrière-plan ne passe pas inaperçue."
+          }
+        }
+      }
+    },
+    "Immich tells you when a backup finishes." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich vous prévient quand une sauvegarde se termine."
+          }
+        }
+      }
     },
     "Indiquez l'URL de votre instance Immich." : {
 
@@ -2211,6 +2244,38 @@
         }
       }
     },
+    "Notifications" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        }
+      }
+    },
+    "Notifications are off. iOS only asks once, so turn them back on in System Settings." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les notifications sont désactivées. iOS ne demande qu'une fois : réactivez-les dans Réglages système."
+          }
+        }
+      }
+    },
+    "Off" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé"
+          }
+        }
+      }
+    },
     "Offline" : {
       "localizations" : {
         "fr" : {
@@ -2242,6 +2307,17 @@
         }
       }
     },
+    "On" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé"
+          }
+        }
+      }
+    },
     "Only selected albums" : {
 
     },
@@ -2266,6 +2342,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ouvrir dans le navigateur"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les réglages système"
           }
         }
       }
@@ -3610,86 +3697,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vous n'avez pas encore d'album."
-          }
-        }
-      }
-    },
-    "Enable Notifications" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Activer les notifications"
-          }
-        }
-      }
-    },
-    "Immich tells you when a backup finishes, so a background backup isn't silent." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Immich vous prévient quand une sauvegarde se termine, pour qu'une sauvegarde en arrière-plan ne passe pas inaperçue."
-          }
-        }
-      }
-    },
-    "Immich tells you when a backup finishes." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Immich vous prévient quand une sauvegarde se termine."
-          }
-        }
-      }
-    },
-    "Notifications" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
-          }
-        }
-      }
-    },
-    "Notifications are off. iOS only asks once, so turn them back on in System Settings." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les notifications sont désactivées. iOS ne demande qu'une fois : réactivez-les dans Réglages système."
-          }
-        }
-      }
-    },
-    "Off" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Désactivé"
-          }
-        }
-      }
-    },
-    "On" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Activé"
-          }
-        }
-      }
-    },
-    "Open System Settings" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrir les réglages système"
           }
         }
       }
