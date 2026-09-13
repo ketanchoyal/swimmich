@@ -117,7 +117,7 @@ Post-state attendu: PASS
 
 ## Révision 2026-09-13 — préparation d'implémentation
 
-> **LIVRÉ le 2026-09-13** (13/13 AC PASS, suite 805 → 828, `test_09_offlineDownload` vert 2×). Les écarts constatés à l'implémentation sont consignés dans `.opencode/scratch/offline-download.acceptance.md` § « Écarts constatés » — les deux qui comptent ici : `fileSizeInByte` vit dans `exifInfo` (pas sur l'asset), et les tables de l'index **doivent rester observées** (un `@ObservationIgnored` rend le badge du timeline muet).
+> **LIVRÉ le 2026-09-13** (commit `ebf43e4`, issue #18 fermée ; 13/13 AC PASS, suite 805 → 831, `test_09_offlineDownload` vert 3×). Les écarts constatés à l'implémentation sont consignés dans `.opencode/scratch/offline-download.acceptance.md` § « Écarts constatés » — les trois qui comptent ici : `fileSizeInByte` vit dans `exifInfo` (pas sur l'asset) ; les tables de l'index **doivent rester observées** (un `@ObservationIgnored` rend le badge du timeline muet) ; et les **vidéos** exigent leur propre chemin local (`prepare(…, localFileURL:)` + `ImageDownsampler.videoPoster`), sinon « Download for Offline » ment pour elles.
 
 Carte de référence : `.opencode/scratch/offline-download.acceptance.md` (réécrite, AC-3500–AC-3512). La carte d'origine (AC-OF01–AC-OF07) ne mesurait que la **présence de mots** dans des fichiers (`grep -q`), ne bornait la régression qu'à `-ge 200` pour une baseline réelle de **805**, et laissait hors périmètre ce qui fait marcher la fonctionnalité. Corrections :
 

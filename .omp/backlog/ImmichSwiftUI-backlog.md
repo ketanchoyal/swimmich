@@ -320,9 +320,9 @@ Aucun endpoint manquant : les 3 routes annoncées ici (`public/:slug`, `:slug/as
 
 ---
 
-### 2.7. Offline Download (P4)
+### 2.7. Offline Download (P4) — ✅ Terminé (2026-09-13)
 
-> **LIVRÉ le 2026-09-13** — 13/13 AC PASS, suite 805 → **831 tests TEST SUCCEEDED**, `test_09_offlineDownload` vert 2× contre le stub committé. Carte de référence : `.opencode/scratch/offline-download.acceptance.md` (AC-3500–AC-3512). Ce qui suit décrit la feature livrée ; les écarts constatés à l'implémentation sont listés dans la carte.
+> **LIVRÉ le 2026-09-13** en un commit `ebf43e4`, issue [#18](https://github.com/millianlmx/swimmich/issues/18) fermée, item 18 du projet #2 en `Done`. **13/13 AC PASS**, suite 805 → **831 tests TEST SUCCEEDED** (iPhone 17, `-only-testing:ImmichSwiftUITests`), `test_09_offlineDownload` vert 3× contre le stub **committé** `UITests/stubs/immich_stub_offline.py`. Carte de référence : `.opencode/scratch/offline-download.acceptance.md` (AC-3500–AC-3512). Ce qui suit décrit la feature livrée ; les écarts constatés à l'implémentation sont listés dans la carte (§ « Écarts constatés »).
 
 **Fichier spec** : `.omp/offline-download/offline-download.specs.md`
 **Card AC** : `.opencode/scratch/offline-download.acceptance.md`
@@ -345,24 +345,25 @@ Téléchargement d'assets pour consultation hors-ligne. Cache fichiers durable s
 #### Endpoint API
 - `GET /api/assets/:id/original` — existant (`operationId: downloadAsset`, `application/octet-stream`) — **vérifié le 2026-09-13** sur l'OpenAPI `main` (`jq '.paths["/assets/{id}/original"]' /tmp/immich-openapi-main.json`). Aucune route « offline » n'existe côté serveur.
 
-#### Étapes d'implémentation (révisées le 2026-09-13 — voir la carte AC-3500–AC-3512)
-1. NEW `Sources/Services/OfflineAssetStore.swift` — `actor`, cache fichiers + `index.json` sous **Application Support** (`Caches` est purgeable par l'OS, la spec d'origine se trompait), API `download/cachedInfo/fileURL/allCached/isCached/totalBytes/remove/clearAll/maxCacheSize`, `init(folderURL:)` injectable pour les tests.
-2. NEW `Sources/Services/ImageDownsampler.swift` — ImageIO (`CGImageSourceCreateThumbnailAtIndex`), 2048 px.
-3. EDIT `Sources/Services/AuthenticatedAsyncImage.swift` — étage 0 `localFileURL` : c'est **ce qui rend la consultation hors-ligne réelle** (sans lui le store n'est qu'une liste de tailles).
-4. NEW `Sources/Features/Offline/OfflineAssetIndex.swift` — `@MainActor @Observable`, injecté dans l'environnement (les 6 sites d'`AssetThumbnailCell` ne doivent pas recevoir un paramètre de plus).
-5. NEW `Sources/Features/Offline/OfflineDownloadViewModel.swift` — `cachedAssets`, `cacheUsage`, `maxCacheSize`, `downloadAsset(id:)`, `removeFromOffline(id:)`, `clearAll()`, `load()`, progression par asset.
-6. NEW `Sources/Features/Offline/OfflineAssetsView.swift` — `LazyVGrid` + carte d'occupation (anneau) + suppression par asset + « Clear All » + état vide.
-7. EDIT `Sources/Features/Timeline/AssetThumbnailCell.swift` — badge `offlineBadge` + image servie depuis le fichier local.
-8. EDIT `Sources/Features/PhotoViewer/ZoomableImageView.swift` + `PhotoViewer.swift` — `localFileURL` et section « Offline » du partage.
-9. EDIT `Sources/Features/Profile/ProfileView.swift` — lien « Offline Storage » (section Management).
-10. EDIT `Sources/DependencyContainer.swift` + `Sources/RootView.swift` — instances process-wide + `.environment(offlineIndex)`.
-11. EDIT `Resources/Localizable.xcstrings` — clés EN+FR ajoutées à la main.
+#### Étapes d'implémentation (telles que livrées — voir la carte AC-3500–AC-3512)
+1. NEW `Sources/Services/OfflineAssetStore.swift` — `actor`, cache fichiers + `index.json` sous **Application Support** (`Caches` est purgeable par l'OS, la spec d'origine se trompait), API `download/cachedInfo/fileURL/allCached/isCached/totalBytes/remove/clearAll/maxCacheSize`, `init(folderURL:transport:fileManager:defaults:)` injectable pour les tests.
+2. NEW `Sources/Services/ImageDownsampler.swift` — ImageIO (`CGImageSourceCreateThumbnailAtIndex`), 2048 px ; `videoPoster(at:)` (AVAssetImageGenerator) pour la vignette d'une **vidéo** en cache (ImageIO ne lit pas un `.mp4`).
+3. NEW `Sources/Core/Protocols/FileDownloadTransport.swift` + `Sources/Services/URLSessionFileDownloadTransport.swift` — couture de téléchargement : `URLSession.download` écrit un fichier temporaire (jamais de `Data` en mémoire) et un double peut rejouer une progression, ce qu'un `URLProtocol` ne permet pas.
+4. EDIT `Sources/Services/AuthenticatedAsyncImage.swift` — étage 0 `localFileURL` : c'est **ce qui rend la consultation hors-ligne réelle** (sans lui le store n'est qu'une liste de tailles).
+5. NEW `Sources/Features/Offline/OfflineAssetIndex.swift` — `@MainActor @Observable`, injecté dans l'environnement (les 6 sites d'`AssetThumbnailCell` ne doivent pas recevoir un paramètre de plus). Ses tables restent **observées** : `@ObservationIgnored` rendrait le badge du timeline muet.
+6. NEW `Sources/Features/Offline/OfflineDownloadViewModel.swift` — `cachedAssets`, `cacheUsage`, `maxCacheSize`, `downloadAsset(id:)`, `removeFromOffline(id:)`, `clearAll()`, `load()`, progression par asset.
+7. NEW `Sources/Features/Offline/OfflineAssetsView.swift` — `LazyVGrid` + carte d'occupation (anneau) + suppression par asset + « Clear All » + état vide.
+8. EDIT `Sources/Features/Timeline/AssetThumbnailCell.swift` — badge `offlineBadge` + image servie depuis le fichier local (identifier de tuile `assetTile_<id>`).
+9. EDIT `Sources/Features/PhotoViewer/` — `localFileURL` dans `ZoomableImageView`, **lecture vidéo depuis le fichier local** (`VideoPlaybackViewModel.prepare(…, localFileURL:)` → `VideoPlayerView`), diaporama (`SlideshowView`, `KenBurnsImageView`), et section « Offline » du partage (`PhotoShareSheet`).
+10. EDIT `Sources/Features/Profile/ProfileView.swift` — lien « Offline Storage » (section Management, identifier `offlineStorageRow`).
+11. EDIT `Sources/DependencyContainer.swift` + `Sources/RootView.swift` — instances process-wide + `.environment(offlineIndex)`.
+12. EDIT `Resources/Localizable.xcstrings` — 24 clés EN+FR ajoutées à la main.
 
 #### Tests attendus
-- `Tests/OfflineAssetStoreTests.swift` ≥7 : write+index, cache hit, cache miss, remove, clearAll, éviction à la limite, réconciliation d'index (+ rendu local sans réseau, progression).
-- `Tests/OfflineDownloadViewModelTests.swift` ≥5 : load, download succès, download échec, remove, clear + `cacheUsage`.
-- `UITests/stubs/immich_stub_offline.py` (committé, self-contained, port 8421) + `test_09_offlineDownload` dans `UITests/ImmichRenderScreenshots.swift` : viewer → « Download for Offline » → badge timeline → écran Offline Storage → suppression.
-- Regression : suite ≥ **805** (baseline mesurée le 2026-09-13, `-only-testing:ImmichSwiftUITests`), TEST SUCCEEDED.
+- `Tests/OfflineAssetStoreTests.swift` — **17 cas** : write+index, cache hit, cache miss, remove, clearAll, refus avant transfert, éviction à la limite, réconciliation d'index, `.partial` orphelin, statut HTTP, payload vide, rendu local sans réseau, plafond du downsampler, extension serveur, progression, poster vidéo, poster refusé sur un non-vidéo.
+- `Tests/OfflineDownloadViewModelTests.swift` — **8 cas** : load, download succès, download échec, progression, remove, clear, recherche, anneau sans limite. `Tests/Mocks/{MockFileDownloadTransport,VideoFixture}.swift` fournissent le transport asservi et un vrai MP4 H.264.
+- `UITests/stubs/immich_stub_offline.py` (committé, self-contained, port 8421) + `test_09_offlineDownload` : viewer → « Download for Offline » → badge timeline → écran Offline Storage (**serveur coupé** : le stub répond 503 à tout `/api/assets/*` et `/api/timeline/*`, et le scénario exige zéro requête de ce type) → suppression.
+- Regression : suite **831 tests TEST SUCCEEDED** (baseline 805 mesurée le 2026-09-13, `-only-testing:ImmichSwiftUITests`).
 
 ---
 
