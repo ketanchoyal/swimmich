@@ -33,10 +33,12 @@ struct FavoritesTimelineProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (FavoritesEntry) -> Void) {
-        guard !context.isPreview else {
-            completion(placeholder(in: context))
-            return
-        }
+    /// The gallery's snapshot is a *live* self-test: it fetches like the Home
+    /// Screen does and shows whatever comes back — photos, or the reason they
+    /// did not. Apple suggests a sample for the gallery, and a sample is exactly
+    /// what hid this bug for two days: the gallery looked fine while the real
+    /// fetch never worked (issue #19 follow-up). `placeholder(in:)` still serves
+    /// the redacted first render.
         Task {
             let wall = await provider.favoritePhotos(limit: context.family.photoLimit)
             completion(FavoritesEntry(date: .now, wall: wall))

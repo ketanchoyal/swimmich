@@ -116,6 +116,10 @@ Check post-impl: `sh -c 'test -f Sources/Services/WidgetExtensionProbe.swift && 
 Assertion: l'extension annonce **les mêmes versions** que l'app (xcodegen met sinon 1.0/1 en dur dans le plist de l'appex, alors que l'app annonce 0.1.0) ; les fichiers d'entitlements restent sans commentaire (Xcode les re-sérialise pendant le build, qui échoue si son entrée a changé).
 Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VERSION)\"" project.yml && awk "/^  ImmichWidgets:/,/^  ImmichSwiftUITests:/" project.yml | grep -q "CFBundleVersion: \"\$(CURRENT_PROJECT_VERSION)\"" && grep -q "MARKETING_VERSION" ImmichWidgets/Info.plist && ! grep -q "<!--" Resources/ImmichWidgets.entitlements && echo PASS || echo FAIL'`
 
+### AC-3619 [type: new]
+Assertion: l'aperçu de la **galerie de widgets** fetche pour de vrai (au lieu de servir un échantillon), pour que galerie et écran d'accueil répondent la même chose — c'est l'échantillon qui a masqué le bug pendant deux jours.
+Check post-impl: `sh -c '! grep -q "guard !context.isPreview" ImmichWidgets/ImmichGridWidget.swift && ! grep -q "guard !context.isPreview" ImmichWidgets/ImmichMemoriesWidget.swift && grep -q "await provider.recentPhotos" ImmichWidgets/ImmichGridWidget.swift && grep -q "func placeholder(in context: Context)" ImmichWidgets/ImmichGridWidget.swift && echo PASS || echo FAIL'`
+
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
@@ -139,6 +143,7 @@ Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VER
 | AC-3616 | PASS | `failureHint` (« nas.local · certificate refused », « … · no answer in 10s », « keychain ») affiché dans l'état vide ; plaques sans octets passées en dégradé de marque **plein** pour ne plus être confondues avec le placeholder redacté d'iOS (vérifié au rendu) |
 | AC-3617 | PASS | `WidgetExtensionProbe` journalise à chaque lancement « widget: ok — profil autorise … » ou « widget: MISMATCH — … ajouter Keychain Sharing », vérifié en exécutant l'app (simulateur : « no provisioning profile to inspect ») ; 4 tests sur le verdict, dont le profil d'équipe à joker (`2MJF39L8VY.*`) — comparer les chaînes à la lettre aurait annoncé un faux « MISMATCH » |
 | AC-3618 | PASS | `ImmichWidgets/Info.plist` généré annonce 0.1.0 (1) comme l'app (vérifié sur le plist livré) ; entitlements sans commentaire, build propre vert |
+| AC-3619 | PASS | `getSnapshot` fetche (échantillon réservé à `placeholder(in:)`) ; vérifié à l'écran : l'aperçu de galerie affiche « 9 photos » + la vignette du stub |
 
 ## Vérification d'exécution
 

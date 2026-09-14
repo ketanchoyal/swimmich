@@ -597,7 +597,7 @@
 		CFA6FBC8A7F984464229A078 /* RoadTripCar3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripCar3D.swift; sourceTree = "<group>"; };
 		CFAA656D3A00CC43F26BF6B2 /* immich_stub_memories.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = immich_stub_memories.py; sourceTree = "<group>"; };
 		D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreImpl.swift; sourceTree = "<group>"; };
-		D083424E27645D19C36429E6 /* ImmichWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ImmichWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D083424E27645D19C36429E6 /* ImmichWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ImmichWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0876D980FBEECE9CE66D233 /* AddToStackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddToStackSheet.swift; sourceTree = "<group>"; };
 		D0F7326716E0B26ADF3FE9AD /* ImageDownsampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsampler.swift; sourceTree = "<group>"; };
 		D35F391869581ADE91FD15DA /* MemoriesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoriesViewModel.swift; sourceTree = "<group>"; };
@@ -1395,9 +1395,6 @@
 					14CF9D12828A274568D46D72 = {
 						TestTargetID = B31020D1619B9803A47177CB;
 					};
-					739F8A00265AD66EFBB0F27A = {
-						DevelopmentTeam = 2MJF39L8VY;
-					};
 					B31020D1619B9803A47177CB = {
 						DevelopmentTeam = 2MJF39L8VY;
 					};
@@ -1413,7 +1410,7 @@
 			mainGroup = D17CBEEDC2B73B359C3EA5BD;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
+				6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9810076BCAABFF144648C16E /* Products */;
@@ -2091,6 +2088,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Resources/ImmichWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2MJF39L8VY;
 				INFOPLIST_FILE = ImmichWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2099,6 +2098,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios.widgets";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -2108,6 +2108,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Resources/ImmichWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2MJF39L8VY;
 				INFOPLIST_FILE = ImmichWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2116,6 +2118,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios.widgets";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -2181,7 +2184,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
+		6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
 			requirement = {
@@ -2194,7 +2197,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		9B0ED811C01623D7167A0A48 /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
+			package = 6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */;
 			productName = SocketIO;
 		};
 /* End XCSwiftPackageProductDependency section */
