@@ -26,7 +26,7 @@ struct ServerURLScreen: View {
                 header
 
                 VStack(alignment: .leading, spacing: PVSpacing.s8) {
-                    Text("ADRESSE DU SERVEUR")
+                    Text("SERVER ADDRESS")
                         .font(.pvCaption)
                         .foregroundStyle(Color.textSecondaryPV)
                         .tracking(1)
@@ -78,7 +78,7 @@ struct ServerURLScreen: View {
         }
         .scrollDismissesKeyboard(.immediately)
         .background(Color.bgPrimary.ignoresSafeArea())
-        .navigationTitle("URL du serveur")
+        .navigationTitle("Server URL")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { isFocused = true }
         .onChange(of: auth.serverURLString) { _, _ in
@@ -92,11 +92,11 @@ struct ServerURLScreen: View {
                     presentingQRScanner = false
                 }
                 .ignoresSafeArea()
-                .navigationTitle("Scanner le QR code")
+                .navigationTitle("Scan QR code")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Fermer") { presentingQRScanner = false }
+                        Button("Close") { presentingQRScanner = false }
                     }
                 }
             }
@@ -120,11 +120,11 @@ struct ServerURLScreen: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 22)
                 case .reachable:
-                    Text("Continuer")
+                    Text("Continue")
                 case .unreachable:
-                    Text("Réessayer")
+                    Text("Try Again")
                 case .idle:
-                    Text("Vérifier la connexion")
+                    Text("Check connection")
                 }
             }
             .buttonStyle(PVPrimaryButtonStyle())
@@ -142,7 +142,7 @@ struct ServerURLScreen: View {
             HStack(spacing: PVSpacing.s8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Vérification du serveur…")
+                Text("Checking server…")
                     .font(.pvSubhead)
                     .foregroundStyle(Color.textSecondaryPV)
             }
@@ -150,7 +150,7 @@ struct ServerURLScreen: View {
 
         case .reachable(let version):
             VStack(alignment: .leading, spacing: PVSpacing.s12) {
-                Label("Serveur connecté", systemImage: "checkmark.circle.fill")
+                Label("Server connected", systemImage: "checkmark.circle.fill")
                     .font(.pvBodyLarge)
                     .foregroundStyle(Color.immichSuccess)
 
@@ -163,7 +163,7 @@ struct ServerURLScreen: View {
 
         case .unreachable:
             InlineErrorBadge(
-                message: auth.errorMessage ?? "Serveur injoignable",
+                message: auth.errorMessage ?? String(localized: "Server unreachable"),
                 retry: { connect() }
             )
         }
@@ -172,10 +172,10 @@ struct ServerURLScreen: View {
     private var header: some View {
         VStack(spacing: PVSpacing.s8) {
             PVHeaderBadge(icon: "link.badge.plus")
-            Text("Connectez votre serveur")
+            Text("Connect your server")
                 .font(.pvH2)
                 .multilineTextAlignment(.center)
-            Text("Indiquez l'URL de votre instance Immich.")
+            Text("Enter the URL of your Immich instance.")
                 .font(.pvSubhead)
                 .foregroundStyle(Color.textSecondaryPV)
                 .multilineTextAlignment(.center)
@@ -199,7 +199,7 @@ struct ServerURLScreen: View {
     /// Applies a scanned QR payload to the server field and validates it.
     private func handleScannedPayload(_ payload: String) {
         guard let url = QRServerConfigParser.parse(payload) else {
-            scanError = "QR code invalide : aucune URL de serveur trouvée."
+            scanError = String(localized: "Invalid QR code: no server URL found.")
             return
         }
         scanError = nil
@@ -221,11 +221,11 @@ private struct ServerInfoCard: View {
                 Divider()
             }
             if let externalDomain {
-                InfoRow(label: "Domaine", value: externalDomain)
+                InfoRow(label: "Domain", value: externalDomain)
                 Divider()
             }
             if let isInitialized {
-                InfoRow(label: "Initialisé", value: isInitialized ? "Oui" : "Non")
+                InfoRow(label: "Initialized", value: isInitialized ? String(localized: "Yes") : String(localized: "No"))
             }
         }
         .padding(.horizontal, PVSpacing.s16)
@@ -235,7 +235,10 @@ private struct ServerInfoCard: View {
 }
 
 private struct InfoRow: View {
-    let label: String
+    /// `LocalizedStringKey`, not `String`: the row takes a literal and must
+    /// resolve it through the environment locale like `Text` does. A `String`
+    /// property is never extracted by the compiler and never translated.
+    let label: LocalizedStringKey
     let value: String
 
     var body: some View {

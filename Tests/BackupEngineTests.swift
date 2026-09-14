@@ -154,7 +154,7 @@ final class BackupEngineTests: XCTestCase {
         XCTAssertEqual(engine.uploadedCount, 0)
         XCTAssertEqual(engine.deferredCount, 0, "hors ligne n'entre même pas dans le pipeline")
         XCTAssertEqual(mock.requestCount, 0, "aucun appel réseau")
-        XCTAssertEqual(engine.lastError, "Backup needs a network connection.")
+        XCTAssertEqual(engine.lastError, localizedString("Backup needs a network connection."))
     }
 
     @MainActor
@@ -170,7 +170,7 @@ final class BackupEngineTests: XCTestCase {
 
         XCTAssertEqual(engine.phase, .idle)
         XCTAssertEqual(mock.requestCount, 0)
-        XCTAssertEqual(engine.lastError, "Backup requires charging.")
+        XCTAssertEqual(engine.lastError, localizedString("Backup requires charging."))
     }
 
     @MainActor
@@ -489,7 +489,7 @@ final class NetworkPolicyTests: XCTestCase {
         XCTAssertEqual(engine.phase, .idle, "hors ligne : le pipeline n'est pas entré")
         XCTAssertEqual(source.purgeCount, 0, "aucun octet lu, aucun temp purgé")
         XCTAssertEqual(mock.requestCount, 0)
-        XCTAssertEqual(engine.lastError, "Backup needs a network connection.")
+        XCTAssertEqual(engine.lastError, localizedString("Backup needs a network connection."))
     }
 
     /// On cellular with "Wi-Fi only", photos may go up when allowed while videos

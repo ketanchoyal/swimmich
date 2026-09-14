@@ -47,7 +47,7 @@ struct PhotoEditorView: View {
                         saturation: Binding(get: { vm.editState.saturation }, set: { vm.setSaturation($0) }),
                         warmth: Binding(get: { vm.editState.warmth }, set: { vm.setWarmth($0) })
                     )
-                    Button("Revenir à l'original") {
+                    Button("Revert to original") {
                         vm.resetToOriginal()
                         revertTick &+= 1
                     }
@@ -180,7 +180,7 @@ struct AdjustmentSlidersView: View {
         }
     }
 
-    private func adjustmentRow(label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+    private func adjustmentRow(label: LocalizedStringKey, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         HStack {
             Text(label).frame(width: 90, alignment: .leading)
             Slider(value: value, in: range, step: 0.05)

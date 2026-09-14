@@ -463,9 +463,9 @@
 | Accessibilité (grouping, headers, hints partial) | ✅ |
 | Acceptance criteria méthodologie | ✅ (40+ cards) |
 | Tests unitaires | ✅ (système de tests, pattern mock, AC-based) |
-| i18n | ⚠️ Hardcoded FR/EN mix, partial `Localizable.xcstrings` |
+| i18n | ✅ 2026-09-14 (issue #21) — 629 clés, EN source + fr/de/es/it, sélecteur de langue, `AppDateFormat` |
 | Color migration (brandIndigo → immichPrimary) | ⚠️ Incomplete, 10 files still use deprecated |
-| DateFormatter hoisting | ⚠️ Per-call allocations in hot paths |
+| DateFormatter hoisting | ✅ 2026-09-14 (issue #21) — `AppDateFormat`, cache locale+calendar, plus d'allocation par ligne |
 | Timeline perf (memoize section builder) | ⚠️ Per-render computation |
 | Map marker cache eviction | ⚠️ Unbounded file cache |
 
@@ -490,7 +490,7 @@
 1. **Upload/backup auto** — le cœur du produit Immich (détection, exclusions, resume, backfill)
 2. **Partners / sharing UI** — client API complet mais pas d'écran dédié
 3. **Memories complet** — save/unsave, création, autres types
-4. **i18n** — FR/EN hardcoded, catalogue `Localizable.xcstrings` partiel
+4. ~~**i18n**~~ — livré le 2026-09-14 (issue #21) : plus de texte en dur, 629 clés en 5 langues, sélecteur de langue
 5. **Widgets / App Intents** — Live Activity fait, le reste en attente
 6. ~~**Push notifications**~~ — re-scopé le 2026-09-13 : l'écran d'autorisation OS est livré ; le reste (APNs) est **impossible** (aucun endpoint serveur, aucun push dans Flutter)
 7. **Offline download**

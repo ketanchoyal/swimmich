@@ -83,7 +83,7 @@ final class MemoryMomentPresentationTests: XCTestCase {
         let memory = makeMemory(memoryAt: "2023-07-01T00:00:00.000Z", year: 2023, assets: [
             makeAsset(id: "a0", people: [person("p1", "  "), person("p2", "")])
         ])
-        XCTAssertEqual(MemoryMomentPresentation.peopleLabel(for: memory, locale: enUS), "2 people")
+        XCTAssertEqual(MemoryMomentPresentation.peopleLabel(for: memory), localizedString("%lld people", 2))
     }
 
     func test_peopleLabel_none_returnsNil() {

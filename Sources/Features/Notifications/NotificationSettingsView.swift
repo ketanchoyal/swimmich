@@ -56,7 +56,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("Notifications")
             } footer: {
-                Text(footer)
+                if let footer { Text(footer) }
             }
         }
         .navigationTitle("Notifications")
@@ -64,10 +64,11 @@ struct NotificationSettingsView: View {
         .task { await vm.load() }
     }
 
-    private var footer: LocalizedStringKey {
-        if !vm.loaded {
-            return ""
-        }
+    /// Nil until the system's answer is known: an empty `LocalizedStringKey`
+    /// would be extracted as a catalog key of `""` — a string with nothing to
+    /// translate.
+    private var footer: LocalizedStringKey? {
+        guard vm.loaded else { return nil }
         if vm.isEnabled {
             return "Immich tells you when a backup finishes."
         }

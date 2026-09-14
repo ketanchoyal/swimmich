@@ -17,10 +17,10 @@ struct SearchModeGlassBar: View {
     @State private var modeChangeTick = 0
 
     static let height: CGFloat = 44
-    private static let segments: [(mode: SearchViewModel.ViewMode, title: String, icon: String)] = [
-        (.results, "Résultats", "magnifyingglass"),
+    private static let segments: [(mode: SearchViewModel.ViewMode, title: LocalizedStringKey, icon: String)] = [
+        (.results, "Results", "magnifyingglass"),
         (.explore, "Explorer", "sparkles"),
-        (.map, "Carte", "map"),
+        (.map, "Map", "map"),
     ]
 
     var body: some View {
@@ -63,7 +63,7 @@ struct SearchModeGlassBar: View {
     }
 
     private func segmentButton(
-        _ segment: (mode: SearchViewModel.ViewMode, title: String, icon: String)
+        _ segment: (mode: SearchViewModel.ViewMode, title: LocalizedStringKey, icon: String)
     ) -> some View {
         let isSelected = segment.mode == mode
         return Button {

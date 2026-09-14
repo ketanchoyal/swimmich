@@ -108,7 +108,7 @@ struct MapSegmentView: View {
             if ((isLoadingPhotos || vm.isLoading) && vm.markers.isEmpty) || isRenderingMarkers {
                 HStack(spacing: PVSpacing.s8) {
                     ProgressView()
-                    Text("Chargement des photos…")
+                    Text("Loading photos…")
                         .font(.pvSubhead)
                         .foregroundStyle(Color.textSecondaryPV)
                 }

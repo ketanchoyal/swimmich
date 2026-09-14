@@ -1,9 +1,11 @@
 import XCTest
 @testable import ImmichSwiftUI
 
-/// Guard tests for the string catalog (P5 i18n-catalog): the catalog must stay
-/// a valid, growing JSON document and carry the FR translations for the
-/// top-level navigation labels.
+/// Source-level guard for the string catalog (P5 i18n, issue #21).
+///
+/// `LocalizationTests` covers what the *bundle* resolves at runtime; this file
+/// covers the catalog as a document — the key/translation matrix the app is
+/// compiled against, which the runtime can only observe one lookup at a time.
 final class AppStringsTests: XCTestCase {
 
     private static var repoRoot: URL {
@@ -26,6 +28,10 @@ final class AppStringsTests: XCTestCase {
         return try XCTUnwrap(object)
     }
 
+    /// Every language the picker offers, minus the source language: the catalog
+    /// keys are the English strings themselves, so English needs no entry.
+    private static let shippedTranslations = ["fr", "de", "es", "it"]
+
     func test_catalog_isValidJSONWithExpectedSize() throws {
         let catalog = try Self.loadCatalog()
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
@@ -42,16 +48,24 @@ final class AppStringsTests: XCTestCase {
         }
     }
 
-    func test_catalog_englishSourceKeysCarryFrench() throws {
+    /// The contract the Language screen relies on: a language can only be
+    /// offered if the catalog carries it for *every* string with words in it.
+    /// Placeholder-only keys (`%@`, `· %@`) and pure-symbol keys (`360°`) have
+    /// nothing to translate and legitimately stay untranslated.
+    func test_catalog_translatesEveryStringInEveryShippedLanguage() throws {
         let catalog = try Self.loadCatalog()
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
-        let enOnly = strings.filter { key, value in
-            guard let entry = value as? [String: Any],
-                  let locs = entry["localizations"] as? [String: Any] else { return false }
-            return locs["en"] != nil && locs["fr"] == nil
+        var incomplete: [String] = []
+
+        for (key, value) in strings {
+            guard let entry = value as? [String: Any] else { continue }
+            let localizations = entry["localizations"] as? [String: Any] ?? [:]
+            for language in Self.shippedTranslations where localizations[language] == nil {
+                if Self.hasWords(key) { incomplete.append("\(language): \(key)") }
+            }
         }
-        // Remaining en-only keys are format placeholders or French-source copy.
-        XCTAssertLessThanOrEqual(enOnly.count, 24)
+
+        XCTAssertEqual(incomplete.sorted(), [], "Keys shipped without a translation")
     }
 
     func test_catalog_memoryCardKeysHaveFrenchTranslations() throws {
@@ -59,13 +73,21 @@ final class AppStringsTests: XCTestCase {
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
         let keys = [
             "Couldn't load memories", "Last year", "%lld years ago",
-            "1 photo", "%lld photos", "1 video", "%lld videos", "+%lld more",
-            "Memory photo from %lld"
+            "1 photo", "%lld photos", "1 video", "%lld videos"
         ]
         for key in keys {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], "Missing memory key \(key)")
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any], "No localizations for \(key)")
             XCTAssertNotNil(localizations["fr"], "Missing French translation for \(key)")
         }
+    }
+
+    /// True when a key carries something a translator can act on: format
+    /// specifiers and punctuation alone do not.
+    private static func hasWords(_ key: String) -> Bool {
+        let withoutFormatSpecifiers = key.replacingOccurrences(
+            of: #"%(\d+\$)?[@dfslu]|%lld|%@"#, with: "", options: .regularExpression
+        )
+        return withoutFormatSpecifiers.rangeOfCharacter(from: .letters) != nil
     }
 }

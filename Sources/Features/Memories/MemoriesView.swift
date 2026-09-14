@@ -338,16 +338,10 @@ enum MemoryCardPresentation {
     /// "July 1" from a UTC timestamp (memory day kept in UTC — memoryAt is a
     /// UTC "this day" anchor, a local tz shift would flip the day). The
     /// `MMMMd` template keeps day/month order locale-correct ("July 1" en,
-    /// "1 juillet" fr).
+    /// "1 juillet" fr). `AppDateFormat` renders it, so the label follows the
+    /// app's current language instead of the one the app launched with.
     static func monthDayLabel(from date: Date, locale: Locale = .current) -> String {
-        if locale == Locale.current {
-            return monthDayFormatter.string(from: date)
-        }
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
-        return formatter.string(from: date)
+        AppDateFormat.string(from: date, style: .monthDay, locale: locale, calendar: utcCalendar)
     }
 
     /// "July 1" — the card's title line. Nil when memoryAt can't be parsed.
@@ -434,11 +428,11 @@ enum MemoryCardPresentation {
         return parser
     }()
 
-    private static let monthDayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
-        return formatter
+    /// Gregorian calendar pinned to UTC: memory days are UTC anchors, so they
+    /// must never be re-read through the device's time zone.
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
     }()
 }

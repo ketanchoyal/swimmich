@@ -293,7 +293,7 @@ final class EditorViewModelTests: XCTestCase {
 
         XCTAssertNil(vm.originalImage)
         XCTAssertNotNil(vm.errorMessage)
-        XCTAssertTrue(vm.errorMessage?.lowercased().contains("invalid") == true, "got \(vm.errorMessage ?? "")")
+        XCTAssertEqual(vm.errorMessage, localizedString("Invalid image data"))
     }
 
     func test_AC_617_loadOriginal_transport_error() async {

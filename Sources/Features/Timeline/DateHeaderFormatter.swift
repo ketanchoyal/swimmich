@@ -14,9 +14,13 @@ import Foundation
 /// `calendar` is injectable so callers (and tests) can force a `TimeZone`
 /// (e.g. `Pacific/Honolulu`) — the relative comparison and the formatted
 /// output both honor it. Default is `Calendar.current`, matching device locale.
+///
+/// Every rendered label goes through `AppDateFormat`, so the formatters are
+/// cached per locale — the app's current language is read at render time, not
+/// frozen when this enum is first used.
 enum DateHeaderFormatter {
 
-    // MARK: Cached formatters
+    // MARK: Cached parser
 
     /// Stateless UTC parser for the `"YYYY-MM-DD"` → UTC-noon parse step.
     /// Allocated once, reused across every call (was per-call — audit P2).
@@ -27,40 +31,13 @@ enum DateHeaderFormatter {
         return parser
     }()
 
-    /// `DateFormatter` is expensive to allocate and depends on the injected
-    /// `calendar` (calendar + timeZone + locale — tests force `Pacific/Honolulu`
-    /// and `fr_FR`). Cache one `DateFormatter` per distinct calendar signature
-    /// + date format so we allocate at most a handful instead of one per call
-    /// (was up to 4 per call — audit P2). Main-thread-only call sites, but the
-    /// lock keeps it safe if that ever changes.
-    private static let formatterCacheLock = NSLock()
-    private static var formatterCache: [FormatterKey: DateFormatter] = [:]
-
-    private struct FormatterKey: Hashable {
-        let calendarIdentifier: String
-        let timeZoneIdentifier: String
-        let localeIdentifier: String
-        let dateFormat: String
-    }
-
-    /// Returns a cached `DateFormatter` configured for `calendar` + `dateFormat`,
-    /// creating one on first use for that signature.
-    private static func formatter(calendar: Calendar, dateFormat: String) -> DateFormatter {
-        let key = FormatterKey(
-            calendarIdentifier: "\(calendar.identifier)",
-            timeZoneIdentifier: calendar.timeZone.identifier,
-            localeIdentifier: calendar.locale?.identifier ?? "",
-            dateFormat: dateFormat
-        )
-        formatterCacheLock.lock()
-        defer { formatterCacheLock.unlock() }
-        if let cached = formatterCache[key] { return cached }
-        let df = DateFormatter()
-        df.calendar = calendar
-        df.locale = calendar.locale
-        df.dateFormat = dateFormat
-        formatterCache[key] = df
-        return df
+    /// The locale every label is spoken in. `Calendar` carries an optional
+    /// locale (tests inject `en_US`/`fr_FR`); when it has none we use the
+    /// autoupdating current locale, so an in-app language change reaches the
+    /// next render instead of being frozen at first use. `AppDateFormat` owns
+    /// the `DateFormatter`s themselves, cached per locale + calendar.
+    private static func locale(for calendar: Calendar) -> Locale {
+        calendar.locale ?? .autoupdatingCurrent
     }
 
     /// Returns a human-readable label for `isoPrefix` relative to `reference`.
@@ -113,15 +90,19 @@ enum DateHeaderFormatter {
         guard let date = parseUTCPrefix(isoPrefix) else {
             return isoPrefix
         }
-        let df = Self.formatter(calendar: calendar, dateFormat: "yyyy")
-        return df.string(from: date)
+        return AppDateFormat.string(
+            from: date,
+            style: .year,
+            locale: locale(for: calendar),
+            calendar: calendar
+        )
     }
 
     /// Returns a localized `"EEEE d MMMM"` weekday + day + month label for an
     /// ISO date prefix (e.g. `"2026-07-29"` → `"Wednesday 29 July"`). No
     /// relative "Today"/"Yesterday" — always the literal weekday, day number,
-    /// and month. Leading weekday's first letter is capitalized (some locales
-    /// emit lowercase weekday/month names).
+    /// and month. `AppDateFormat` capitalizes the weekday and month (some
+    /// locales emit lowercase names) and owns the cached formatters.
     static func dayMonthString(
         for isoPrefix: String,
         calendar: Calendar = .current
@@ -129,13 +110,12 @@ enum DateHeaderFormatter {
         guard let date = parseUTCPrefix(isoPrefix) else {
             return isoPrefix
         }
-        let weekdayFormatter = Self.formatter(calendar: calendar, dateFormat: "EEEE")
-        let dayFormatter = Self.formatter(calendar: calendar, dateFormat: "d")
-        let monthFormatter = Self.formatter(calendar: calendar, dateFormat: "MMMM")
-
-        let weekday = Self.capitalized(weekdayFormatter.string(from: date))
-        let month = Self.capitalized(monthFormatter.string(from: date))
-        return "\(weekday) \(dayFormatter.string(from: date)) \(month)"
+        return AppDateFormat.string(
+            from: date,
+            style: .dayMonth,
+            locale: locale(for: calendar),
+            calendar: calendar
+        )
     }
 
     /// Formats `date` as `"EEEE, MMMM d"` or `"EEEE, MMMM d, yyyy"`, honoring
@@ -143,18 +123,12 @@ enum DateHeaderFormatter {
     private static func format(
         date: Date, calendar: Calendar, includeYear: Bool
     ) -> String {
-        let df = Self.formatter(
-            calendar: calendar,
-            dateFormat: includeYear ? "EEEE, MMMM d, yyyy" : "EEEE, MMMM d"
+        AppDateFormat.string(
+            from: date,
+            style: .dayHeader(includeYear: includeYear),
+            locale: locale(for: calendar),
+            calendar: calendar
         )
-        return df.string(from: date)
-    }
-
-    /// Capitalizes the first letter only (month is the leading token in the
-    /// labels that use this; the rest stays untouched).
-    private static func capitalized(_ s: String) -> String {
-        guard let first = s.first else { return s }
-        return String(first).uppercased() + s.dropFirst()
     }
 
     /// Parses `"YYYY-MM-DD"` as a UTC-noon `Date`.

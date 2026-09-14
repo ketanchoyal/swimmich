@@ -318,7 +318,7 @@ struct MemoryMomentView: View {
 
     private func actionButton(
         symbol: String,
-        label: String,
+        label: LocalizedStringKey,
         identifier: String,
         action: @escaping () -> Void
     ) -> some View {

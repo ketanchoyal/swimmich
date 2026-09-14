@@ -42,7 +42,7 @@ final class AlbumsViewModel {
     func createAlbum(name: String, description: String? = nil, assetIds: [String]? = nil) async {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            errorMessage = "Album name cannot be empty."
+            errorMessage = String(localized: "Album name cannot be empty.")
             return
         }
         isCreating = true

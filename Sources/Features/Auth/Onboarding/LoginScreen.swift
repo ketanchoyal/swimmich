@@ -25,7 +25,7 @@ struct LoginScreen: View {
 
                 VStack(alignment: .leading, spacing: PVSpacing.s8) {
                     PVInputGroup {
-                        TextField("vous@exemple.com", text: $email)
+                        TextField("you@example.com", text: $email)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.emailAddress)
@@ -88,7 +88,7 @@ struct LoginScreen: View {
         }
         .scrollDismissesKeyboard(.immediately)
         .background(Color.bgPrimary.ignoresSafeArea())
-        .navigationTitle("Connexion")
+        .navigationTitle("Sign In")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focus = .email }
         .sensoryFeedback(.error, trigger: auth.errorMessage)
@@ -98,7 +98,7 @@ struct LoginScreen: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 22)
                 } else {
-                    Text("Se connecter")
+                    Text("Sign In")
                 }
             }
             .buttonStyle(PVPrimaryButtonStyle())
@@ -113,7 +113,7 @@ struct LoginScreen: View {
     private var orDivider: some View {
         HStack(spacing: PVSpacing.s12) {
             orRule
-            Text("OU")
+            Text("OR")
                 .font(.pvCaption)
                 .foregroundStyle(Color.textSecondaryPV)
                 .fixedSize()
@@ -131,9 +131,9 @@ struct LoginScreen: View {
     private var header: some View {
         VStack(spacing: PVSpacing.s8) {
             PVHeaderBadge(icon: "person.crop.circle.badge.checkmark")
-            Text("Identifiez-vous")
+            Text("Sign in to Immich")
                 .font(.pvH2)
-            Text("Utilisez votre compte Immich pour accéder à la photothèque.")
+            Text("Use your Immich account to access your photo library.")
                 .font(.pvSubhead)
                 .foregroundStyle(Color.textSecondaryPV)
                 .multilineTextAlignment(.center)

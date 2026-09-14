@@ -92,18 +92,18 @@ final class PhotoEditorViewModel {
         do {
             (data, response) = try await urlSession.data(for: request)
         } catch {
-            errorMessage = "Network error: \(error.localizedDescription)"
+            errorMessage = String(localized: "Network error: \(error.localizedDescription)")
             return
         }
 
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
-            errorMessage = "Server returned \(http.statusCode)"
+            errorMessage = String(localized: "Server returned \(http.statusCode)")
             return
         }
 
         guard let image = UIImage(data: data) else {
-            errorMessage = "Invalid image data"
+            errorMessage = String(localized: "Invalid image data")
             return
         }
 

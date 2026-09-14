@@ -276,7 +276,7 @@ struct SharedLinkViewerView: View {
     /// the server derives the asset's mime type from it.
     private func uploadPicked(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self) else {
-            vm.message = "That photo could not be read."
+            vm.message = String(localized: "That photo could not be read.")
             return
         }
         let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
@@ -285,7 +285,7 @@ struct SharedLinkViewerView: View {
         do {
             try data.write(to: fileURL)
         } catch {
-            vm.message = "That photo could not be read."
+            vm.message = String(localized: "That photo could not be read.")
             return
         }
         defer { try? FileManager.default.removeItem(at: fileURL) }

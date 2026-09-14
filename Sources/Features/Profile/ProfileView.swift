@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State var admin: AdminViewModel
     @State var offline: OfflineDownloadViewModel
     @State var notifications: NotificationsViewModel
+    @State var language: LanguageSettingsViewModel
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,19 @@ struct ProfileView: View {
                 webSection
 
                 storageSection
+
+                // Language sits on its own rather than in Management: it is a
+                // device-level choice like Security, not another library screen.
+                Section {
+                    NavigationLink {
+                        LanguageSettingsView(vm: language)
+                    } label: {
+                        Label("Language", systemImage: "globe")
+                    }
+                    .accessibilityIdentifier("languageRow")
+                } header: {
+                    Text("General")
+                }
 
                 Section {
                     NavigationLink {

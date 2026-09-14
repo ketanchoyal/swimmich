@@ -229,11 +229,11 @@ final class BackupEngine {
             // decided per asset, so photos can go up over cellular while
             // videos wait, instead of the whole run being all-or-nothing.
             guard environment.isOnline else {
-                lastError = "Backup needs a network connection."
+                lastError = String(localized: "Backup needs a network connection.")
                 return false
             }
             if settings.onlyWhenCharging && !environment.isCharging {
-                lastError = "Backup requires charging."
+                lastError = String(localized: "Backup requires charging.")
                 return false
             }
         }
@@ -623,7 +623,7 @@ final class BackupEngine {
         while index < entries.count {
             let chunk = Array(entries[index..<min(index + Self.checkChunkSize, entries.count)])
             index += Self.checkChunkSize
-            statusMessage = "Checking server…"
+            statusMessage = String(localized: "Checking server…")
             do {
                 let response = try await client.bulkUploadCheck(
                     AssetBulkUploadCheckRequest(assets: chunk.map {
@@ -663,9 +663,9 @@ final class BackupEngine {
         switch state {
         case .downloadingFromICloud(let fraction):
             let pct = Int((min(max(fraction, 0), 1) * 100).rounded())
-            statusMessage = "Downloading from iCloud… \(pct)%"
+            statusMessage = String(localized: "Downloading from iCloud… \(pct)%")
         case .retryingICloud(let attempt):
-            statusMessage = "iCloud not ready yet — retrying (\(attempt))…"
+            statusMessage = String(localized: "iCloud not ready yet — retrying (\(attempt))…")
         }
     }
 

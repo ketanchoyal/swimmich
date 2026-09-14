@@ -6,17 +6,13 @@ enum MemoryMomentPresentation {
 
     /// "July 1, 2022" — the memory's full date (day + year) from its UTC
     /// `memoryAt` timestamp, locale-correct ("1 juillet 2022" fr). Nil when
-    /// `memoryAt` can't be parsed.
+    /// `memoryAt` can't be parsed. `AppDateFormat` renders it, so the label
+    /// follows the app's current language rather than the launch language.
     static func fullDateLabel(for memory: MemoryResponseDto, locale: Locale = .current) -> String? {
         guard let date = MemoryCardPresentation.parseMemoryAt(memory.memoryAt) else { return nil }
-        if locale == Locale.current {
-            return fullDateFormatter.string(from: date)
-        }
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.setLocalizedDateFormatFromTemplate("yMMMMd")
-        return formatter.string(from: date)
+        return AppDateFormat.string(
+            from: date, style: .yearMonthDay, locale: locale, calendar: utcCalendar
+        )
     }
 
     /// Distinct people appearing in the memory's assets (deduped by id,
@@ -69,11 +65,11 @@ enum MemoryMomentPresentation {
         return names.isEmpty ? nil : names.joined(separator: ", ")
     }
 
-    private static let fullDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.setLocalizedDateFormatFromTemplate("yMMMMd")
-        return formatter
+    /// Gregorian calendar pinned to UTC: memory days are UTC anchors, so they
+    /// must never be re-read through the device's time zone.
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
     }()
 }

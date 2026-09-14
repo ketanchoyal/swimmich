@@ -424,7 +424,7 @@ final class AuthViewModelTests: XCTestCase {
 
         await auth.startOAuthFlow()
 
-        XCTAssertEqual(auth.errorMessage, "The server returned an invalid OAuth URL.")
+        XCTAssertEqual(auth.errorMessage, localizedString("The server returned an invalid OAuth URL."))
         XCTAssertNil(auth.accessToken)
         XCTAssertFalse(auth.isLoading)
     }
@@ -460,7 +460,7 @@ final class AuthViewModelTests: XCTestCase {
         await auth.startOAuthFlow()
 
         XCTAssertNil(auth.accessToken)
-        XCTAssertEqual(auth.errorMessage, "OAuth is not enabled on this server.")
+        XCTAssertEqual(auth.errorMessage, localizedString("OAuth is not enabled on this server."))
         XCTAssertEqual(mock.requestCount, 0)
     }
 

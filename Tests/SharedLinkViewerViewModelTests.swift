@@ -171,7 +171,7 @@ final class SharedLinkViewerViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.phase, .passwordRequired)
         XCTAssertEqual(client.sharedLinkLoginPasswords, ["nope"])
-        XCTAssertEqual(vm.message, "That password is not right.")
+        XCTAssertEqual(vm.message, localizedString("That password is not right."))
     }
 
     /// A link revoked between the prompt and the typed password answers 401 on

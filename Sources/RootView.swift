@@ -10,6 +10,9 @@ import SwiftUI
 struct RootView: View {
     @State private var auth: AuthViewModel
     @State private var appLock: AppLockViewModel
+    /// Interface language (issue #21). The store is owned by the container, so
+    /// the picker in the Me sheet writes exactly what this reads.
+    @State private var language: AppLanguageStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let container: DependencyContainer
 
@@ -18,6 +21,7 @@ struct RootView: View {
         let authVM = container.makeAuthViewModel()
         _auth = State(initialValue: authVM)
         _appLock = State(initialValue: container.appLock)
+        _language = State(initialValue: container.language)
     }
 
     private var isGated: Bool { appLock.isEnabled && appLock.isLocked }
@@ -37,6 +41,14 @@ struct RootView: View {
             }
             .environment(auth)
             .environment(appLock)
+            .environment(language)
+            // Every `Text("…")` literal below resolves its key through this
+            // locale, so the language picker retranslates the view tree as soon
+            // as it is touched. Strings built outside a render (view models,
+            // notifications, widgets) go through `Bundle` instead and only
+            // follow on the next launch — `AppLanguageStore` writes
+            // `AppleLanguages` for exactly that.
+            .environment(\.locale, language.effectiveLocale)
             .blur(radius: isGated ? 30 : 0)
             .task {
                 // Reconfigure the shared client from the stored session and
@@ -92,6 +104,7 @@ private struct AuthenticatedRoot: View {
     @State private var admin: AdminViewModel
     @State private var offline: OfflineDownloadViewModel
     @State private var notifications: NotificationsViewModel
+    @State private var language: LanguageSettingsViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -119,6 +132,7 @@ private struct AuthenticatedRoot: View {
         _admin = State(initialValue: container.makeAdminViewModel())
         _offline = State(initialValue: container.makeOfflineDownloadViewModel())
         _notifications = State(initialValue: container.makeNotificationsViewModel())
+        _language = State(initialValue: container.makeLanguageSettingsViewModel())
     }
 
     var body: some View {
@@ -217,7 +231,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
@@ -334,5 +348,8 @@ struct ProfileAvatarButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Profile")
+        // The label is translated, so the UI tests reach for the identifier
+        // instead of a string that changes with the language.
+        .accessibilityIdentifier("profileAvatar")
     }
 }

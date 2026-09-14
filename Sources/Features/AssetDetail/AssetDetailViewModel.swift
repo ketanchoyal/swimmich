@@ -147,7 +147,7 @@ final class AssetDetailViewModel {
     @MainActor
     func setLocation(latitude: Double, longitude: Double) async {
         guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
-            errorMessage = "Invalid coordinates."
+            errorMessage = String(localized: "Invalid coordinates.")
             return
         }
         let body = UpdateAssetDto(latitude: latitude, longitude: longitude)

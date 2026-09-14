@@ -168,12 +168,11 @@ private struct ActivityRow: View {
         .padding(.vertical, PVSpacing.s4)
     }
 
+    /// `.short` relative phrase ("2 h ago"). `AppDateFormat` owns the cached
+    /// `RelativeDateTimeFormatter` — this used to allocate one per row.
     private var relativeTime: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(
-            for: LongDateFormatter.parse(isoTimestamp: activity.createdAt) ?? Date(),
-            relativeTo: Date()
+        AppDateFormat.relativeString(
+            for: LongDateFormatter.parse(isoTimestamp: activity.createdAt) ?? Date()
         )
     }
 

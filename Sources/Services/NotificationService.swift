@@ -70,10 +70,10 @@ final class NotificationService: NotificationServicing, Sendable {
     func notifyBackupComplete(uploaded: Int, total: Int, failed: Int, success: Bool) async {
         let content = UNMutableNotificationContent()
         if success {
-            content.title = "Backup complete"
+            content.title = String(localized: "Backup complete")
             content.body = "\(uploaded) photos uploaded, \(failed) failed."
         } else {
-            content.title = "Backup finished with errors"
+            content.title = String(localized: "Backup finished with errors")
             content.body = "\(uploaded) uploaded, \(failed) failed."
         }
         content.sound = .default

@@ -58,7 +58,7 @@ final class AssetDetailViewModelTests: XCTestCase {
         await vm.setLocation(latitude: 95, longitude: 200)
 
         XCTAssertNil(mock.lastUpdateAssetBody)
-        XCTAssertEqual(vm.errorMessage, "Invalid coordinates.")
+        XCTAssertEqual(vm.errorMessage, localizedString("Invalid coordinates."))
     }
 
     @MainActor

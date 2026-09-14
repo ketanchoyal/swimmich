@@ -37,7 +37,7 @@ struct TrashView: View {
             }
             .refreshable { await vm.refresh() }
             .scrollDismissesKeyboard(.immediately)
-            .navigationTitle("")
+            .navigationTitle(Text(verbatim: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .toolbarBackground(.visible, for: .navigationBar)
@@ -80,7 +80,7 @@ struct TrashView: View {
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(vm.errorMessage ?? "")
+                Text(verbatim: vm.errorMessage ?? "")
             }
         }
         .task {
@@ -119,7 +119,7 @@ struct TrashView: View {
                 ContentUnavailableView {
                     Label("Couldn't load trash", systemImage: "wifi.exclamationmark")
                 } description: {
-                    Text(vm.errorMessage ?? "")
+                    Text(verbatim: vm.errorMessage ?? "")
                 } actions: {
                     Button("Try Again") { Task { await vm.refresh() } }
                         .buttonStyle(PVPrimaryButtonStyle())

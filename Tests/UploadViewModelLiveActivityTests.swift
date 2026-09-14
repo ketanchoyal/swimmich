@@ -140,7 +140,7 @@ final class UploadViewModelLiveActivityTests: XCTestCase {
         await vm.runBackup()
 
         XCTAssertEqual(engineOffline.phase, .idle)
-        XCTAssertEqual(engineOffline.lastError, "Backup needs a network connection.")
+        XCTAssertEqual(engineOffline.lastError, localizedString("Backup needs a network connection."))
         XCTAssertTrue(activity.updateCalls.isEmpty)
         XCTAssertEqual(activity.endCalls.count, 1,
                        "gate hors ligne : l'activité démarrée est refermée, pas laissée en 'Scanning…'")

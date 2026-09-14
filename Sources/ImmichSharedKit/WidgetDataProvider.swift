@@ -345,14 +345,14 @@ public struct WidgetDataProvider: Sendable {
         }
         let reason: String
         switch urlError.code {
-        case .appTransportSecurityRequiresSecureConnection: reason = "ATS (plain HTTP)"
+        case .appTransportSecurityRequiresSecureConnection: reason = String(localized: "ATS (plain HTTP)")
         case .serverCertificateUntrusted, .serverCertificateHasUnknownRoot,
              .serverCertificateHasBadDate, .serverCertificateNotYetValid:
-            reason = "certificate refused"
-        case .cannotConnectToHost, .cannotFindHost: reason = "cannot connect"
-        case .notConnectedToInternet, .networkConnectionLost: reason = "offline"
-        case .timedOut: reason = "timeout"
-        default: reason = "URLError \(urlError.code.rawValue)"
+            reason = String(localized: "certificate refused")
+        case .cannotConnectToHost, .cannotFindHost: reason = String(localized: "cannot connect")
+        case .notConnectedToInternet, .networkConnectionLost: reason = String(localized: "offline")
+        case .timedOut: reason = String(localized: "timeout")
+        default: reason = String(localized: "URLError \(urlError.code.rawValue)")
         }
         return "\(host) · \(reason)"
     }

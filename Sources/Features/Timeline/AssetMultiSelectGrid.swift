@@ -27,10 +27,10 @@ struct AssetMultiSelectGrid: View {
 
     /// The rule the sheet's CTA enforces, spelled out so a disabled button is
     /// explained rather than mysterious.
-    let selectionHint: String
+    let selectionHint: LocalizedStringKey
 
     /// Shown when the library has nothing left to offer.
-    let emptyMessage: String
+    let emptyMessage: LocalizedStringKey
 
     let onLoadMore: () async -> Void
     let onToggle: (String) -> Void
@@ -70,7 +70,14 @@ struct AssetMultiSelectGrid: View {
             ContentUnavailableView {
                 Label("Nothing to add", systemImage: "photo.on.rectangle.angled")
             } description: {
-                Text(errorMessage ?? emptyMessage)
+                // `errorMessage` is server text (already localized upstream
+                // when it is ours), `emptyMessage` is a key: they cannot share a
+                // `??` because their types differ.
+                if let errorMessage {
+                    Text(errorMessage)
+                } else {
+                    Text(emptyMessage)
+                }
             }
         }
     }

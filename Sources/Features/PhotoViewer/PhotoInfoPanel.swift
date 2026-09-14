@@ -153,7 +153,7 @@ struct PhotoInfoPanel: View {
                                             .frame(width: 56, height: 56)
                                             .clipShape(Circle())
                                             .overlay(Circle().strokeBorder(Color.separatorPV, lineWidth: 0.5))
-                                        Text(face.person?.name ?? "Unnamed")
+                                        Text(face.person?.name ?? String(localized: "Unnamed"))
                                             .font(.pvCaption)
                                             .foregroundStyle(Color.textPrimaryPV)
                                             .lineLimit(1)
@@ -161,7 +161,7 @@ struct PhotoInfoPanel: View {
                                     .frame(width: 68)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel(face.person?.name ?? "Unnamed face")
+                                .accessibilityLabel(face.person?.name ?? String(localized: "Unnamed face"))
                             }
                         }
                     }

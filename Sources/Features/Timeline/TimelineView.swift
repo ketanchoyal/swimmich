@@ -210,7 +210,7 @@ struct TimelineView: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
-                .navigationTitle(vm.selectionMode ? "\(vm.selectedIds.count) selected" : "")
+                .navigationTitle(vm.selectionMode ? Text("\(vm.selectedIds.count) selected") : Text(verbatim: ""))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
                 // Photos-style: no top bar normally (photos start right under
@@ -252,7 +252,7 @@ struct TimelineView: View {
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(vm.errorMessage ?? "")
+            Text(verbatim: vm.errorMessage ?? "")
         }
         // D5: single-asset context-menu delete confirmation.
         .alert("Delete this asset?", isPresented: Binding(
@@ -341,7 +341,7 @@ struct TimelineView: View {
                 ContentUnavailableView {
                     Label("Couldn't load photos", systemImage: "wifi.exclamationmark")
                 } description: {
-                    Text(vm.errorMessage ?? "")
+                    Text(verbatim: vm.errorMessage ?? "")
                 } actions: {
                     Button("Try Again") { Task { await vm.refresh() } }
                         .buttonStyle(PVPrimaryButtonStyle())

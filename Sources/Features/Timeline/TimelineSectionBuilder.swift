@@ -13,7 +13,7 @@ import Foundation
 /// `TimelineViewModel.groupedByDay`).
 enum TimelineSectionBuilder {
 
-    // MARK: Cached formatters (hoisted from build() — audit P2)
+    // MARK: Cached parser (hoisted from build() — audit P2)
 
     /// Stateless UTC parser for the `"YYYY-MM-DD"` → UTC-noon parse step.
     /// Reused across every `build` call (was per-call).
@@ -22,18 +22,6 @@ enum TimelineSectionBuilder {
         parser.formatOptions = [.withInternetDateTime]
         parser.timeZone = TimeZone(identifier: "UTC")
         return parser
-    }()
-
-    /// Localized `"MMMM yyyy"` formatter (e.g. "July 2024"). Pinned to
-    /// `.current`: every production call site passes the default calendar, and
-    /// `TimelineSectionBuilderTests` asserts structure/year, not locale-specific
-    /// month names. (Was allocated per `build` call.)
-    private static let monthYearFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = .current
-        formatter.locale = Calendar.current.locale
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter
     }()
 
     /// One renderable section in the timeline vertical stack.
@@ -91,13 +79,15 @@ enum TimelineSectionBuilder {
     }
 
     /// Formats an ISO `"YYYY-MM"` key as a localized `"MMMM yyyy"` display
-    /// string. Falls back to the raw key if parsing fails — never crashes the
-    /// grid over malformed input.
+    /// string in the app's current language (`AppDateFormat` owns the cached
+    /// formatter, so a language change is picked up on the next render).
+    /// Falls back to the raw key if parsing fails — never crashes the grid over
+    /// malformed input.
     private static func displayString(forMonthKey monthKey: String) -> String {
         // Parse as UTC noon (mid-month would also work; noon avoids DST edges).
         guard let date = utcParser.date(from: "\(monthKey)-15T12:00:00Z") else {
             return monthKey
         }
-        return monthYearFormatter.string(from: date)
+        return AppDateFormat.string(from: date, style: .monthYear)
     }
 }

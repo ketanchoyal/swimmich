@@ -24,7 +24,7 @@ struct InlineErrorBadge: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if let retry {
-                Button("Réessayer", action: retry)
+                Button("Try Again", action: retry)
                     .font(.pvSubhead.weight(.semibold))
                     .foregroundStyle(Color.immichError)
             }

@@ -47,6 +47,12 @@ final class DependencyContainer {
     /// every grid cell can answer "is this cached?" without a parameter.
     let offlineIndex: OfflineAssetIndex
 
+    /// Process-wide language choice (issue #21). `RootView` injects its locale
+    /// into the view tree and every `String(localized:)` call resolves through
+    /// `AppleLanguages` at launch, so the store must be the single writer of
+    /// both — a second instance would disagree with the one on screen.
+    let language: AppLanguageStore
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
@@ -61,6 +67,7 @@ final class DependencyContainer {
         self.libraryMonitor = PhotoLibraryChangeMonitor()
         self.offlineStore = OfflineAssetStore()
         self.offlineIndex = OfflineAssetIndex()
+        self.language = AppLanguageStore()
         self.upload = UploadViewModel(
             client: client as any ImmichClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
@@ -208,6 +215,13 @@ final class DependencyContainer {
             client: client as any ImmichClient,
             index: offlineIndex
         )
+    }
+
+    /// Interface-language picker (issue #21). Shares the process-wide store, so
+    /// the choice made here is the one `RootView`'s locale and the next launch
+    /// read.
+    func makeLanguageSettingsViewModel() -> LanguageSettingsViewModel {
+        LanguageSettingsViewModel(store: language)
     }
 
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,

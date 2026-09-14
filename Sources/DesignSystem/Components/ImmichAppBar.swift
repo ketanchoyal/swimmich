@@ -18,9 +18,11 @@ import SwiftUI
 /// Immich top app bar identity: logo glyph + wordmark.
 /// Drop into `ToolbarItem(placement: .principal)` on top-level screens.
 struct ImmichAppBar: View {
-    let title: String
+    /// A key, not a `String`: a literal passed to a `String` property is never
+    /// extracted by the compiler and never translated (it rendered verbatim).
+    let title: LocalizedStringKey
 
-    init(title: String = "Immich") {
+    init(title: LocalizedStringKey = "Immich") {
         self.title = title
     }
 
@@ -34,7 +36,7 @@ struct ImmichAppBar: View {
 /// Standalone immich logo + wordmark — also reusable outside toolbars
 /// (auth screens, launch, empty-state headers).
 struct ImmichLogo: View {
-    let title: String
+    let title: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: PVSpacing.s4) {

@@ -461,7 +461,7 @@ struct BackupSettingsView: View {
                 serverCheckSection
                 resetTrackingSection
             }
-            .navigationTitle("")
+            .navigationTitle(Text(verbatim: ""))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {

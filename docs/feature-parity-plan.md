@@ -19,7 +19,7 @@
 | P2 Real backup | `backup-engine`, `backup-live-activity` | P0 (bulkUploadCheck exists) |
 | P3 Social | `people-faces`, `partner-sharing`, `activity-feed`, `shared-link-edit`, `album-edit` | P0 (clients) |
 | P4 Discovery | `memories`, `duplicates` | P0 (clients) |
-| P5 Auth & platform | `oauth`, `qr-scan`, `selfsigned-cert`, `multi-server`, `widgets-appintents`, `i18n-catalog` | P0 (serverConfig) |
+| P5 Auth & platform | `oauth`, `qr-scan`, `selfsigned-cert`, `multi-server`, `widgets-appintents`, `i18n-catalog` ✅ | P0 (serverConfig) |
 | Backlog | — (le seul item, `push-notifications`, a été re-scopé et livré le 2026-09-13 en écran d'autorisation OS : le contrat APNs/device-token annoncé n'existe pas) | — |
 
 ## Server endpoints per card (target Immich ≥ 1.116; verify against OpenAPI at impl time)
@@ -49,7 +49,7 @@
 | selfsigned-cert | URLSession delegate trust eval + Keychain trust store; drop blanket NSAllowsArbitraryLoads; PRD §5.10 |
 | multi-server | server registry (UserDefaults + per-URL Keychain tokens), switcher UI |
 | widgets-appintents | WidgetKit extension target + AppIntents (backup now, open album) + Spotlight |
-| i18n-catalog | route all hardcoded FR/EN copy through Localizable.xcstrings |
+| i18n-catalog | route all hardcoded FR/EN copy through Localizable.xcstrings — ✅ 2026-09-14 (issue #21): 629 keys, EN source + fr/de/es/it, in-app language picker, `AppDateFormat` |
 | shared-link-viewer | *beyond parity* — `GET /shared-links/me?key=|slug=`, `POST /shared-links/login` (cookie), `POST /search/metadata` with `albumIds`, `POST /assets?key=`; no Flutter equivalent. Card: `.opencode/scratch/shared-link-viewer.acceptance.md` |
 | notifications (ex `push-notifications`) | ✅ 2026-09-13 — autorisation OS locale (`UNUserNotificationCenter`), **aucun endpoint** : `POST /users/me/device-token` n'existe dans aucune version publiée et le Flutter n'a pas de push |
 

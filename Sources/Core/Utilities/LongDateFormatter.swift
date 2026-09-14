@@ -5,7 +5,9 @@ import Foundation
 ///
 /// Shared by `PhotoInfoPanel.dateLabel` and `PhotoViewer.headerDate(for:)`,
 /// which were byte-for-byte identical before this helper existed (audit P2).
-/// Formatters are hoisted to `static let` so we allocate once, not per render.
+/// Rendering goes through `AppDateFormat`, which caches the formatter per
+/// locale — a `static let` here would keep the launch language forever, so a
+/// language changed in `AppLanguageStore` would not reach these labels.
 enum LongDateFormatter {
 
     /// Stateless UTC parser for the `"YYYY-MM-DD"` → UTC-noon parse step.
@@ -31,24 +33,16 @@ enum LongDateFormatter {
         return parser
     }()
 
-    /// `.long` date style (e.g. "July 29, 2024"), no time, current locale.
-    private static let longFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
-        return formatter
-    }()
-
-    /// Formats an ISO-8601 `"YYYY-MM-DD..."` prefix as a long localized date.
-    /// Falls back to the 10-char prefix if parsing fails — never crashes the
-    /// view over malformed input.
+    /// Formats an ISO-8601 `"YYYY-MM-DD..."` prefix as a `.long` localized
+    /// date (e.g. "July 29, 2024"), no time, in the app's current language —
+    /// `AppDateFormat` owns the formatter. Falls back to the 10-char prefix if
+    /// parsing fails — never crashes the view over malformed input.
     static func format(isoPrefix: String) -> String {
         let prefix = String(isoPrefix.prefix(10))
         guard let date = utcParser.date(from: "\(prefix)T12:00:00Z") else {
             return prefix
         }
-        return longFormatter.string(from: date)
+        return AppDateFormat.string(from: date, style: .longDate)
     }
 
     /// Parses a full ISO timestamp to a Date; nil when malformed. Handles both

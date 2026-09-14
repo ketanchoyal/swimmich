@@ -98,6 +98,29 @@ final class ImmichRenderScreenshots: XCTestCase {
         return false
     }
 
+    /// The onboarding and empty-state copy is localized (issue #21): the app
+    /// now ships English source strings plus a French translation, so a walk
+    /// accepts either, whatever language the simulator runs in.
+    private func labelPredicate(_ labels: [String]) -> NSPredicate {
+        NSPredicate(format: labels.map { _ in "label CONTAINS %@" }.joined(separator: " OR "),
+                    argumentArray: labels)
+    }
+
+    private func waitForStaticText(_ labels: [String], timeout: TimeInterval) -> Bool {
+        app.staticTexts.matching(labelPredicate(labels)).firstMatch.waitForExistence(timeout: timeout)
+    }
+
+    private func tapAnyButton(_ labels: [String], timeout: TimeInterval = 20) -> Bool {
+        let predicate = labelPredicate(labels)
+        let direct = app.buttons.matching(predicate).firstMatch
+        let contained = app.buttons.containing(predicate).firstMatch
+        for candidate in [direct, contained] where candidate.waitForExistence(timeout: timeout) {
+            candidate.tap()
+            return true
+        }
+        return false
+    }
+
     private func dismissSystemSignInAlertIfPresent() {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         for label in ["Continue", "Continuer"] {
@@ -141,14 +164,14 @@ final class ImmichRenderScreenshots: XCTestCase {
     ///     xcrun simctl erase <device>   # to re-arm the full walk
     private func requireCleanSession() throws {
         try XCTSkipUnless(
-            app.staticTexts["Votre photothèque"].waitForExistence(timeout: 25),
+            waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 25),
             "A persisted OAuth session skips onboarding — erase the simulator to re-run the full walk"
         )
     }
 
     /// Welcome → server URL → login. Leaves the app on the login screen.
     private func walkOnboardingToLogin() {
-        XCTAssertTrue(tapButton(containing: "Commencer", timeout: 30), "Welcome CTA missing")
+        XCTAssertTrue(tapAnyButton(["Get Started", "Commencer"], timeout: 30), "Welcome CTA missing")
         let field = app.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 20), "Server URL field missing")
         // The stub URL may already be seeded in the app's defaults; retyping
@@ -157,12 +180,12 @@ final class ImmichRenderScreenshots: XCTestCase {
             field.tap()
             field.typeText(stub)
         }
-        XCTAssertTrue(tapButton(containing: "Vérifier la connexion"), "Check-connection CTA missing")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Continuer'"))
+        XCTAssertTrue(tapAnyButton(["Check connection", "Vérifier la connexion"]), "Check-connection CTA missing")
+        XCTAssertTrue(app.buttons.matching(labelPredicate(["Continue", "Continuer"]))
             .firstMatch.waitForExistence(timeout: 30), "Server never became reachable")
         shot("02-server-reachable")
-        XCTAssertTrue(tapButton(containing: "Continuer"), "Continue CTA missing")
-        XCTAssertTrue(app.staticTexts["Identifiez-vous"].waitForExistence(timeout: 20),
+        XCTAssertTrue(tapAnyButton(["Continue", "Continuer"]), "Continue CTA missing")
+        XCTAssertTrue(waitForStaticText(["Sign in to Immich", "Connectez-vous à Immich"], timeout: 20),
                       "Login screen did not appear")
         app.swipeUp() // dismisses the keyboard (.scrollDismissesKeyboard)
     }
@@ -190,7 +213,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         shot("06-timeline-after-oauth")
 
         // "Me" is a sheet raised from the avatar button in every tab's bar.
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(3)
@@ -200,7 +223,7 @@ final class ImmichRenderScreenshots: XCTestCase {
     func test_02_renderAuthorizedShellAfterRelaunch() {
         setProvider("auto")
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -228,7 +251,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -266,7 +289,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         }
         sleep(2)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(4)
@@ -298,7 +321,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -363,7 +386,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         back.tap()
         sleep(2)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(4)
@@ -391,7 +414,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -401,7 +424,7 @@ final class ImmichRenderScreenshots: XCTestCase {
                       "Authorized shell missing")
         sleep(4)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(4)
@@ -465,7 +488,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetPartners()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -475,7 +498,7 @@ final class ImmichRenderScreenshots: XCTestCase {
                       "Authorized shell missing")
         sleep(4)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(3)
@@ -580,7 +603,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -701,7 +724,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks() // same `/__reset` route: restores the stub's initial state
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -845,7 +868,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetSharedLinkViewer()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -1064,7 +1087,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks() // same `/__reset` route: restores the stub's initial state
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -1146,7 +1169,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         // turns "the cache holds a file" into "the app is usable offline".
         setStubNetwork(down: true)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(4)
@@ -1206,7 +1229,7 @@ final class ImmichRenderScreenshots: XCTestCase {
         setProvider("auto")
         resetStacks()
         app.launch()
-        if app.staticTexts["Votre photothèque"].waitForExistence(timeout: 30) {
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
             walkOnboardingToLogin()
             XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
             dismissSystemSignInAlertIfPresent()
@@ -1216,7 +1239,7 @@ final class ImmichRenderScreenshots: XCTestCase {
                       "Authorized shell missing")
         sleep(4)
 
-        let profile = app.buttons["Profile"]
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
         XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
         profile.tap()
         sleep(3)
@@ -1326,7 +1349,7 @@ final class ImmichRenderScreenshots: XCTestCase {
             return true
         }
         return app.staticTexts["No offline photos"].exists
-            || app.staticTexts["Aucune photo hors ligne"].exists
+            || app.staticTexts.matching(labelPredicate(["No offline photos", "Aucune photo hors ligne"])).firstMatch.exists
     }
 
     /// The download really hit the wire, with the session's bearer token.
@@ -1556,5 +1579,113 @@ final class ImmichRenderScreenshots: XCTestCase {
         XCTAssertTrue(visits.contains(where: matches),
                       "the grid never loaded a thumbnail with the link's credential — got:\n\(describeVisits(visits))",
                       file: file, line: line)
+    }
+
+    // MARK: - Language picker (issue #21)
+
+    /// Me hub → Language: the list is reachable, a choice is persisted, the app
+    /// retranslates itself at once, and the choice survives a relaunch because
+    /// `AppLanguageStore` wrote `AppleLanguages`.
+    ///
+    /// Rows are matched by identifier, never by label: every label on this
+    /// screen is translated by definition. The scenario ends by handing the
+    /// choice back to the system, so it leaves the simulator the way it found it
+    /// — the rest of the suite walks on localized copy.
+    func test_11_languagePicker() throws {
+        setProvider("auto")
+        resetStacks()
+        app.launch()
+        if waitForStaticText(["Your photo library", "Votre photothèque"], timeout: 30) {
+            walkOnboardingToLogin()
+            XCTAssertTrue(tapButton(containing: "Immich SSO"), "SSO button missing on login screen")
+            dismissSystemSignInAlertIfPresent()
+            _ = tapAuthorizeInProvider()
+        }
+        XCTAssertTrue(app.tabBars.buttons["Photos"].waitForExistence(timeout: 30),
+                      "Authorized shell missing")
+        sleep(4)
+
+        let profile = app.buttons.matching(identifier: "profileAvatar").firstMatch
+        XCTAssertTrue(profile.waitForExistence(timeout: 15), "Profile avatar missing")
+        profile.tap()
+        sleep(3)
+
+        let hubRow = app.buttons.matching(identifier: "languageRow").firstMatch
+        for _ in 0..<6 where !hubRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(hubRow.waitForExistence(timeout: 10),
+                      "Language row missing in the Me hub:\n\(app.debugDescription)")
+        hubRow.tap()
+        sleep(3)
+
+        // Every language the catalog ships must be offered — a picker that
+        // cannot offer French is the regression this card exists for.
+        for code in ["en", "fr", "de", "es", "it"] {
+            let row = app.buttons.matching(identifier: "languageRow.\(code)").firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "language row \(code) missing")
+        }
+        XCTAssertTrue(app.switches.matching(identifier: "useSystemLanguageToggle").firstMatch.exists,
+                      "Use System Language toggle missing")
+        shot("46-language-picker")
+
+        // Pick the language the app is NOT rendering in: the title reads back
+        // which one that is, so the scenario never assumes the simulator's
+        // language. The view tree follows the injected locale immediately, and
+        // the restart notice states what still waits for the next launch.
+        let titles = ["Language": "en", "Langue": "fr", "Sprache": "de", "Idioma": "es", "Lingua": "it"]
+        let current = titles.first { app.navigationBars[$0.key].exists }?.value ?? "en"
+        let target = current == "de" ? "fr" : "de"
+        app.buttons.matching(identifier: "languageRow.\(target)").firstMatch.tap()
+        sleep(2)
+
+        let dismiss = app.buttons.matching(identifier: "languageToastDismiss").firstMatch
+        XCTAssertTrue(dismiss.waitForExistence(timeout: 10),
+                      "no restart notice after changing language:\n\(app.debugDescription)")
+        shot("46-language-changed")
+
+        // The screen's own copy is already in the new language: the catalog is
+        // being read through the injected locale, not the launch language. The
+        // navigation bar's title is NOT part of this check — it is bridged to
+        // UIKit and follows on the next push, like the rest of what the notice
+        // promises.
+        let sectionHeaders = ["en": "App Language", "fr": "Langue de l'app", "de": "App-Sprache", "es": "Idioma de la app", "it": "Lingua dell'app"]
+        let expectedHeader = sectionHeaders[target]!
+        XCTAssertTrue(app.staticTexts[expectedHeader].waitForExistence(timeout: 10),
+                      "the picker did not retranslate in place (\(expectedHeader) missing):\n\(app.debugDescription)")
+
+        // Relaunch: only `AppleLanguages` can make `Bundle` lookups follow, which
+        // is exactly what the notice promised.
+        dismiss.tap()
+        sleep(1)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.tabBars.buttons.firstMatch.waitForExistence(timeout: 30),
+                      "app did not come back after the language change")
+        sleep(3)
+        app.buttons.matching(identifier: "profileAvatar").firstMatch.tap()
+        sleep(2)
+        let pinnedRow = app.buttons.matching(identifier: "languageRow").firstMatch
+        for _ in 0..<6 where !pinnedRow.exists {
+            app.swipeUp()
+            sleep(1)
+        }
+        XCTAssertTrue(pinnedRow.waitForExistence(timeout: 10), "Language row missing after relaunch")
+        pinnedRow.tap()
+        sleep(2)
+        let targetRow = app.buttons.matching(identifier: "languageRow.\(target)").firstMatch
+        XCTAssertTrue(targetRow.waitForExistence(timeout: 10), "language list missing after relaunch")
+        XCTAssertTrue(targetRow.isSelected,
+                      "the choice did not survive the relaunch: \(target) is not the selected row")
+        shot("46-language-persisted")
+
+        // Hand the language back to the system so the rest of the suite (and the
+        // simulator) is left exactly as found.
+        app.switches.matching(identifier: "useSystemLanguageToggle").firstMatch.tap()
+        sleep(1)
+        let notice = app.buttons.matching(identifier: "languageToastDismiss").firstMatch
+        if notice.waitForExistence(timeout: 5) { notice.tap() }
+        app.terminate()
     }
 }

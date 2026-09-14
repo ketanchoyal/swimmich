@@ -86,7 +86,7 @@ struct QRScannerView: UIViewRepresentable {
 
         func showPermissionDenied(on view: UIView) {
             let label = UILabel()
-            label.text = "Camera access is required to scan a server QR code."
+            label.text = String(localized: "Camera access is required to scan a server QR code.")
             label.textColor = .white
             label.textAlignment = .center
             label.numberOfLines = 0

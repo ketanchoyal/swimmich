@@ -968,7 +968,7 @@ private struct PhotoShareSheet: View {
 
                 Spacer()
 
-                Text("Partager")
+                Text("Share")
                     .font(.pvHeadline)
 
                 Spacer()

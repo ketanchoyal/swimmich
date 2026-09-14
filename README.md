@@ -43,7 +43,8 @@ Feature parity with the Flutter client is tracked in [`docs/mobile-features-vs-f
 | **RoadTrip** | reader + export of a travel film (opening → slideshow → map route) generated from an album | `Sources/Features/RoadTrip/` |
 | **Auto-Backup** | streaming, server dedup, Live Activity, background, resume | `Sources/Features/Upload/` + `Sources/Services/BackupEngine.swift` |
 | **Admin** | server admin panel | `Sources/Features/Admin/` |
-| **Profile** | storage indicator, app lock (Face ID) | `Sources/Features/Profile/` |
+| **Profile** | storage indicator, app lock (Face ID), language picker | `Sources/Features/Profile/` |
+| **Language** | English source + French, German, Spanish, Italian; follows the device by default, pinnable in-app, locale-aware dates | `Resources/Localizable.xcstrings` + `Sources/Features/Settings/` |
 
 Extensions: home screen widget ("Back up now" tile, `ImmichWidgets/`), backup Live Activity (Dynamic Island), App Intent `BackupNowAppIntent` (Siri/Shortcuts).
 

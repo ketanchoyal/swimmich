@@ -23,7 +23,7 @@ struct FaceAssignSheet: View {
                         FaceThumbnailView(asset: asset, face: face, baseURL: baseURL, token: token)
                             .frame(width: 96, height: 96)
                             .clipShape(Circle())
-                        Text(face.person?.name ?? "Unnamed")
+                        Text(face.person?.name ?? String(localized: "Unnamed"))
                             .font(.pvH6)
                             .foregroundStyle(Color.textPrimaryPV)
                     }

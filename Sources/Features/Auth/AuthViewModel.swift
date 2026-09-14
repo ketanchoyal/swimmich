@@ -193,7 +193,7 @@ final class AuthViewModel: AuthSessionDelegate {
     func connectServer() async {
         guard let url = baseURL else {
             serverStatus = .unreachable
-            errorMessage = "Enter a valid server URL."
+            errorMessage = String(localized: "Enter a valid server URL.")
             return
         }
         serverStatus = .checking
@@ -214,7 +214,7 @@ final class AuthViewModel: AuthSessionDelegate {
             // P5 selfsigned-cert: surface the host so the UI can offer to
             // trust it explicitly.
             serverStatus = .unreachable
-            errorMessage = "Le certificat de ce serveur ne peut pas être vérifié."
+            errorMessage = String(localized: "This server’s certificate can’t be verified.")
             pendingUntrustedHost = url.host
         } catch {
             serverStatus = .unreachable
@@ -251,7 +251,7 @@ final class AuthViewModel: AuthSessionDelegate {
     @MainActor
     func login(email: String, password: String) async {
         guard baseURL != nil else {
-            errorMessage = "Connect to a server first."
+            errorMessage = String(localized: "Connect to a server first.")
             return
         }
         isLoading = true
@@ -286,7 +286,7 @@ final class AuthViewModel: AuthSessionDelegate {
     @MainActor
     func startOAuthFlow() async {
         guard baseURL != nil, canOAuthLogin else {
-            errorMessage = "OAuth is not enabled on this server."
+            errorMessage = String(localized: "OAuth is not enabled on this server.")
             return
         }
         isLoading = true
@@ -302,7 +302,7 @@ final class AuthViewModel: AuthSessionDelegate {
                 codeChallenge: pkce.codeChallenge
             )
             guard let providerURL = URL(string: authorize.url) else {
-                errorMessage = "The server returned an invalid OAuth URL."
+                errorMessage = String(localized: "The server returned an invalid OAuth URL.")
                 return
             }
             guard let callbackURL = await oauthSessionHandler(providerURL) else {
@@ -416,7 +416,7 @@ final class AuthViewModel: AuthSessionDelegate {
     func switchToAccount(_ account: SavedAccount) async {
         guard account.id != activeAccountID else { return }
         guard let url = normalizedBaseURL(from: account.url) else {
-            errorMessage = "Invalid server URL."
+            errorMessage = String(localized: "Invalid server URL.")
             return
         }
 

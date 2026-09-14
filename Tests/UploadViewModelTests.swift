@@ -279,7 +279,7 @@ final class BackupManualRunTests: XCTestCase {
         XCTAssertFalse(started)
         XCTAssertEqual(engine.phase, .idle)
         XCTAssertEqual(source.purgeCount, 0, "aucun octet lu")
-        XCTAssertEqual(engine.lastError, "Backup needs a network connection.")
+        XCTAssertEqual(engine.lastError, localizedString("Backup needs a network connection."))
     }
 }
 

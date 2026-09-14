@@ -195,7 +195,7 @@ struct VideoPlayerView: View {
         .accessibilityLabel(vm.status == .playing ? "Pause" : "Play")
     }
 
-    private func seekButton(symbol: String, delta: Double, label: String) -> some View {
+    private func seekButton(symbol: String, delta: Double, label: LocalizedStringKey) -> some View {
         Button {
             vm.seek(by: delta)
         } label: {

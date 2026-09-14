@@ -103,11 +103,11 @@ final class SharedLinkViewerViewModel {
         uploadState = .idle
 
         guard let reference = SharedLinkURL.reference(from: linkText) else {
-            message = "That does not look like a shared link. Paste the link you received, or its key."
+            message = String(localized: "That does not look like a shared link. Paste the link you received, or its key.")
             return
         }
         if let host = reference.host, !hostMatches(host) {
-            message = "That link belongs to \(host). Sign in to that server to open it."
+            message = String(localized: "That link belongs to \(host). Sign in to that server to open it.")
             return
         }
 
@@ -135,7 +135,7 @@ final class SharedLinkViewerViewModel {
     func submitPassword() async {
         guard let credential else { return }
         guard !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            message = "Enter the password you were given with this link."
+            message = String(localized: "Enter the password you were given with this link.")
             return
         }
         phase = .loading
@@ -273,7 +273,7 @@ final class SharedLinkViewerViewModel {
             message = nil
         case .wrongPassword:
             phase = .passwordRequired
-            message = "That password is not right."
+            message = String(localized: "That password is not right.")
         case .deadLink:
             phase = .deadLink
             message = nil

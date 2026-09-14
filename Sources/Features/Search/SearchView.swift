@@ -52,7 +52,9 @@ struct SearchView: View {
                     .padding(.top, PVSpacing.s8)
                     .padding(.bottom, PVSpacing.s4)
                 }
-                .navigationTitle("")
+                // `verbatim`: the bar intentionally carries no title, and an
+                // empty `LocalizedStringKey` would be extracted as a `""` key.
+                .navigationTitle(Text(verbatim: ""))
                 .navigationBarTitleDisplayMode(.inline)
                 // Search-mode menu + avatar as a nav-bar row (topBarTrailing):
                 // iOS 26 renders its own Liquid-Glass chrome, so no manual

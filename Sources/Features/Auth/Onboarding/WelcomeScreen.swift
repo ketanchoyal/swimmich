@@ -26,7 +26,7 @@ struct WelcomeScreen: View {
         .background(Color.bgPrimary.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .onboardingBottomBar {
-            Button("Commencer", action: `continue`)
+            Button("Get Started", action: `continue`)
                 .buttonStyle(PVPrimaryButtonStyle())
         }
     }
@@ -34,10 +34,10 @@ struct WelcomeScreen: View {
     private var header: some View {
         VStack(spacing: PVSpacing.s8) {
             PVHeaderBadge(icon: "camera.aperture")
-            Text("Bienvenue sur Immich")
+            Text("Welcome to Immich")
                 .font(.pvH2)
                 .multilineTextAlignment(.center)
-            Text("Configurez votre serveur et connectez-vous.")
+            Text("Set up your server and sign in.")
                 .font(.pvSubhead)
                 .foregroundStyle(Color.textSecondaryPV)
                 .multilineTextAlignment(.center)
@@ -57,18 +57,18 @@ private struct WelcomeBullet: Identifiable {
     static let all: [WelcomeBullet] = [
         .init(
             symbol: "photo.stack",
-            title: "Votre photothèque",
-            detail: "auto-hébergée, privée et durable."
+            title: String(localized: "Your photo library"),
+            detail: String(localized: "self-hosted, private, and durable.")
         ),
         .init(
             symbol: "lock.shield.fill",
-            title: "Vos photos, votre serveur",
-            detail: "Aucun cloud tiers. Vos souvenirs restent chez vous."
+            title: String(localized: "Your photos, your server"),
+            detail: String(localized: "No third-party cloud. Your memories stay with you.")
         ),
         .init(
             symbol: "sparkles",
-            title: "Recherche & souvenirs",
-            detail: "Recherche intelligente, albums partagés, timelines."
+            title: String(localized: "Search & memories"),
+            detail: String(localized: "Smart search, shared albums, timelines.")
         )
     ]
 }
