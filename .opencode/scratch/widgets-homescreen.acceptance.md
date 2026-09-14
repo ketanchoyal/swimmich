@@ -1,6 +1,6 @@
 # Task: widgets-homescreen
 
-Status: implemented (2026-09-13) — issue #19, `ImmichWidgets` extension
+Status: implemented (2026-09-13), corrected 2026-09-14 — issue #19, `ImmichWidgets` extension
 
 ## Plan
 
@@ -69,7 +69,32 @@ Check post-impl: `sh -c 'grep -q "keychain-access-groups" Resources/ImmichSwiftU
 Assertion: les widgets sont interactifs (shuffle d'un souvenir, cœur d'une photo) via des `AppIntent` qui rechargent la bonne timeline.
 Check post-impl: `sh -c 'i=Sources/ImmichSharedKit/WidgetIntents.swift; v=Sources/ImmichSharedKit/WidgetViews.swift; grep -q "struct ShuffleMemoriesIntent" $i && grep -q "struct ToggleFavoriteIntent" $i && grep -q "reloadTimelines" $i && grep -q "Button(intent:" $v && echo PASS || echo FAIL'`
 
-## Résultats (2026-09-13)
+## Correctifs du 2026-09-14 (rapport « les photos ne s'affichent pas dans le widget »)
+
+Le symptôme est arrivé par le seul chemin que la livraison du 2026-09-13 n'avait **pas** pu vérifier : le widget dans son propre processus. Une reproduction de bout en bout a été montée (simulateur neuf + stub + connexion OAuth réelle + pose du widget sur l'écran d'accueil via SpringBoard — c'est désormais `UITests/ImmichWidgetHomeScreen.swift`). Constats :
+
+| Constat | Preuve | Correctif |
+|---|---|---|
+| Le widget **fonctionne** de bout en bout (lecture du Keychain depuis le processus widget, fetch HTTP, décodage, rendu) | widget réel posé sur un écran d'accueil, affichant « 9 photos » + « 9 le 1 juil. » et la vignette servie par le stub | — |
+| Le plist de l'appex n'avait **aucune** politique ATS, alors que l'app déclare `NSAllowsArbitraryLoads` | `plutil -p` sur l'appex livré | AC-3612 : même politique dans les deux binaires |
+| Le widget fetchait avec `URLSession.shared`, donc **sans gestionnaire de certificat**, là où l'app a `TrustEvaluatingURLSessionDelegate` : un serveur auto-signé accepté dans l'app était injoignable depuis le widget | inspection des deux chemins réseau ; l'app possède tout un flux « faire confiance à ce serveur » qui n'avait aucun équivalent widget | AC-3613 : `WidgetTrustDelegate` + la liste des hôtes acceptés voyage **avec la session** (le widget ne peut pas lire le trust store de l'app, autre conteneur) |
+| L'état vide **mentait** : « Pas encore de photos » pour « pas connecté » comme pour « serveur injoignable », et la branche sans session ne loggait rien | lecture du code + reproduction | AC-3614 : `WidgetAvailability` (`.ready` / `.signedOut` / `.unreachable`) porté par `PhotoWall` et `WidgetMemoryFeed`, copie dédiée par cause, log explicite quand la session manque ou quand le Keychain refuse (`-34018`) |
+
+**Ce qui n'a PAS pu être imputé** : la cause exacte du cas de l'utilisateur. Sur le simulateur, **ATS n'est pas appliqué** — une requête HTTP vers un hostname `.local` passe dans le processus widget même *sans* l'exception ATS (contrôle négatif joué : build sans `NSAppTransportSecurity`, widget posé, fetch réussi). L'exception ATS est donc une **parité défensive** (l'app l'a, l'extension doit avoir la même politique), pas une cause prouvée. Sur appareil, ATS est appliqué ; le correctif reste juste, mais la vérification doit se faire sur device.
+
+### AC-3612 [type: new]
+Assertion: l'extension déclare la **même** politique de transport que l'app (un serveur Immich auto-hébergé est souvent en HTTP).
+Check post-impl: `sh -c 'plutil -p ImmichWidgets/Info.plist | grep -q NSAllowsArbitraryLoads && plutil -p Resources/Info.plist | grep -q NSAllowsArbitraryLoads && echo PASS || echo FAIL'`
+
+### AC-3613 [type: new]
+Assertion: le widget évalue la confiance serveur au lieu d'utiliser `URLSession.shared`, et la liste des hôtes acceptés dans l'app voyage avec la session.
+Check post-impl: `sh -c 'grep -q "class WidgetTrustDelegate" Sources/ImmichSharedKit/WidgetSession.swift && grep -q "trustedHosts" Sources/ImmichSharedKit/WidgetSession.swift && grep -q "TrustEvaluatingURLSessionDelegate" Sources/Services/TrustEvaluatingURLSessionDelegate.swift && grep -q "trustStore.contains" Sources/Features/Auth/AuthViewModel.swift && echo PASS || echo FAIL'`
+
+### AC-3614 [type: new]
+Assertion: un widget vide dit **pourquoi** (déconnecté / serveur injoignable / rien à montrer) et la branche sans session est journalisée.
+Check post-impl: `sh -c 'grep -q "enum WidgetAvailability" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "WidgetEmptyCopy" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "Server unreachable" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "no widget session in the keychain" Sources/ImmichSharedKit/WidgetDataProvider.swift && echo PASS || echo FAIL'`
+
+## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
 |----|------|--------|
@@ -95,7 +120,8 @@ Check post-impl: `sh -c 'i=Sources/ImmichSharedKit/WidgetIntents.swift; v=Source
   1. les previews ne déclaraient pas leur famille (`\.widgetFamily` est en lecture seule et vaut autre chose qu'annoncé hors widget) → toutes les familles sont désormais passées explicitement (`family:` sur les 3 vues, argument documenté comme couture de preview) ;
   2. la pastille du widget Favoris était rognée en small (« 12 483 favoris » ne tient pas dans 170 pt) → compteur seul en small + `minimumScaleFactor(0.75)` sur toutes les pastilles ;
   3. le watermark cœur était **invisible** (peint *sous* une mosaïque opaque) → passé en overlay au-dessus des photos.
-- **Non vérifié** : le widget réellement posé sur l'écran d'accueil (aucune automatisation SpringBoard dans le dépôt) — donc la lecture du Keychain **depuis le processus du widget**, la platter/marges de WidgetKit et les `Button(intent:)` en conditions réelles restent à confirmer sur appareil. Ce qui est prouvé : l'entitlement est dans le binaire livré, la lecture Keychain passe dans le processus app (test), et le contrat HTTP du provider est testé.
+- **Widget réellement posé sur un écran d'accueil** (2026-09-14) : `UITests/ImmichWidgetHomeScreen.swift` — simulateur neuf, connexion OAuth réelle contre le stub, pose du widget Photos par SpringBoard (édition → galerie → recherche → page « Photos Immich » → « Ajouter le widget »), capture d'écran, puis lecture des logs du processus widget. Deux configurations : `http://127.0.0.1:8421` et `http://<machine>.local:8422` (proxy LAN). Dans les deux cas le widget affiche « 9 photos », « 9 le 1 juil. » et la vignette servie par le stub — donc **lecture du Keychain depuis le processus widget, fetch HTTP, décodage et rendu vérifiés pour de vrai**.
+- **Non vérifié** : la platter/marges de WidgetKit et les `Button(intent:)` en conditions réelles (non exercés par la capture), et le comportement **ATS/confiance TLS sur appareil** (le simulateur n'applique pas ATS — contrôle négatif joué).
 
 ## Fichiers
 
@@ -112,3 +138,4 @@ Check post-impl: `sh -c 'i=Sources/ImmichSharedKit/WidgetIntents.swift; v=Source
 - EDIT `Sources/RootView.swift` — `.onOpenURL` → asset (onglet Photos + scroll), `memories`, `backup`
 - EDIT `Sources/DependencyContainer.swift`, `project.yml`, `Resources/*.entitlements`, `Resources/Localizable.xcstrings` (31 clés EN+FR)
 - NEW `Tests/WidgetDataProviderTests.swift`, `Tests/WidgetDeepLinkTests.swift`
+- NEW `UITests/ImmichWidgetHomeScreen.swift` — pose réelle du widget + capture (skip si le stub ne tourne pas ou si l'app n'est pas connectée)

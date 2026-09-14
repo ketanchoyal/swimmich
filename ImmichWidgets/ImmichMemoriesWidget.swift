@@ -8,7 +8,7 @@ import WidgetKit
 struct ImmichMemoriesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: ImmichWidgetKind.memories, provider: MemoriesTimelineProvider()) { entry in
-            WidgetMemoriesView(cards: entry.cards)
+            WidgetMemoriesView(feed: entry.feed)
                 .widgetCanvas()
                 // One widget, one `widgetURL`: a tap anywhere outside the
                 // shuffle button opens the app on the Memories tab.
@@ -26,14 +26,14 @@ struct ImmichMemoriesWidget: Widget {
 
 struct MemoriesEntry: TimelineEntry {
     let date: Date
-    let cards: [WidgetMemory]
+    let feed: WidgetMemoryFeed
 }
 
 struct MemoriesTimelineProvider: TimelineProvider {
     private let provider = WidgetDataProvider()
 
     func placeholder(in context: Context) -> MemoriesEntry {
-        MemoriesEntry(date: .now, cards: WidgetPlaceholder.memories())
+        MemoriesEntry(date: .now, feed: WidgetPlaceholder.memories())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (MemoriesEntry) -> Void) {
@@ -60,10 +60,10 @@ struct MemoriesTimelineProvider: TimelineProvider {
     /// The shuffle offset lives in the extension's defaults, so the intent can
     /// change which memory is drawn without any network round trip.
     private func entry(for context: Context) async -> MemoriesEntry {
-        let cards = await provider.memories(
+        let feed = await provider.memories(
             limit: context.family.memoryLimit,
             offset: WidgetMemoriesShuffle.offset
         )
-        return MemoriesEntry(date: .now, cards: cards)
+        return MemoriesEntry(date: .now, feed: feed)
     }
 }

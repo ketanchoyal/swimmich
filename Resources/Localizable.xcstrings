@@ -106,6 +106,17 @@
     "%@ couldn't be backed up" : {
 
     },
+    "%@ favorites" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ favoris"
+          }
+        }
+      }
+    },
     "%@ item%@" : {
       "localizations" : {
         "en" : {
@@ -125,6 +136,17 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ of %2$@"
+          }
+        }
+      }
+    },
+    "%@ on %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ le %@"
           }
         }
       }
@@ -150,6 +172,17 @@
     },
     "%@ photos in stack" : {
 
+    },
+    "%@ today" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ aujourd'hui"
+          }
+        }
+      }
     },
     "%@ uploaded · %@ already on server" : {
       "localizations" : {
@@ -177,6 +210,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ seront libérés. Les fichiers téléchargés devront être téléchargés à nouveau."
+          }
+        }
+      }
+    },
+    "%@ yesterday" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hier"
           }
         }
       }
@@ -301,6 +345,17 @@
         }
       }
     },
+    "%lldy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%llda"
+          }
+        }
+      }
+    },
     "+%@" : {
       "localizations" : {
         "fr" : {
@@ -330,6 +385,17 @@
     },
     "1 day" : {
 
+    },
+    "1 favorite" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 favori"
+          }
+        }
+      }
     },
     "1 file" : {
       "extractionState" : "stale",
@@ -381,6 +447,17 @@
     },
     "1 year" : {
 
+    },
+    "1 year ago" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "il y a 1 an"
+          }
+        }
+      }
     },
     "6 hours" : {
 
@@ -469,6 +546,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter à l'album"
+          }
+        }
+      }
+    },
+    "Add to favorites" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter aux favoris"
           }
         }
       }
@@ -672,6 +760,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Disponible hors ligne"
+          }
+        }
+      }
+    },
+    "Back up now" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegarder maintenant"
           }
         }
       }
@@ -1462,6 +1560,17 @@
     "Faces detected on your photos will appear here." : {
 
     },
+    "favorite" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "favori"
+          }
+        }
+      }
+    },
     "Favorite" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1511,11 +1620,43 @@
     "Forgets every photo Immich has recorded as backed up — the tracked count goes to zero. The next backup then re-checks the whole library against the server. Nothing is deleted from Immich or from Photos, and already-uploaded photos are skipped again, but on an iCloud-optimized library the re-check reads a lot of metadata and can take a long time. Prefer \"Check server now\" when only a few photos are missing." : {
 
     },
+    "from %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "du %@"
+          }
+        }
+      }
+    },
+    "from today" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "d'aujourd'hui"
+          }
+        }
+      }
+    },
+    "from yesterday" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "d'hier"
+          }
+        }
+      }
+    },
     "Identifiez-vous" : {
 
     },
     "Immich" : {
-      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -1527,6 +1668,39 @@
     },
     "Immich Backup" : {
 
+    },
+    "Immich Favorites" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favoris Immich"
+          }
+        }
+      }
+    },
+    "Immich Memories" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Souvenirs Immich"
+          }
+        }
+      }
+    },
+    "Immich Photos" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos Immich"
+          }
+        }
+      }
     },
     "Immich remembers which photos are already backed up so it never re-reads your whole iCloud library on every run. A photo stays on this list until the server is found to no longer have it." : {
 
@@ -2012,6 +2186,17 @@
         }
       }
     },
+    "No favorites yet" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore de favoris"
+          }
+        }
+      }
+    },
     "No Image" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2030,6 +2215,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun résultat"
+          }
+        }
+      }
+    },
+    "No memories today" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de souvenir aujourd'hui"
           }
         }
       }
@@ -2130,6 +2326,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune photo dans cette sélection."
+          }
+        }
+      }
+    },
+    "No photos yet" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore de photos"
           }
         }
       }
@@ -2261,6 +2468,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les notifications sont désactivées. iOS ne demande qu'une fois : réactivez-les dans Réglages système."
+          }
+        }
+      }
+    },
+    "now" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "maintenant"
           }
         }
       }
@@ -2514,6 +2732,17 @@
         }
       }
     },
+    "Photos you took on this day will show up here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos prises ce jour-là apparaîtront ici."
+          }
+        }
+      }
+    },
     "Photos you upload to Immich will appear here." : {
       "localizations" : {
         "fr" : {
@@ -2673,6 +2902,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retirer de l'album"
+          }
+        }
+      }
+    },
+    "Remove from favorites" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer des favoris"
           }
         }
       }
@@ -3163,6 +3403,17 @@
     "Sharing" : {
 
     },
+    "Shuffle memories" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mélanger les souvenirs"
+          }
+        }
+      }
+    },
     "Sign in" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3203,6 +3454,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pile"
+          }
+        }
+      }
+    },
+    "Start a backup from the Home Screen." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lancez une sauvegarde depuis l'écran d'accueil."
           }
         }
       }
@@ -3270,6 +3532,17 @@
         }
       }
     },
+    "Tap the heart on a photo to keep it here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez le cœur d'une photo pour la garder ici."
+          }
+        }
+      }
+    },
     "The certificate of %@ cannot be verified. Trust it anyway?" : {
 
     },
@@ -3302,6 +3575,17 @@
     },
     "The photos stay in your library — only this memory is removed." : {
 
+    },
+    "The photos you kept." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos que vous avez gardées."
+          }
+        }
+      }
     },
     "The road trip was added to your photo library." : {
       "localizations" : {
@@ -3417,6 +3701,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce serveur n'a aucun autre utilisateur avec qui partager."
+          }
+        }
+      }
+    },
+    "This year" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette année"
           }
         }
       }
@@ -3619,6 +3914,17 @@
         }
       }
     },
+    "Video" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vidéo"
+          }
+        }
+      }
+    },
     "Video saved" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3674,6 +3980,17 @@
         }
       }
     },
+    "What you were doing on this day, years ago." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce que vous faisiez ce jour-là, il y a des années."
+          }
+        }
+      }
+    },
     "While Immich is open, new photos start backing up within a few seconds. When it's closed, iOS decides when to run — usually while charging on Wi-Fi." : {
 
     },
@@ -3701,257 +4018,8 @@
         }
       }
     },
-    "%@ favorites" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ favoris"
-          }
-        }
-      }
-    },
-    "%@ on %@" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ le %@"
-          }
-        }
-      }
-    },
-    "%@ today" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ aujourd'hui"
-          }
-        }
-      }
-    },
-    "%@ yesterday" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ hier"
-          }
-        }
-      }
-    },
-    "%lldy" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%llda"
-          }
-        }
-      }
-    },
-    "1 favorite" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 favori"
-          }
-        }
-      }
-    },
-    "1 year ago" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "il y a 1 an"
-          }
-        }
-      }
-    },
-    "Add to favorites" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter aux favoris"
-          }
-        }
-      }
-    },
-    "Back up now" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sauvegarder maintenant"
-          }
-        }
-      }
-    },
-    "Immich Favorites" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Favoris Immich"
-          }
-        }
-      }
-    },
-    "Immich Memories" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Souvenirs Immich"
-          }
-        }
-      }
-    },
-    "Immich Photos" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photos Immich"
-          }
-        }
-      }
-    },
-    "No favorites yet" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pas encore de favoris"
-          }
-        }
-      }
-    },
-    "No memories today" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pas de souvenir aujourd'hui"
-          }
-        }
-      }
-    },
-    "No photos yet" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pas encore de photos"
-          }
-        }
-      }
-    },
-    "Open Immich to sign in or start a backup." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrez Immich pour vous connecter ou lancer une sauvegarde."
-          }
-        }
-      }
-    },
-    "Photos you took on this day will show up here." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les photos prises ce jour-là apparaîtront ici."
-          }
-        }
-      }
-    },
-    "Remove from favorites" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retirer des favoris"
-          }
-        }
-      }
-    },
-    "Shuffle memories" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mélanger les souvenirs"
-          }
-        }
-      }
-    },
-    "Start a backup from the Home Screen." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lancez une sauvegarde depuis l'écran d'accueil."
-          }
-        }
-      }
-    },
-    "Tap the heart on a photo to keep it here." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Touchez le cœur d'une photo pour la garder ici."
-          }
-        }
-      }
-    },
-    "The photos you kept." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les photos que vous avez gardées."
-          }
-        }
-      }
-    },
-    "This year" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cette année"
-          }
-        }
-      }
-    },
-    "Video" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vidéo"
-          }
-        }
-      }
-    },
-    "What you were doing on this day, years ago." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce que vous faisiez ce jour-là, il y a des années."
-          }
-        }
-      }
-    },
     "Your newest photos, with the heart to keep one." : {
+      "extractionState" : "stale",
       "localizations" : {
         "fr" : {
           "stringUnit" : {
@@ -3961,52 +4029,52 @@
         }
       }
     },
-    "favorite" : {
+    "Immich could not reach your server. Check the app can open it." : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "favori"
+            "value" : "Immich n'a pas pu joindre votre serveur. Vérifiez que l'app peut l'ouvrir."
           }
         }
       }
     },
-    "from %@" : {
+    "Open the app once and your photos appear here." : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "du %@"
+            "value" : "Ouvrez l'app une fois et vos photos apparaîtront ici."
           }
         }
       }
     },
-    "from today" : {
+    "Photos show up here once they are backed up." : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "d'aujourd'hui"
+            "value" : "Les photos apparaîtront ici une fois sauvegardées."
           }
         }
       }
     },
-    "from yesterday" : {
+    "Server unreachable" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "d'hier"
+            "value" : "Serveur injoignable"
           }
         }
       }
     },
-    "now" : {
+    "Sign in to Immich" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "maintenant"
+            "value" : "Connectez-vous à Immich"
           }
         }
       }

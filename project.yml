@@ -101,6 +101,12 @@ targets:
       path: ImmichWidgets/Info.plist
       properties:
         CFBundleDisplayName: Immich
+        # Same policy as the app, and for the same reason: a self-hosted Immich
+        # is usually plain HTTP on the LAN, which App Transport Security blocks
+        # in the extension process. Loopback is exempt from ATS, so a simulator
+        # test against 127.0.0.1 never noticed (issue #19 follow-up).
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

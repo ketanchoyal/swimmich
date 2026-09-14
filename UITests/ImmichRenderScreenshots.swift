@@ -13,7 +13,10 @@ import XCTest
 /// Without it the tests skip, so the default scheme stays green.
 final class ImmichRenderScreenshots: XCTestCase {
 
-    private let stub = "http://127.0.0.1:8421"
+    /// Overridable so a run can point the app at a NON-loopback address:
+    /// App Transport Security exempts loopback, so only a real LAN/HTTP server
+    /// exercises the policy the widget extension has to satisfy.
+    private let stub = ProcessInfo.processInfo.environment["IMMICH_STUB_URL"] ?? "http://127.0.0.1:8421"
     private var app: XCUIApplication!
 
     override func setUpWithError() throws {

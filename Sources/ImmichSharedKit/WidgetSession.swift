@@ -16,13 +16,29 @@ public struct WidgetSession: Codable, Equatable, Sendable {
     /// return one.
     public var userName: String?
     public var userId: String?
+    /// Hosts whose certificate the user explicitly accepted in the app. The
+    /// widget cannot read the app's trust store (a different container), so the
+    /// list travels with the session — see `WidgetTrustDelegate`.
+    ///
+    /// Optional on purpose: a session stored by an earlier build has no such key
+    /// and must keep decoding.
+    public var trustedHosts: [String]?
 
-    public init(baseURL: String, token: String, userName: String? = nil, userId: String? = nil) {
+    public init(
+        baseURL: String,
+        token: String,
+        userName: String? = nil,
+        userId: String? = nil,
+        trustedHosts: [String]? = nil
+    ) {
         self.baseURL = baseURL
         self.token = token
         self.userName = userName
         self.userId = userId
+        self.trustedHosts = trustedHosts
     }
+
+    public var trustedHostSet: Set<String> { Set(trustedHosts ?? []) }
 }
 
 /// Read/write seam for `WidgetSession`. The app writes on sign-in and clears on
@@ -80,8 +96,16 @@ public struct WidgetSessionStore: WidgetSessionStoring {
         ]
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let data = result as? Data,
+        guard status == errSecSuccess else {
+            if status != errSecItemNotFound {
+                // -34018 (missing entitlement) is what a widget sees when its
+                // keychain group is not authorised: worth a loud line, because
+                // every widget then shows the signed-out state.
+                logger.error("widget session read failed: \(status, privacy: .public)")
+            }
+            return nil
+        }
+        guard let data = result as? Data,
               let session = try? JSONDecoder().decode(WidgetSession.self, from: data),
               !session.token.isEmpty
         else { return nil }
@@ -95,5 +119,64 @@ public struct WidgetSessionStore: WidgetSessionStoring {
             kSecAttrAccount as String: Self.account
         ]
         SecItemDelete(query as CFDictionary)
+    }
+}
+
+// MARK: - Certificate trust
+
+/// Server-trust handling for the widget's own `URLSession`.
+///
+/// The app evaluates server trust through `TrustEvaluatingURLSessionDelegate`
+/// and remembers the hosts the user accepted; a widget that fetches with
+/// `URLSession.shared` has no delegate at all, so an Immich behind a
+/// self-signed certificate — which works perfectly in the app — fails every
+/// fetch and the widget shows nothing. Same policy as the app: default
+/// evaluation first, and the server's own chain is anchored only for a host the
+/// user explicitly trusted.
+public final class WidgetTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
+    private let sessionStore: any WidgetSessionStoring
+
+    public init(sessionStore: any WidgetSessionStoring = WidgetSessionStore()) {
+        self.sessionStore = sessionStore
+    }
+
+    /// Whether `host` may be talked to despite a failed evaluation.
+    func trustsCertificates(for host: String) -> Bool {
+        sessionStore.load()?.trustedHostSet.contains(host) ?? false
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust
+        else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        var error: CFError?
+        if SecTrustEvaluateWithError(serverTrust, &error) {
+            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+            return
+        }
+
+        guard trustsCertificates(for: challenge.protectionSpace.host),
+              let certificates = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate],
+              !certificates.isEmpty
+        else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        SecTrustSetAnchorCertificates(serverTrust, certificates as CFArray)
+        SecTrustSetAnchorCertificatesOnly(serverTrust, true)
+        if SecTrustEvaluateWithError(serverTrust, &error) {
+            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+        } else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
     }
 }

@@ -151,11 +151,18 @@ final class AuthViewModel: AuthSessionDelegate {
     /// the previous account's photos.
     func publishWidgetSession() {
         guard let token = accessToken, let baseURL else { return }
+        // The widget cannot read this process' trust store (a different
+        // container), so a host whose certificate the user accepted travels
+        // with the session — without it a self-signed server is unreachable
+        // from the widget even though the app opens it fine.
+        let host = baseURL.host
+        let trustedHosts = (host.flatMap { trustStore.contains($0) ? $0 : nil }).map { [$0] } ?? []
         widgetSession.save(WidgetSession(
             baseURL: baseURL.absoluteString,
             token: token,
             userName: userName,
-            userId: userId
+            userId: userId,
+            trustedHosts: trustedHosts
         ))
     }
 

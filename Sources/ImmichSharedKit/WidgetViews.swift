@@ -268,6 +268,36 @@ public struct WidgetShuffleButton: View {
     }
 }
 
+/// What an empty widget says. A widget cannot raise an error, so the copy has
+/// to name the cause — "sign in" and "the server did not answer" need very
+/// different reactions from the user, and a bare "No photos yet" hid both
+/// behind a lie (issue #19).
+enum WidgetEmptyCopy {
+    static func state(
+        for availability: WidgetAvailability,
+        readyIcon: String,
+        readyTitle: LocalizedStringKey,
+        readySubtitle: LocalizedStringKey
+    ) -> (icon: String, title: LocalizedStringKey, subtitle: LocalizedStringKey) {
+        switch availability {
+        case .ready:
+            (readyIcon, readyTitle, readySubtitle)
+        case .signedOut:
+            (
+                "person.crop.circle.badge.exclamationmark",
+                "Sign in to Immich",
+                "Open the app once and your photos appear here."
+            )
+        case .unreachable:
+            (
+                "wifi.exclamationmark",
+                "Server unreachable",
+                "Immich could not reach your server. Check the app can open it."
+            )
+        }
+    }
+}
+
 public struct WidgetEmptyState: View {
     private let systemImage: String
     private let title: LocalizedStringKey
@@ -329,11 +359,13 @@ public struct WidgetPhotosView: View {
 
     public var body: some View {
         if wall.isEmpty {
-            WidgetEmptyState(
-                systemImage: "photo.on.rectangle.angled",
-                title: "No photos yet",
-                subtitle: "Open Immich to sign in or start a backup."
+            let copy = WidgetEmptyCopy.state(
+                for: wall.availability,
+                readyIcon: "photo.on.rectangle.angled",
+                readyTitle: "No photos yet",
+                readySubtitle: "Photos show up here once they are backed up."
             )
+            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
         } else {
             composed
         }
@@ -432,25 +464,28 @@ public struct WidgetPhotosView: View {
 
 /// "On this day", one memory at a time, with a shuffle that costs nothing.
 public struct WidgetMemoriesView: View {
-    private let cards: [WidgetMemory]
+    private let feed: WidgetMemoryFeed
+    private var cards: [WidgetMemory] { feed.cards }
     /// See `WidgetPhotosView`: the preview seam for Lock Screen families.
     private let familyOverride: WidgetFamily?
     @Environment(\.widgetFamily) private var environmentFamily
 
     private var widgetFamily: WidgetFamily { familyOverride ?? environmentFamily }
 
-    public init(cards: [WidgetMemory], family: WidgetFamily? = nil) {
-        self.cards = cards
+    public init(feed: WidgetMemoryFeed, family: WidgetFamily? = nil) {
+        self.feed = feed
         self.familyOverride = family
     }
 
     public var body: some View {
         if cards.isEmpty {
-            WidgetEmptyState(
-                systemImage: "sparkles",
-                title: "No memories today",
-                subtitle: "Photos you took on this day will show up here."
+            let copy = WidgetEmptyCopy.state(
+                for: feed.availability,
+                readyIcon: "sparkles",
+                readyTitle: "No memories today",
+                readySubtitle: "Photos you took on this day will show up here."
             )
+            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
         } else {
             composed
         }
@@ -566,11 +601,13 @@ public struct WidgetFavoritesView: View {
 
     public var body: some View {
         if wall.isEmpty {
-            WidgetEmptyState(
-                systemImage: "heart",
-                title: "No favorites yet",
-                subtitle: "Tap the heart on a photo to keep it here."
+            let copy = WidgetEmptyCopy.state(
+                for: wall.availability,
+                readyIcon: "heart",
+                readyTitle: "No favorites yet",
+                readySubtitle: "Tap the heart on a photo to keep it here."
             )
+            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
         } else {
             composed
         }
@@ -683,11 +720,11 @@ public enum WidgetPlaceholder {
         return PhotoWall(photos: photos, totalCount: 12_483, newestBucket: nil, newestCount: 42)
     }
 
-    public static func memories() -> [WidgetMemory] {
-        [
+    public static func memories() -> WidgetMemoryFeed {
+        WidgetMemoryFeed(cards: [
             WidgetMemory(id: "placeholder-1", yearsAgo: 5, photos: (0..<4).map { WidgetPhoto(id: "placeholder-m1-\($0)") }),
             WidgetMemory(id: "placeholder-2", yearsAgo: 2, photos: (0..<3).map { WidgetPhoto(id: "placeholder-m2-\($0)") }),
-        ]
+        ])
     }
 }
 
@@ -767,11 +804,11 @@ enum WidgetPreviewFixtures {
         return PhotoWall(photos: photos, totalCount: 12_483, newestBucket: "2026-09-13T00:00:00.000Z", newestCount: 42)
     }
 
-    static func cards() -> [WidgetMemory] {
-        [
+    static func cards() -> WidgetMemoryFeed {
+        WidgetMemoryFeed(cards: [
             WidgetMemory(id: "m1", yearsAgo: 5, photos: (0..<4).map { photo(id: "m1-\($0)", color: [UIColor.systemOrange, .systemPink, .systemBrown, .systemIndigo][$0]) }),
             WidgetMemory(id: "m2", yearsAgo: 1, photos: (0..<3).map { photo(id: "m2-\($0)", color: [UIColor.systemTeal, .systemPurple, .systemGreen][$0]) }),
-        ]
+        ])
     }
 
     private static func jpeg(_ color: UIColor) -> Data? {
@@ -812,13 +849,13 @@ enum WidgetPreviewFixtures {
 }
 
 #Preview("Memories — small") {
-    WidgetMemoriesView(cards: WidgetPreviewFixtures.cards(), family: .systemSmall)
+    WidgetMemoriesView(feed: WidgetPreviewFixtures.cards(), family: .systemSmall)
         .frame(width: 170, height: 170)
         .background(Color(.secondarySystemBackground))
 }
 
 #Preview("Memories — medium") {
-    WidgetMemoriesView(cards: WidgetPreviewFixtures.cards(), family: .systemMedium)
+    WidgetMemoriesView(feed: WidgetPreviewFixtures.cards(), family: .systemMedium)
         .frame(width: 338, height: 158)
         .background(Color(.secondarySystemBackground))
 }
@@ -837,7 +874,7 @@ enum WidgetPreviewFixtures {
 
 #Preview("Lock Screen — rectangular") {
     VStack(spacing: 10) {
-        WidgetMemoriesView(cards: WidgetPreviewFixtures.cards(), family: .accessoryRectangular)
+        WidgetMemoriesView(feed: WidgetPreviewFixtures.cards(), family: .accessoryRectangular)
         WidgetPhotosView(wall: WidgetPreviewFixtures.wall(), family: .accessoryRectangular)
         WidgetFavoritesView(wall: WidgetPreviewFixtures.wall(favorite: true), family: .accessoryRectangular)
     }
@@ -848,7 +885,7 @@ enum WidgetPreviewFixtures {
 
 #Preview("Lock Screen — circular") {
     HStack(spacing: 14) {
-        WidgetMemoriesView(cards: WidgetPreviewFixtures.cards(), family: .accessoryCircular)
+        WidgetMemoriesView(feed: WidgetPreviewFixtures.cards(), family: .accessoryCircular)
         WidgetFavoritesView(wall: WidgetPreviewFixtures.wall(favorite: true), family: .accessoryCircular)
     }
     .padding(16)

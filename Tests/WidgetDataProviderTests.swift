@@ -146,8 +146,8 @@ final class WidgetDataProviderTests: XCTestCase {
         }
         let year = Calendar.current.component(.year, from: Date())
 
-        let first = await provider(spy).memories(limit: 2, offset: 0)
-        let second = await provider(spy).memories(limit: 2, offset: 1)
+        let first = (await provider(spy).memories(limit: 2, offset: 0)).cards
+        let second = (await provider(spy).memories(limit: 2, offset: 1)).cards
 
         XCTAssertEqual(first.map(\.id), ["m2020", "m2019"], "empty and fully trashed memories never reach the widget, newest first")
         XCTAssertEqual(second.map(\.id), ["m2019", "m2020"], "the shuffle offset really rotates the list")
@@ -167,7 +167,7 @@ final class WidgetDataProviderTests: XCTestCase {
             request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, Data([0xFF, 0xD8]))
         }
 
-        let cards = await provider(spy).memories(limit: 2, offset: 7)
+        let cards = (await provider(spy).memories(limit: 2, offset: 7)).cards
 
         XCTAssertEqual(cards.map(\.id), ["only"], "an offset past the end wraps instead of returning nothing")
     }
@@ -179,11 +179,13 @@ final class WidgetDataProviderTests: XCTestCase {
 
         let wall = await provider(spy, session: nil).recentPhotos(limit: 3)
         let favorites = await provider(spy, session: nil).favoritePhotos(limit: 3)
-        let cards = await provider(spy, session: nil).memories(limit: 2, offset: 0)
+        let feed = await provider(spy, session: nil).memories(limit: 2, offset: 0)
 
         XCTAssertTrue(wall.isEmpty)
         XCTAssertTrue(favorites.isEmpty)
-        XCTAssertTrue(cards.isEmpty)
+        XCTAssertTrue(feed.cards.isEmpty)
+        XCTAssertEqual(wall.availability, .signedOut, "the widget must say why it is empty")
+        XCTAssertEqual(feed.availability, .signedOut)
         XCTAssertTrue(spy.requests.isEmpty, "signed out: the widget must not talk to the server at all")
     }
 
@@ -196,6 +198,14 @@ final class WidgetDataProviderTests: XCTestCase {
 
         XCTAssertTrue(rejected.isEmpty)
         XCTAssertTrue(failed.isEmpty)
+        XCTAssertEqual(rejected.availability, .signedOut, "a revoked token is a sign-in problem, not a network one")
+        XCTAssertEqual(failed.availability, .unreachable)
+        let memories = await provider(broken).memories(limit: 1, offset: 0)
+        XCTAssertEqual(
+            memories.availability,
+            .unreachable,
+            "a memory fetch that fails must not read as “nothing to remember”"
+        )
     }
 
     func test_malformedPayload_degradesToAnEmptyWall() async {
@@ -290,6 +300,43 @@ final class WidgetDataProviderTests: XCTestCase {
         XCTAssertNil(store.load())
     }
 
+    func test_sessionDecodesABlobWrittenBeforeTrustedHostsExisted() throws {
+        // A session stored by the previous build has no `trustedHosts` key; the
+        // widget must keep reading it instead of reporting "signed out".
+        let legacy = Data(#"{"baseURL":"https://photos.example.com","token":"jwt","userName":"Milian"}"#.utf8)
+
+        let session = try JSONDecoder().decode(WidgetSession.self, from: legacy)
+
+        XCTAssertEqual(session.token, "jwt")
+        XCTAssertEqual(session.trustedHostSet, [])
+    }
+
+    func test_trustDelegate_onlyAcceptsAHostTheUserAcceptedInTheApp() {
+        let spy = TransportSpy { _ in (200, Data()) }
+        let trusting = WidgetTrustDelegate(sessionStore: StubSessionStore(session: WidgetSession(
+            baseURL: "https://nas.local:2283", token: "jwt", trustedHosts: ["nas.local"]
+        )))
+        let plain = WidgetTrustDelegate(sessionStore: StubSessionStore(session: WidgetSession(
+            baseURL: "https://nas.local:2283", token: "jwt"
+        )))
+        let anonymous = WidgetTrustDelegate(sessionStore: StubSessionStore(session: nil))
+
+        XCTAssertTrue(trusting.trustsCertificates(for: "nas.local"), "the host the user accepted is honoured")
+        XCTAssertFalse(trusting.trustsCertificates(for: "evil.example"), "trust is per host, never global")
+        XCTAssertFalse(plain.trustsCertificates(for: "nas.local"), "a self-signed server is not trusted by default")
+        XCTAssertFalse(anonymous.trustsCertificates(for: "nas.local"), "no session, no trust")
+        _ = spy
+    }
+
+    func test_transportDefaultsToASessionThatCanHandleServerTrust() {
+        // The widget reads through its own session: `URLSession.shared` has no
+        // delegate, so a self-signed server the app opens fine would fail every
+        // widget fetch.
+        let transport = URLSessionWidgetTransport()
+
+        XCTAssertTrue(transport.session.delegate is WidgetTrustDelegate)
+    }
+
     func test_sessionStore_ignoresAnEmptyToken() {
         let store = WidgetSessionStore(service: "app.immich.swiftui.widget.tests")
         defer { store.clear() }
@@ -370,6 +417,35 @@ final class WidgetSessionPublishingTests: XCTestCase {
         XCTAssertEqual(spy.session?.token, "widget-jwt")
         XCTAssertEqual(spy.session?.baseURL, "https://photos.example.com")
         XCTAssertEqual(spy.session?.userName, "Milian")
+    }
+
+    @MainActor
+    func test_login_publishesTheHostTheUserAcceptedTheCertificateFor() async {
+        let (defaults, suite) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let trustDefaults = UserDefaults(suiteName: "widget-trust-\(UUID().uuidString)")!
+        let trustStore = TrustedServerStoreImpl(defaults: trustDefaults)
+        trustStore.add("photos.example.com")
+        let mock = MockImmichClient()
+        mock.loginResponse = loginResponse(token: "widget-jwt", name: "Milian")
+        let spy = SessionSpy()
+        let auth = AuthViewModel(
+            client: mock,
+            keychain: MockKeychainStore(),
+            defaults: defaults,
+            trustStore: trustStore,
+            widgetSession: spy
+        )
+        auth.serverURLString = "https://photos.example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "t@e.com", password: "secret")
+
+        XCTAssertEqual(
+            spy.session?.trustedHostSet,
+            ["photos.example.com"],
+            "the widget cannot read the app's trust store, so the host must travel with the session"
+        )
     }
 
     @MainActor

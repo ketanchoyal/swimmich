@@ -31,6 +31,17 @@ public struct WidgetPhoto: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Why a widget has nothing to draw. A widget cannot show an error, so it must
+/// at least say the truth: "sign in", "the server did not answer", or "there is
+/// genuinely nothing here yet".
+public enum WidgetAvailability: Equatable, Sendable {
+    case ready
+    /// No session published, or the server rejected the token.
+    case signedOut
+    /// The fetch failed (network, ATS, certificate, HTTP error, bad payload).
+    case unreachable
+}
+
 /// Everything the photos/favorites widgets draw, plus the two numbers that make
 /// them worth a glance: the library size and how much landed in the newest day.
 public struct PhotoWall: Equatable, Sendable {
@@ -40,16 +51,46 @@ public struct PhotoWall: Equatable, Sendable {
     public let newestBucket: String?
     /// Assets in that newest bucket — "42 on 1 Jul".
     public let newestCount: Int
+    public let availability: WidgetAvailability
 
-    public init(photos: [WidgetPhoto], totalCount: Int, newestBucket: String?, newestCount: Int) {
+    public init(
+        photos: [WidgetPhoto],
+        totalCount: Int,
+        newestBucket: String?,
+        newestCount: Int,
+        availability: WidgetAvailability = .ready
+    ) {
         self.photos = photos
         self.totalCount = totalCount
         self.newestBucket = newestBucket
         self.newestCount = newestCount
+        self.availability = availability
     }
 
-    public static let empty = PhotoWall(photos: [], totalCount: 0, newestBucket: nil, newestCount: 0)
+    /// A wall that has nothing to show, and why.
+    public static func empty(_ availability: WidgetAvailability) -> PhotoWall {
+        PhotoWall(photos: [], totalCount: 0, newestBucket: nil, newestCount: 0, availability: availability)
+    }
+
+    /// Signed in, but the library (or the day) has nothing in it.
+    public static let empty = PhotoWall.empty(.ready)
     public var isEmpty: Bool { photos.isEmpty }
+}
+
+/// The memories widget's payload, carrying the same "why is this empty" answer.
+public struct WidgetMemoryFeed: Equatable, Sendable {
+    public let cards: [WidgetMemory]
+    public let availability: WidgetAvailability
+
+    public init(cards: [WidgetMemory], availability: WidgetAvailability = .ready) {
+        self.cards = cards
+        self.availability = availability
+    }
+
+    public static let empty = WidgetMemoryFeed(cards: [])
+    public func empty(_ availability: WidgetAvailability) -> WidgetMemoryFeed {
+        WidgetMemoryFeed(cards: [], availability: availability)
+    }
 }
 
 /// One "On this day" memory, ready to draw.
@@ -83,10 +124,27 @@ public protocol WidgetDataTransport: Sendable {
 }
 
 public struct URLSessionWidgetTransport: WidgetDataTransport {
-    private let session: URLSession
+    /// Internal (not private) so a test can assert the delegate is attached.
+    let session: URLSession
 
-    public init(session: URLSession = .shared) {
-        self.session = session
+    /// Defaults to a session carrying `WidgetTrustDelegate`: a self-signed
+    /// Immich (accepted by the user in the app) is unreachable from a widget
+    /// that fetches through `URLSession.shared`.
+    public init(
+        session: URLSession? = nil,
+        sessionStore: any WidgetSessionStoring = WidgetSessionStore(),
+        timeout: TimeInterval = 30
+    ) {
+        self.session = session ?? Self.makeSession(sessionStore: sessionStore, timeout: timeout)
+    }
+
+    static func makeSession(sessionStore: any WidgetSessionStoring, timeout: TimeInterval) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout * 2
+        configuration.waitsForConnectivity = false
+        let delegate = WidgetTrustDelegate(sessionStore: sessionStore)
+        return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
 
     public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -97,12 +155,9 @@ public struct URLSessionWidgetTransport: WidgetDataTransport {
 
     /// Short-timeout session for the interactive intents: a widget button must
     /// answer fast, and a hung request would leave the user staring at a Home
-    /// Screen that never updates.
-    public static func interactive() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 15
-        configuration.waitsForConnectivity = false
-        return URLSession(configuration: configuration)
+    /// Screen that never updates. Same trust policy as the read path.
+    public static func interactive(sessionStore: any WidgetSessionStoring = WidgetSessionStore()) -> URLSession {
+        makeSession(sessionStore: sessionStore, timeout: 15)
     }
 }
 
@@ -150,8 +205,11 @@ public struct WidgetDataProvider: Sendable {
 
     /// Today's memories, rotated by `offset` so the shuffle intent shows a
     /// different one on every tap.
-    public func memories(limit: Int, offset: Int) async -> [WidgetMemory] {
-        guard let session = sessionStore.load() else { return [] }
+    public func memories(limit: Int, offset: Int) async -> WidgetMemoryFeed {
+        guard let session = sessionStore.load() else {
+            logger.error("no widget session in the keychain — sign in in the app, or the widget process cannot read the shared group")
+            return .empty.empty(.signedOut)
+        }
         do {
             let payload: [MemoryPayload] = try await get(
                 path: "/api/memories",
@@ -163,20 +221,23 @@ public struct WidgetDataProvider: Sendable {
                 .map { $0.card(currentYear: currentYear) }
                 .filter { !$0.photos.isEmpty }
                 .sorted { $0.yearsAgo < $1.yearsAgo }
-            guard !cards.isEmpty else { return [] }
+            guard !cards.isEmpty else { return .empty.empty(.ready) }
             let start = ((offset % cards.count) + cards.count) % cards.count
             let selected = Array((cards[start...] + cards[..<start]).prefix(max(1, limit)))
-            return await hydrate(selected, session: session)
+            return WidgetMemoryFeed(cards: await hydrate(selected, session: session))
         } catch {
             logger.error("memories fetch failed: \(String(describing: error), privacy: .public)")
-            return []
+            return .empty.empty(availability(for: error))
         }
     }
 
     // MARK: Internals
 
     private func wall(isFavorite: Bool?, limit: Int) async -> PhotoWall {
-        guard let session = sessionStore.load() else { return .empty }
+        guard let session = sessionStore.load() else {
+            logger.error("no widget session in the keychain — sign in in the app, or the widget process cannot read the shared group")
+            return .empty(.signedOut)
+        }
         do {
             let buckets: [BucketPayload] = try await get(
                 path: "/api/timeline/buckets",
@@ -186,7 +247,7 @@ public struct WidgetDataProvider: Sendable {
             )
             // Bucket 0 is the newest day (the app indexes the same way: it
             // starts at 0 and walks towards older buckets).
-            guard let newest = buckets.first else { return .empty }
+            guard let newest = buckets.first else { return .empty(.ready) }
             let columnar: ColumnarAssets = try await get(
                 path: "/api/timeline/bucket",
                 query: [URLQueryItem(name: "timeBucket", value: newest.timeBucket)],
@@ -202,8 +263,16 @@ public struct WidgetDataProvider: Sendable {
             )
         } catch {
             logger.error("wall fetch failed: \(String(describing: error), privacy: .public)")
-            return .empty
+            return .empty(availability(for: error))
         }
+    }
+
+    /// A 401 means the token the widget holds is no longer good (a sign-out the
+    /// widget missed); everything else is "the server did not answer", which
+    /// includes ATS and certificate failures.
+    private func availability(for error: Error) -> WidgetAvailability {
+        if case WidgetDataError.unauthorized = error { return .signedOut }
+        return .unreachable
     }
 
     private func hydrate(_ photos: [WidgetPhoto], session: WidgetSession) async -> [WidgetPhoto] {
