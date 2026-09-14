@@ -134,15 +134,19 @@ public struct WidgetPhotoTile: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 } else {
+                    // Full brand strength, not a washed-out tint: a pale plate is
+                    // indistinguishable from the redacted placeholder WidgetKit
+                    // shows before a timeline lands, which cost a whole round of
+                    // "is it broken?" on 2026-09-14.
                     LinearGradient(
-                        colors: [widgetBrandStart.opacity(0.35), widgetBrandEnd.opacity(0.25)],
+                        colors: [widgetBrandStart, widgetBrandEnd],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                     .overlay {
-                        Image(systemName: "photo")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
+                        Image(systemName: photo.isVideo ? "video" : "photo")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                 }
             }
@@ -302,11 +306,20 @@ public struct WidgetEmptyState: View {
     private let systemImage: String
     private let title: LocalizedStringKey
     private let subtitle: LocalizedStringKey
+    /// "nas.local · certificate refused" — which server was asked and how it
+    /// failed. Verbatim on purpose: it is a diagnostic, not a sentence.
+    private let hint: String?
 
-    public init(systemImage: String, title: LocalizedStringKey, subtitle: LocalizedStringKey) {
+    public init(
+        systemImage: String,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
+        hint: String? = nil
+    ) {
         self.systemImage = systemImage
         self.title = title
         self.subtitle = subtitle
+        self.hint = hint
     }
 
     public var body: some View {
@@ -322,6 +335,13 @@ public struct WidgetEmptyState: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            if let hint {
+                Text(hint)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
         }
         .padding(.horizontal, 14)
     }
@@ -365,7 +385,12 @@ public struct WidgetPhotosView: View {
                 readyTitle: "No photos yet",
                 readySubtitle: "Photos show up here once they are backed up."
             )
-            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
+            WidgetEmptyState(
+                systemImage: copy.icon,
+                title: copy.title,
+                subtitle: copy.subtitle,
+                hint: wall.failureHint
+            )
         } else {
             composed
         }
@@ -485,7 +510,12 @@ public struct WidgetMemoriesView: View {
                 readyTitle: "No memories today",
                 readySubtitle: "Photos you took on this day will show up here."
             )
-            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
+            WidgetEmptyState(
+                systemImage: copy.icon,
+                title: copy.title,
+                subtitle: copy.subtitle,
+                hint: feed.failureHint
+            )
         } else {
             composed
         }
@@ -607,7 +637,12 @@ public struct WidgetFavoritesView: View {
                 readyTitle: "No favorites yet",
                 readySubtitle: "Tap the heart on a photo to keep it here."
             )
-            WidgetEmptyState(systemImage: copy.icon, title: copy.title, subtitle: copy.subtitle)
+            WidgetEmptyState(
+                systemImage: copy.icon,
+                title: copy.title,
+                subtitle: copy.subtitle,
+                hint: wall.failureHint
+            )
         } else {
             composed
         }
@@ -839,6 +874,26 @@ enum WidgetPreviewFixtures {
 #Preview("Photos — large") {
     WidgetPhotosView(wall: WidgetPreviewFixtures.wall(), family: .systemLarge)
         .frame(width: 338, height: 345)
+        .background(Color(.secondarySystemBackground))
+}
+
+#Preview("Photos — no thumbnails") {
+    WidgetPhotosView(
+        wall: PhotoWall(
+            photos: (0..<6).map { WidgetPhoto(id: "x-\($0)", isVideo: $0 == 2, isFavorite: $0 == 1) },
+            totalCount: 12_483,
+            newestBucket: "2026-09-13T00:00:00.000Z",
+            newestCount: 42
+        ),
+        family: .systemSmall
+    )
+    .frame(width: 170, height: 170)
+    .background(Color(.secondarySystemBackground))
+}
+
+#Preview("Photos — unreachable") {
+    WidgetPhotosView(wall: .empty(.unreachable, hint: "nas.local · certificate refused"), family: .systemSmall)
+        .frame(width: 170, height: 170)
         .background(Color(.secondarySystemBackground))
 }
 

@@ -100,6 +100,10 @@ Check post-impl: `sh -c 'grep -q "enum WidgetAvailability" Sources/ImmichSharedK
 Assertion: une requête qui n'aboutit pas rend **quand même** une timeline (bornée), et l'échec rejoue vite au lieu d'attendre la période nominale.
 Check post-impl: `sh -c 'grep -q "defaultDeadline" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "func bounded" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "availability == .ready ? 30 \* 60 : 5 \* 60" ImmichWidgets/ImmichGridWidget.swift && grep -q "test_aServerThatNeverAnswers_stillYieldsATimeline" Tests/WidgetDataProviderTests.swift && echo PASS || echo FAIL'`
 
+### AC-3616 [type: new]
+Assertion: un widget vide **dit lequel** serveur a été interrogé et pourquoi ça a échoué, et une tuile sans octets ne ressemble plus au placeholder redacté du système.
+Check post-impl: `sh -c 'grep -q "failureHint" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "func hint(for" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "certificate refused" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "colors: \[widgetBrandStart, widgetBrandEnd\]" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "hint: wall.failureHint" Sources/ImmichSharedKit/WidgetViews.swift && echo PASS || echo FAIL'`
+
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
@@ -120,6 +124,7 @@ Check post-impl: `sh -c 'grep -q "defaultDeadline" Sources/ImmichSharedKit/Widge
 | AC-3613 | PASS | `WidgetTrustDelegate` + `trustedHosts` transportés par la session ; test de politique par hôte |
 | AC-3614 | PASS | `WidgetAvailability` + copie dédiée par cause ; log explicite quand la session manque ou que le Keychain refuse |
 | AC-3615 | PASS | `defaultDeadline` 10 s + helper `bounded` (test : transport qui n'aboutit jamais → `.unreachable`) ; reprise à 5 min (15 min pour les souvenirs) après un échec |
+| AC-3616 | PASS | `failureHint` (« nas.local · certificate refused », « … · no answer in 10s », « keychain ») affiché dans l'état vide ; plaques sans octets passées en dégradé de marque **plein** pour ne plus être confondues avec le placeholder redacté d'iOS (vérifié au rendu) |
 
 ## Vérification d'exécution
 

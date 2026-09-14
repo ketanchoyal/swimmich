@@ -52,24 +52,33 @@ public struct PhotoWall: Equatable, Sendable {
     /// Assets in that newest bucket — "42 on 1 Jul".
     public let newestCount: Int
     public let availability: WidgetAvailability
+    /// Which server was asked, and how it failed — shown *in* the widget, since
+    /// a self-hosted server's owner is the only one who can act on it and the
+    /// extension's log is not where they will look.
+    public let failureHint: String?
 
     public init(
         photos: [WidgetPhoto],
         totalCount: Int,
         newestBucket: String?,
         newestCount: Int,
-        availability: WidgetAvailability = .ready
+        availability: WidgetAvailability = .ready,
+        failureHint: String? = nil
     ) {
         self.photos = photos
         self.totalCount = totalCount
         self.newestBucket = newestBucket
         self.newestCount = newestCount
         self.availability = availability
+        self.failureHint = failureHint
     }
 
     /// A wall that has nothing to show, and why.
-    public static func empty(_ availability: WidgetAvailability) -> PhotoWall {
-        PhotoWall(photos: [], totalCount: 0, newestBucket: nil, newestCount: 0, availability: availability)
+    public static func empty(_ availability: WidgetAvailability, hint: String? = nil) -> PhotoWall {
+        PhotoWall(
+            photos: [], totalCount: 0, newestBucket: nil, newestCount: 0,
+            availability: availability, failureHint: hint
+        )
     }
 
     /// Signed in, but the library (or the day) has nothing in it.
@@ -81,15 +90,17 @@ public struct PhotoWall: Equatable, Sendable {
 public struct WidgetMemoryFeed: Equatable, Sendable {
     public let cards: [WidgetMemory]
     public let availability: WidgetAvailability
+    public let failureHint: String?
 
-    public init(cards: [WidgetMemory], availability: WidgetAvailability = .ready) {
+    public init(cards: [WidgetMemory], availability: WidgetAvailability = .ready, failureHint: String? = nil) {
         self.cards = cards
         self.availability = availability
+        self.failureHint = failureHint
     }
 
     public static let empty = WidgetMemoryFeed(cards: [])
-    public func empty(_ availability: WidgetAvailability) -> WidgetMemoryFeed {
-        WidgetMemoryFeed(cards: [], availability: availability)
+    public func empty(_ availability: WidgetAvailability, hint: String? = nil) -> WidgetMemoryFeed {
+        WidgetMemoryFeed(cards: [], availability: availability, failureHint: hint)
     }
 }
 
@@ -223,7 +234,7 @@ public struct WidgetDataProvider: Sendable {
     private func loadMemories(limit: Int, offset: Int) async -> WidgetMemoryFeed {
         guard let session = sessionStore.load() else {
             logger.error("no widget session in the keychain — sign in in the app, or the widget process cannot read the shared group")
-            return .empty.empty(.signedOut)
+            return .empty.empty(.signedOut, hint: "keychain")
         }
         do {
             let payload: [MemoryPayload] = try await get(
@@ -242,7 +253,7 @@ public struct WidgetDataProvider: Sendable {
             return WidgetMemoryFeed(cards: await hydrate(selected, session: session))
         } catch {
             logger.error("memories fetch failed: \(String(describing: error), privacy: .public)")
-            return .empty.empty(availability(for: error))
+            return .empty.empty(availability(for: error), hint: hint(for: error, session: session))
         }
     }
 
@@ -251,7 +262,7 @@ public struct WidgetDataProvider: Sendable {
     private func wall(isFavorite: Bool?, limit: Int) async -> PhotoWall {
         guard let session = sessionStore.load() else {
             logger.error("no widget session in the keychain — sign in in the app, or the widget process cannot read the shared group")
-            return .empty(.signedOut)
+            return .empty(.signedOut, hint: "keychain")
         }
         do {
             let buckets: [BucketPayload] = try await get(
@@ -278,7 +289,7 @@ public struct WidgetDataProvider: Sendable {
             )
         } catch {
             logger.error("wall fetch failed: \(String(describing: error), privacy: .public)")
-            return .empty(availability(for: error))
+            return .empty(availability(for: error), hint: hint(for: error, session: session))
         }
     }
 
@@ -297,7 +308,8 @@ public struct WidgetDataProvider: Sendable {
             group.cancelAll()
             if let first { return first }
             logger.error("widget fetch exceeded \(deadline, privacy: .public) — reporting the server as unreachable")
-            return .empty(.unreachable)
+            let host = sessionStore.load().flatMap { URL(string: $0.baseURL)?.host }
+            return .empty(.unreachable, hint: [host, "no answer in \(deadline)"].compactMap { $0 }.joined(separator: " · "))
         }
     }
 
@@ -312,8 +324,37 @@ public struct WidgetDataProvider: Sendable {
             group.cancelAll()
             if let first { return first }
             logger.error("widget fetch exceeded \(deadline, privacy: .public) — reporting the server as unreachable")
-            return WidgetMemoryFeed(cards: [], availability: .unreachable)
+            let host = sessionStore.load().flatMap { URL(string: $0.baseURL)?.host }
+            return WidgetMemoryFeed(
+                cards: [],
+                availability: .unreachable,
+                failureHint: [host, "no answer in \(deadline)"].compactMap { $0 }.joined(separator: " · ")
+            )
         }
+    }
+
+    /// "What was asked, and what came back" in one short line: the widget's own
+    /// diagnostic. The owner of a self-hosted server can read "nas.local ·
+    /// certificate" and know where to look; nothing else in the widget can.
+    private func hint(for error: Error, session: WidgetSession) -> String {
+        let host = URL(string: session.baseURL)?.host ?? session.baseURL
+        guard let urlError = error as? URLError else {
+            if case WidgetDataError.decoding = error { return "\(host) · bad payload" }
+            if case WidgetDataError.http(let status) = error { return "\(host) · HTTP \(status)" }
+            return host
+        }
+        let reason: String
+        switch urlError.code {
+        case .appTransportSecurityRequiresSecureConnection: reason = "ATS (plain HTTP)"
+        case .serverCertificateUntrusted, .serverCertificateHasUnknownRoot,
+             .serverCertificateHasBadDate, .serverCertificateNotYetValid:
+            reason = "certificate refused"
+        case .cannotConnectToHost, .cannotFindHost: reason = "cannot connect"
+        case .notConnectedToInternet, .networkConnectionLost: reason = "offline"
+        case .timedOut: reason = "timeout"
+        default: reason = "URLError \(urlError.code.rawValue)"
+        }
+        return "\(host) · \(reason)"
     }
 
     /// A 401 means the token the widget holds is no longer good (a sign-out the
