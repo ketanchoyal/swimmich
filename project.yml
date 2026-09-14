@@ -62,8 +62,11 @@ targets:
         DEVELOPMENT_TEAM: 2MJF39L8VY
         INFOPLIST_FILE: Resources/Info.plist
         # Keychain group shared with the widget extension (widgets-homescreen):
-        # the app writes the session, the extension reads it. See the file's
-        # own comment for why the group is the app-id-derived one.
+        # the app writes the widget session, the extension reads it. The group is
+        # the app-id-derived one, so the app keeps writing with no explicit
+        # access group and the extension lists that group to be allowed to read
+        # it. The entitlements files must stay comment-free: Xcode re-serialises
+        # them during the build, and the build fails if its input changed.
         CODE_SIGN_ENTITLEMENTS: Resources/ImmichSwiftUI.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -101,6 +104,11 @@ targets:
       path: ImmichWidgets/Info.plist
       properties:
         CFBundleDisplayName: Immich
+        # Same versions as the containing app. xcodegen hardcodes 1.0/1 here
+        # otherwise, and an extension whose version does not match its app is a
+        # launch-and-store problem waiting to happen (the app ships 0.1.0).
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # Same policy as the app, and for the same reason: a self-hosted Immich
         # is usually plain HTTP on the LAN, which App Transport Security blocks
         # in the extension process. Loopback is exempt from ATS, so a simulator
@@ -113,6 +121,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: fr.millianlmx.immich-ios.widgets
         DEVELOPMENT_TEAM: 2MJF39L8VY
+        # Read side of the same sharing; see the app target's comment.
         CODE_SIGN_ENTITLEMENTS: Resources/ImmichWidgets.entitlements
     dependencies:
       - target: ImmichSharedKit
