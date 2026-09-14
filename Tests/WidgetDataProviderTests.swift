@@ -247,6 +247,51 @@ final class WidgetDataProviderTests: XCTestCase {
         XCTAssertNotNil(wall.photos[1].imageData)
     }
 
+    // MARK: - Extension entitlement probe
+
+    func test_probe_reportsAMissingKeychainGroupForTheExtension() {
+        let profile: [String: Any] = [
+            "application-identifier": "2MJF39L8VY.fr.millianlmx.immich-ios",
+        ]
+
+        let verdict = WidgetExtensionProbe.verdict(
+            extensionName: "ImmichWidgets.appex",
+            profileEntitlements: profile,
+            bundleIdentifier: "fr.millianlmx.immich-ios"
+        )
+
+        XCTAssertTrue(verdict.hasPrefix("widget: MISMATCH"), verdict)
+        XCTAssertTrue(verdict.contains("2MJF39L8VY.fr.millianlmx.immich-ios"), "the group the widget needs must be named")
+    }
+
+    func test_probe_acceptsAnAuthorisedGroup() {
+        let profile: [String: Any] = [
+            "application-identifier": "2MJF39L8VY.fr.millianlmx.immich-ios",
+            "keychain-access-groups": [
+                "2MJF39L8VY.fr.millianlmx.immich-ios",
+                "2MJF39L8VY.fr.millianlmx.immich-ios.other",
+            ],
+        ]
+
+        let verdict = WidgetExtensionProbe.verdict(
+            extensionName: "ImmichWidgets.appex",
+            profileEntitlements: profile,
+            bundleIdentifier: "fr.millianlmx.immich-ios"
+        )
+
+        XCTAssertTrue(verdict.hasPrefix("widget: ok"), verdict)
+    }
+
+    func test_probe_survivesAProfileWithoutAnApplicationIdentifier() {
+        let verdict = WidgetExtensionProbe.verdict(
+            extensionName: "ImmichWidgets.appex",
+            profileEntitlements: [:],
+            bundleIdentifier: "fr.millianlmx.immich-ios"
+        )
+
+        XCTAssertTrue(verdict.contains("application-identifier"), verdict)
+    }
+
     func test_aServerThatNeverAnswers_stillYieldsATimeline() async {
         let provider = WidgetDataProvider(
             sessionStore: StubSessionStore(session: WidgetSession(baseURL: "https://photos.example.com", token: "jwt")),

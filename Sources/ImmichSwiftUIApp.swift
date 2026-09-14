@@ -36,6 +36,10 @@ struct ImmichSwiftUIApp: App {
                 }
                 .onAppear {
                     registerBackgroundBackup()
+                    // The widget chain's only device-only link: whether the
+                    // embedded appex is authorised for the app's keychain group.
+                    // One line at `notice` so it shows without enabling Info/Debug.
+                    _ = WidgetExtensionProbe.report()
                 }
         }
     }

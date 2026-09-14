@@ -104,6 +104,10 @@ Check post-impl: `sh -c 'grep -q "defaultDeadline" Sources/ImmichSharedKit/Widge
 Assertion: un widget vide **dit lequel** serveur a été interrogé et pourquoi ça a échoué, et une tuile sans octets ne ressemble plus au placeholder redacté du système.
 Check post-impl: `sh -c 'grep -q "failureHint" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "func hint(for" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "certificate refused" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "colors: \[widgetBrandStart, widgetBrandEnd\]" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "hint: wall.failureHint" Sources/ImmichSharedKit/WidgetViews.swift && echo PASS || echo FAIL'`
 
+### AC-3617 [type: new]
+Assertion: au lancement, l'app dit dans **son** log si le profil de provisionnement autorise le groupe Keychain dont l'extension a besoin (le seul échec possible uniquement sur appareil : un appareil où ce groupe n'est pas autorisé tue le processus de l'extension au lancement — aucun log, aucune timeline, placeholder figé).
+Check post-impl: `sh -c 'test -f Sources/Services/WidgetExtensionProbe.swift && grep -q "func verdict" Sources/Services/WidgetExtensionProbe.swift && grep -q "embedded.mobileprovision" Sources/Services/WidgetExtensionProbe.swift && grep -q "WidgetExtensionProbe.report()" Sources/ImmichSwiftUIApp.swift && grep -q "test_probe_reportsAMissingKeychainGroupForTheExtension" Tests/WidgetDataProviderTests.swift && echo PASS || echo FAIL'`
+
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
@@ -116,7 +120,7 @@ Check post-impl: `sh -c 'grep -q "failureHint" Sources/ImmichSharedKit/WidgetDat
 | AC-3605 | PASS | `.onOpenURL` dans `AuthenticatedRoot` + 13 tests de parsing (`WidgetDeepLinkTests`) |
 | AC-3606 | PASS | 12 tests `WidgetDataProviderTests` (contrat HTTP, 401/500/payload invalide, rotation) |
 | AC-3607 | PASS | `@main` unique dans `ImmichWidgetsBundle.swift` |
-| AC-3608 | PASS | **869 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
+| AC-3608 | PASS | **872 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
 | AC-3609 | PASS | `publishWidgetSession()` (login, OAuth, restaurer, changer de compte) + `clear()` ; 2 tests |
 | AC-3610 | PASS | entitlements décodés dans les deux binaires livrés (`2MJF39L8VY.fr.millianlmx.immich-ios`) ; `fr.lproj/Localizable.strings` dans l'appex |
 | AC-3611 | PASS | `ShuffleMemoriesIntent` (aucun réseau) + `ToggleFavoriteIntent` (`PATCH /api/assets/{id}`, timeout 15 s) |
@@ -125,6 +129,7 @@ Check post-impl: `sh -c 'grep -q "failureHint" Sources/ImmichSharedKit/WidgetDat
 | AC-3614 | PASS | `WidgetAvailability` + copie dédiée par cause ; log explicite quand la session manque ou que le Keychain refuse |
 | AC-3615 | PASS | `defaultDeadline` 10 s + helper `bounded` (test : transport qui n'aboutit jamais → `.unreachable`) ; reprise à 5 min (15 min pour les souvenirs) après un échec |
 | AC-3616 | PASS | `failureHint` (« nas.local · certificate refused », « … · no answer in 10s », « keychain ») affiché dans l'état vide ; plaques sans octets passées en dégradé de marque **plein** pour ne plus être confondues avec le placeholder redacté d'iOS (vérifié au rendu) |
+| AC-3617 | PASS | `WidgetExtensionProbe` journalise à chaque lancement « widget: ok — profil autorise … » ou « widget: MISMATCH — … ajouter Keychain Sharing », vérifié en exécutant l'app (simulateur : « no provisioning profile to inspect ») ; 3 tests sur le verdict |
 
 ## Vérification d'exécution
 
