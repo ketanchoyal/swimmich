@@ -112,7 +112,7 @@ Check post-impl: `sh -c 'test -f Sources/Services/WidgetExtensionProbe.swift && 
 
 ### AC-3618 [type: new]
 Assertion: l'extension annonce **les mêmes versions** que l'app (xcodegen met sinon 1.0/1 en dur dans le plist de l'appex, alors que l'app annonce 0.1.0) ; les fichiers d'entitlements restent sans commentaire (Xcode les re-sérialise pendant le build, qui échoue si son entrée a changé).
-Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VERSION)\"" project.yml && awk "/^  ImmichWidgets:/,/^  ImmichSwiftUITests:/" project.yml | grep -q "CFBundleVersion: \"\$(CURRENT_PROJECT_VERSION)\"" && plutil -p ImmichWidgets/Info.plist | grep -q "0.1.0" && ! grep -q "<!--" Resources/ImmichWidgets.entitlements && echo PASS || echo FAIL'`
+Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VERSION)\"" project.yml && awk "/^  ImmichWidgets:/,/^  ImmichSwiftUITests:/" project.yml | grep -q "CFBundleVersion: \"\$(CURRENT_PROJECT_VERSION)\"" && grep -q "MARKETING_VERSION" ImmichWidgets/Info.plist && ! grep -q "<!--" Resources/ImmichWidgets.entitlements && echo PASS || echo FAIL'`
 
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
