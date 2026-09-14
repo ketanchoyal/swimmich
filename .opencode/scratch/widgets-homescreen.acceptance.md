@@ -84,6 +84,8 @@ Le symptôme est arrivé par le seul chemin que la livraison du 2026-09-13 n'ava
 
 **Diagnostic du rapport utilisateur** : la capture montre, dans la pastille du widget, des **rectangles gris uniformes sans un seul caractère** et un glyphe de bouton réduit à un **blob gris** — la signature du rendu *redacté* du placeholder de WidgetKit, c'est-à-dire un widget qui n'a **jamais reçu de timeline**. La cause mécanique plausible : l'ancien build fetchait avec `URLSession.shared` (timeouts 60 s / 7 jours) ; un serveur injoignable depuis le processus widget consommait tout le budget de WidgetKit, l'entrée n'arrivait jamais et le widget restait sur l'aperçu système. Corrigé par AC-3615 : le widget rend désormais toujours quelque chose — les photos, ou le motif exact de l'échec.
 
+**Keychain disculpé (2026-09-14)** : profil d'équipe avec joker — app **et** extension autorisent `keychain-access-groups = [2MJF39L8VY.*, com.apple.token]`, donc l'extension peut lire la session ; l'appex signé pour appareil porte bien `[2MJF39L8VY.fr.millianlmx.immich-ios]`. L'erreur de build « Entitlements file was modified during the build » vient de Xcode qui, pendant ce build, a mis à jour le profil/app ID pour ce nouveau droit et réécrit le fichier d'entitlements au passage ; le build suivant est propre (vérifié ici : build `generic/platform=iOS` vert, fichier intact). Ne **pas** utiliser `CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION=YES` : Apple prévient que ça peut produire des entitlements qui ne correspondent pas au profil, c'est-à-dire le mode de panne silencieux qu'on cherche.
+
 **Ce qui n'a PAS pu être imputé** : la cause exacte du cas de l'utilisateur. Sur le simulateur, **ATS n'est pas appliqué** — une requête HTTP vers un hostname `.local` passe dans le processus widget même *sans* l'exception ATS (contrôle négatif joué : build sans `NSAppTransportSecurity`, widget posé, fetch réussi). L'exception ATS est donc une **parité défensive** (l'app l'a, l'extension doit avoir la même politique), pas une cause prouvée. Sur appareil, ATS est appliqué ; le correctif reste juste, mais la vérification doit se faire sur device.
 
 ### AC-3612 [type: new]
@@ -126,7 +128,7 @@ Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VER
 | AC-3605 | PASS | `.onOpenURL` dans `AuthenticatedRoot` + 13 tests de parsing (`WidgetDeepLinkTests`) |
 | AC-3606 | PASS | 12 tests `WidgetDataProviderTests` (contrat HTTP, 401/500/payload invalide, rotation) |
 | AC-3607 | PASS | `@main` unique dans `ImmichWidgetsBundle.swift` |
-| AC-3608 | PASS | **872 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
+| AC-3608 | PASS | **873 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
 | AC-3609 | PASS | `publishWidgetSession()` (login, OAuth, restaurer, changer de compte) + `clear()` ; 2 tests |
 | AC-3610 | PASS | entitlements décodés dans les deux binaires livrés (`2MJF39L8VY.fr.millianlmx.immich-ios`) ; `fr.lproj/Localizable.strings` dans l'appex |
 | AC-3611 | PASS | `ShuffleMemoriesIntent` (aucun réseau) + `ToggleFavoriteIntent` (`PATCH /api/assets/{id}`, timeout 15 s) |
@@ -135,7 +137,7 @@ Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VER
 | AC-3614 | PASS | `WidgetAvailability` + copie dédiée par cause ; log explicite quand la session manque ou que le Keychain refuse |
 | AC-3615 | PASS | `defaultDeadline` 10 s + helper `bounded` (test : transport qui n'aboutit jamais → `.unreachable`) ; reprise à 5 min (15 min pour les souvenirs) après un échec |
 | AC-3616 | PASS | `failureHint` (« nas.local · certificate refused », « … · no answer in 10s », « keychain ») affiché dans l'état vide ; plaques sans octets passées en dégradé de marque **plein** pour ne plus être confondues avec le placeholder redacté d'iOS (vérifié au rendu) |
-| AC-3617 | PASS | `WidgetExtensionProbe` journalise à chaque lancement « widget: ok — profil autorise … » ou « widget: MISMATCH — … ajouter Keychain Sharing », vérifié en exécutant l'app (simulateur : « no provisioning profile to inspect ») ; 3 tests sur le verdict |
+| AC-3617 | PASS | `WidgetExtensionProbe` journalise à chaque lancement « widget: ok — profil autorise … » ou « widget: MISMATCH — … ajouter Keychain Sharing », vérifié en exécutant l'app (simulateur : « no provisioning profile to inspect ») ; 4 tests sur le verdict, dont le profil d'équipe à joker (`2MJF39L8VY.*`) — comparer les chaînes à la lettre aurait annoncé un faux « MISMATCH » |
 | AC-3618 | PASS | `ImmichWidgets/Info.plist` généré annonce 0.1.0 (1) comme l'app (vérifié sur le plist livré) ; entitlements sans commentaire, build propre vert |
 
 ## Vérification d'exécution

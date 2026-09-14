@@ -50,19 +50,24 @@ enum WidgetExtensionProbe {
         profileEntitlements profile: [String: Any],
         bundleIdentifier: String?
     ) -> String {
-        let identifier = profile["application-identifier"] as? String
-        let teamPrefix = identifier.flatMap { id -> String? in
-            guard let bundleIdentifier, id.hasSuffix(bundleIdentifier) else { return nil }
-            return String(id.dropLast(bundleIdentifier.count))
-        }
-        guard let teamPrefix else {
-            return "widget: \(extensionName) present; profile has no application-identifier — cannot derive the keychain group"
+        // `ApplicationIdentifierPrefix` is the reliable source: a team profile
+        // carries `application-identifier = <team>.*` for a wildcard App ID, so
+        // deriving the prefix from that string does not work.
+        guard let teamPrefix = (profile["ApplicationIdentifierPrefix"] as? [String])?.first else {
+            return "widget: \(extensionName) present; profile has no ApplicationIdentifierPrefix — cannot derive the keychain group"
         }
 
         let sharedGroup = teamPrefix + sharedBundleIdentifier
         let authorised = profile["keychain-access-groups"] as? [String] ?? []
-        if authorised.contains(sharedGroup) {
-            return "widget: ok — profile authorises \(sharedGroup) for both binaries"
+        // A team profile authorises `<team>.*`, which covers every group of that
+        // team — comparing strings exactly would report a mismatch that is not
+        // one, and send the reader hunting a capability problem that does not
+        // exist.
+        let covered = authorised.contains { entry in
+            entry == sharedGroup || (entry.hasSuffix(".*") && sharedGroup.hasPrefix(String(entry.dropLast(1))))
+        }
+        if covered {
+            return "widget: ok — profile authorises \(sharedGroup) for both binaries (via \(authorised.first { $0 == sharedGroup } ?? authorised.joined(separator: ", ")))"
         }
         return "widget: MISMATCH — profile authorises \(authorised.isEmpty ? "no keychain group" : authorised.joined(separator: ", "))"
             + ", but the extension needs \(sharedGroup). Add Keychain Sharing to the ImmichWidgets target (Xcode › Signing & Capabilities) so the profile is regenerated, then reinstall."

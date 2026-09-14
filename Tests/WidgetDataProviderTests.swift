@@ -252,6 +252,7 @@ final class WidgetDataProviderTests: XCTestCase {
     func test_probe_reportsAMissingKeychainGroupForTheExtension() {
         let profile: [String: Any] = [
             "application-identifier": "2MJF39L8VY.fr.millianlmx.immich-ios",
+            "ApplicationIdentifierPrefix": ["2MJF39L8VY."],
         ]
 
         let verdict = WidgetExtensionProbe.verdict(
@@ -264,9 +265,28 @@ final class WidgetDataProviderTests: XCTestCase {
         XCTAssertTrue(verdict.contains("2MJF39L8VY.fr.millianlmx.immich-ios"), "the group the widget needs must be named")
     }
 
+    func test_probe_acceptsATeamProfileWildcard() {
+        // What a team profile actually carries: application-identifier = <team>.*
+        // and a keychain group that covers the whole team.
+        let profile: [String: Any] = [
+            "application-identifier": "2MJF39L8VY.*",
+            "ApplicationIdentifierPrefix": ["2MJF39L8VY."],
+            "keychain-access-groups": ["2MJF39L8VY.*", "com.apple.token"],
+        ]
+
+        let verdict = WidgetExtensionProbe.verdict(
+            extensionName: "ImmichWidgets.appex",
+            profileEntitlements: profile,
+            bundleIdentifier: "fr.millianlmx.immich-ios"
+        )
+
+        XCTAssertTrue(verdict.hasPrefix("widget: ok"), verdict)
+    }
+
     func test_probe_acceptsAnAuthorisedGroup() {
         let profile: [String: Any] = [
             "application-identifier": "2MJF39L8VY.fr.millianlmx.immich-ios",
+            "ApplicationIdentifierPrefix": ["2MJF39L8VY."],
             "keychain-access-groups": [
                 "2MJF39L8VY.fr.millianlmx.immich-ios",
                 "2MJF39L8VY.fr.millianlmx.immich-ios.other",
@@ -289,7 +309,7 @@ final class WidgetDataProviderTests: XCTestCase {
             bundleIdentifier: "fr.millianlmx.immich-ios"
         )
 
-        XCTAssertTrue(verdict.contains("application-identifier"), verdict)
+        XCTAssertTrue(verdict.contains("ApplicationIdentifierPrefix"), verdict)
     }
 
     func test_aServerThatNeverAnswers_stillYieldsATimeline() async {
