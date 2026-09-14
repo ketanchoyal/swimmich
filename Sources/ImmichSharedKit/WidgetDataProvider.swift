@@ -378,9 +378,13 @@ public struct WidgetDataProvider: Sendable {
             for await (index, data) in group {
                 bytes[index] = data
             }
-            return photos.enumerated().map { index, photo in
+            let hydrated = photos.enumerated().map { index, photo in
                 photo.hydrating(with: bytes[index] ?? nil)
             }
+            // WidgetKit archives the entry to disk before it renders: full-size
+            // thumbnails make an entry that can fail to archive, and a widget
+            // whose entry was never archived shows its placeholder forever.
+            return WidgetImageEncoder.budgeted(hydrated)
         }
     }
 

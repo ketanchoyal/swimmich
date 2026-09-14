@@ -1,5 +1,6 @@
 import BackgroundTasks
 import SwiftUI
+import WidgetKit
 
 @main
 struct ImmichSwiftUIApp: App {
@@ -30,6 +31,11 @@ struct ImmichSwiftUIApp: App {
                         if container.isAutoBackupEnabled() {
                             container.backupScheduler.submit()
                         }
+                        // Ask WidgetKit for fresh timelines whenever the app
+                        // comes up: the widget's own schedule is opaque (and a
+                        // widget added before an extension update can sit on its
+                        // placeholder without ever being re-queried).
+                        WidgetCenter.shared.reloadAllTimelines()
                     default:
                         break
                     }
@@ -65,6 +71,8 @@ struct ImmichSwiftUIApp: App {
             }
             Task {
                 await upload.runBackup()
+                // New photos landed: the widget is showing the library.
+                WidgetCenter.shared.reloadAllTimelines()
                 task.setTaskCompleted(
                     success: upload.engine.phase == .done && upload.engine.failedCount == 0
                 )

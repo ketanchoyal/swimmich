@@ -87,6 +87,7 @@
 		375CC3D254EFA48471384587 /* MapDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712D1C56106FA8DAE37F50C8 /* MapDTOs.swift */; };
 		38D5871B9238202FFC05FFD1 /* TagsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 961FEDFD8A5D29DD390C34B9 /* TagsView.swift */; };
 		39B7140FEEE7F4C8200CB76F /* ImmichAssetURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944AF3866C73AEFFF44D5098 /* ImmichAssetURL.swift */; };
+		3A7F7B7DD988C8392097C021 /* WidgetImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B68BE1A771592CC297965EA /* WidgetImageEncoder.swift */; };
 		3BF7016C945AF0500CF26931 /* SharedLinksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED83254B66ED0E84314CD3F1 /* SharedLinksViewModel.swift */; };
 		3C3E7DB6ABCD73CE81DFA3C5 /* MockImmichClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B9AE950509E9F2C77A88EB3 /* MockImmichClient.swift */; };
 		3EF2031757F37592D479D27E /* BackupAssetSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8C247B37D241AEEA2320149 /* BackupAssetSource.swift */; };
@@ -246,6 +247,7 @@
 		C7D8CEF05265DED6A101CE1D /* SaveToLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5789DFE53C7A123DC19D2B9E /* SaveToLibraryViewModel.swift */; };
 		C8B8232C707CC8CD4B56533B /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9F7FDDC59043C4084DFA8E /* NotificationService.swift */; };
 		C9468AAF1749CA83FC7D9044 /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BA9D673E76A7DFB4A337A71 /* VideoPlayerView.swift */; };
+		CA1E77ADF4C4116747C6B6B4 /* WidgetImageEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B68BE1A771592CC297965EA /* WidgetImageEncoder.swift */; };
 		D0B8BC0425CC052E9A96C752 /* AVVideoPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 324603CD70D1FFDA9575AA93 /* AVVideoPlaybackEngine.swift */; };
 		D0CAC7A169395CDEC4458056 /* ImmichSwiftUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBFDE41EB3F35AB3723245CB /* ImmichSwiftUIApp.swift */; };
 		D2FCD9E2B7564C58B9F1AD71 /* ImmichClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52227E27B6C189FC528D1924 /* ImmichClient.swift */; };
@@ -381,6 +383,7 @@
 		036BFADE71C7FA65CBFEA7D2 /* TrustedServerStoreImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustedServerStoreImpl.swift; sourceTree = "<group>"; };
 		0823A48357EB2A5CBEFDBBC8 /* DTOs+Social.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DTOs+Social.swift"; sourceTree = "<group>"; };
 		0922F60AABFCCA8A426740B4 /* RoadTripCar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripCar.swift; sourceTree = "<group>"; };
+		0B68BE1A771592CC297965EA /* WidgetImageEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetImageEncoder.swift; sourceTree = "<group>"; };
 		0B951CDF4C6CA41ADFC0E2DF /* StackDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackDetailView.swift; sourceTree = "<group>"; };
 		0C579043BE4F6A7E408B4907 /* PVButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PVButtonStyle.swift; sourceTree = "<group>"; };
 		0E3F725CF1DAB9C1E71FED8C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -597,7 +600,7 @@
 		CFA6FBC8A7F984464229A078 /* RoadTripCar3D.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadTripCar3D.swift; sourceTree = "<group>"; };
 		CFAA656D3A00CC43F26BF6B2 /* immich_stub_memories.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = immich_stub_memories.py; sourceTree = "<group>"; };
 		D029A852ECAADAB28C835A6C /* KeychainStoreImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreImpl.swift; sourceTree = "<group>"; };
-		D083424E27645D19C36429E6 /* ImmichWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ImmichWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D083424E27645D19C36429E6 /* ImmichWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ImmichWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0876D980FBEECE9CE66D233 /* AddToStackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddToStackSheet.swift; sourceTree = "<group>"; };
 		D0F7326716E0B26ADF3FE9AD /* ImageDownsampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDownsampler.swift; sourceTree = "<group>"; };
 		D35F391869581ADE91FD15DA /* MemoriesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoriesViewModel.swift; sourceTree = "<group>"; };
@@ -978,6 +981,7 @@
 				725D3F5E5180F06E75E7B429 /* BackupLiveActivityViews.swift */,
 				6977E7827E495C0488F26170 /* WidgetDataProvider.swift */,
 				60461A9F32464CAF976635D8 /* WidgetDeepLink.swift */,
+				0B68BE1A771592CC297965EA /* WidgetImageEncoder.swift */,
 				9AEF768A3C27977FC9CEF8C4 /* WidgetIntents.swift */,
 				80EE821268A56AE8EC712E95 /* WidgetSession.swift */,
 				5D429780BFEEB538496421A9 /* WidgetViews.swift */,
@@ -1395,6 +1399,9 @@
 					14CF9D12828A274568D46D72 = {
 						TestTargetID = B31020D1619B9803A47177CB;
 					};
+					739F8A00265AD66EFBB0F27A = {
+						DevelopmentTeam = 2MJF39L8VY;
+					};
 					B31020D1619B9803A47177CB = {
 						DevelopmentTeam = 2MJF39L8VY;
 					};
@@ -1410,7 +1417,7 @@
 			mainGroup = D17CBEEDC2B73B359C3EA5BD;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */,
+				6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9810076BCAABFF144648C16E /* Products */;
@@ -1468,6 +1475,7 @@
 				E2868A8330240DD63F9DDB50 /* BackupLiveActivityViews.swift in Sources */,
 				A71DFB49DD5BB4376B69D62D /* WidgetDataProvider.swift in Sources */,
 				584CC5810E9FA141C58ED536 /* WidgetDeepLink.swift in Sources */,
+				3A7F7B7DD988C8392097C021 /* WidgetImageEncoder.swift in Sources */,
 				C6BF9125C253B8600C414C48 /* WidgetIntents.swift in Sources */,
 				57666B8D7B5522A5EAC994B8 /* WidgetSession.swift in Sources */,
 				FB104BA678506097C8298AE5 /* WidgetViews.swift in Sources */,
@@ -1761,6 +1769,7 @@
 				24DD5BA6FAD4B115D1F1DF7C /* WidgetDataProvider.swift in Sources */,
 				544C847D80EEB9603FAFA8D7 /* WidgetDeepLink.swift in Sources */,
 				C02F54502DE53A1A570ACB59 /* WidgetExtensionProbe.swift in Sources */,
+				CA1E77ADF4C4116747C6B6B4 /* WidgetImageEncoder.swift in Sources */,
 				548AC5D468BE2D544D6007ED /* WidgetIntents.swift in Sources */,
 				820F24640966A5AFDCC60D24 /* WidgetSession.swift in Sources */,
 				2136CBE644D12C8850548FE2 /* WidgetViews.swift in Sources */,
@@ -2088,8 +2097,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Resources/ImmichWidgets.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2MJF39L8VY;
 				INFOPLIST_FILE = ImmichWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2098,7 +2105,6 @@
 					"@executable_path/../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios.widgets";
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -2108,8 +2114,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Resources/ImmichWidgets.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2MJF39L8VY;
 				INFOPLIST_FILE = ImmichWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2118,7 +2122,6 @@
 					"@executable_path/../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "fr.millianlmx.immich-ios.widgets";
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -2184,7 +2187,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */ = {
+		6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
 			requirement = {
@@ -2197,7 +2200,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		9B0ED811C01623D7167A0A48 /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket" */;
+			package = 6FB4C90C2FF09F57DAE45255 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
 			productName = SocketIO;
 		};
 /* End XCSwiftPackageProductDependency section */

@@ -82,6 +82,8 @@ Le symptôme est arrivé par le seul chemin que la livraison du 2026-09-13 n'ava
 
 **Troisième indice (log système, 2026-09-14)** : `WidgetRenderer_Default Content load failed: unable to find or unarchive file for key … .chrono-timeline` — le système cherche dans le conteneur de l'extension l'archive de timeline que **le provider doit écrire**, et elle n'existe pas. Autrement dit : aucune timeline n'a jamais été produite, donc ce n'est ni le réseau ni les photos. Deux défauts corrigés dans la foulée : (1) l'appex annonçait la version **1.0** quand l'app annonce **0.1.0** (xcodegen met 1.0/1 en dur) — une extension désaccordée de son app est un problème d'association/lancement silencieux après mise à jour (AC-3618) ; (2) une sonde dans l'app (AC-3617) dit si le profil autorise le groupe Keychain de l'extension, seul échec strictement invisible sur simulateur.
 
+**CAUSE RACINE (2026-09-14, commit « budget »)** : l'entrée de timeline portait les vignettes **telles que servies** par le serveur — un héro en `size=preview` pèse ~300 Ko et un mur en accumule plusieurs. WidgetKit **archive chaque entrée sur disque avant de la rendre** ; une entrée trop lourde ne s'archive pas, et un widget dont l'entrée n'a jamais été archivée affiche **son placeholder indéfiniment** : pas de photos, pas de message, aucune ligne de log côté extension, app parfaite. C'est exactement le symptôme rapporté — et la raison pour laquelle toute la vérification sur simulateur passait : le stub de test sert des PNG **8×8**, l'entrée restait minuscule. Les vignettes sont désormais ré-encodées à la taille que le widget dessine réellement (AC-3620). Corollaire : l'app demande aussi un rafraîchissement des timelines à chaque retour au premier plan et après une sauvegarde.
+
 **Diagnostic du rapport utilisateur** : la capture montre, dans la pastille du widget, des **rectangles gris uniformes sans un seul caractère** et un glyphe de bouton réduit à un **blob gris** — la signature du rendu *redacté* du placeholder de WidgetKit, c'est-à-dire un widget qui n'a **jamais reçu de timeline**. La cause mécanique plausible : l'ancien build fetchait avec `URLSession.shared` (timeouts 60 s / 7 jours) ; un serveur injoignable depuis le processus widget consommait tout le budget de WidgetKit, l'entrée n'arrivait jamais et le widget restait sur l'aperçu système. Corrigé par AC-3615 : le widget rend désormais toujours quelque chose — les photos, ou le motif exact de l'échec.
 
 **Keychain disculpé (2026-09-14)** : profil d'équipe avec joker — app **et** extension autorisent `keychain-access-groups = [2MJF39L8VY.*, com.apple.token]`, donc l'extension peut lire la session ; l'appex signé pour appareil porte bien `[2MJF39L8VY.fr.millianlmx.immich-ios]`. L'erreur de build « Entitlements file was modified during the build » vient de Xcode qui, pendant ce build, a mis à jour le profil/app ID pour ce nouveau droit et réécrit le fichier d'entitlements au passage ; le build suivant est propre (vérifié ici : build `generic/platform=iOS` vert, fichier intact). Ne **pas** utiliser `CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION=YES` : Apple prévient que ça peut produire des entitlements qui ne correspondent pas au profil, c'est-à-dire le mode de panne silencieux qu'on cherche.
@@ -120,6 +122,10 @@ Check post-impl: `sh -c 'grep -q "CFBundleShortVersionString: \"\$(MARKETING_VER
 Assertion: l'aperçu de la **galerie de widgets** fetche pour de vrai (au lieu de servir un échantillon), pour que galerie et écran d'accueil répondent la même chose — c'est l'échantillon qui a masqué le bug pendant deux jours.
 Check post-impl: `sh -c '! grep -q "guard !context.isPreview" ImmichWidgets/ImmichGridWidget.swift && ! grep -q "guard !context.isPreview" ImmichWidgets/ImmichMemoriesWidget.swift && grep -q "await provider.recentPhotos" ImmichWidgets/ImmichGridWidget.swift && grep -q "func placeholder(in context: Context)" ImmichWidgets/ImmichGridWidget.swift && echo PASS || echo FAIL'`
 
+### AC-3620 [type: new]
+Assertion: l'entrée de timeline reste **archivable** — les vignettes sont ré-encodées (héro ≤ 900 px, cellule ≤ 320 px, JPEG 0,6) et le total des octets image d'une entrée ne dépasse pas un budget de 256 Ko, le héro étant servi en priorité.
+Check post-impl: `sh -c 'grep -q "enum WidgetImageEncoder" Sources/ImmichSharedKit/WidgetImageEncoder.swift && grep -q "static let budget = 256 \* 1024" Sources/ImmichSharedKit/WidgetImageEncoder.swift && grep -q "WidgetImageEncoder.budgeted" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "test_entryImages_areShrunkToWidgetSize" Tests/WidgetDataProviderTests.swift && grep -q "test_wall_fetchedFromARealSizedServer_staysSmall" Tests/WidgetDataProviderTests.swift && echo PASS || echo FAIL'`
+
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
@@ -132,7 +138,7 @@ Check post-impl: `sh -c '! grep -q "guard !context.isPreview" ImmichWidgets/Immi
 | AC-3605 | PASS | `.onOpenURL` dans `AuthenticatedRoot` + 13 tests de parsing (`WidgetDeepLinkTests`) |
 | AC-3606 | PASS | 12 tests `WidgetDataProviderTests` (contrat HTTP, 401/500/payload invalide, rotation) |
 | AC-3607 | PASS | `@main` unique dans `ImmichWidgetsBundle.swift` |
-| AC-3608 | PASS | **873 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
+| AC-3608 | PASS | **876 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
 | AC-3609 | PASS | `publishWidgetSession()` (login, OAuth, restaurer, changer de compte) + `clear()` ; 2 tests |
 | AC-3610 | PASS | entitlements décodés dans les deux binaires livrés (`2MJF39L8VY.fr.millianlmx.immich-ios`) ; `fr.lproj/Localizable.strings` dans l'appex |
 | AC-3611 | PASS | `ShuffleMemoriesIntent` (aucun réseau) + `ToggleFavoriteIntent` (`PATCH /api/assets/{id}`, timeout 15 s) |
@@ -144,6 +150,7 @@ Check post-impl: `sh -c '! grep -q "guard !context.isPreview" ImmichWidgets/Immi
 | AC-3617 | PASS | `WidgetExtensionProbe` journalise à chaque lancement « widget: ok — profil autorise … » ou « widget: MISMATCH — … ajouter Keychain Sharing », vérifié en exécutant l'app (simulateur : « no provisioning profile to inspect ») ; 4 tests sur le verdict, dont le profil d'équipe à joker (`2MJF39L8VY.*`) — comparer les chaînes à la lettre aurait annoncé un faux « MISMATCH » |
 | AC-3618 | PASS | `ImmichWidgets/Info.plist` généré annonce 0.1.0 (1) comme l'app (vérifié sur le plist livré) ; entitlements sans commentaire, build propre vert |
 | AC-3619 | PASS | `getSnapshot` fetche (échantillon réservé à `placeholder(in:)`) ; vérifié à l'écran : l'aperçu de galerie affiche « 9 photos » + la vignette du stub |
+| AC-3620 | PASS | `WidgetImageEncoder` (héro 900 px / cellule 320 px / JPEG 0,6, budget 256 Ko, héro prioritaire) branché dans `hydrate` ; 3 tests, dont une entrée servie en 2000×2000 qui reste sous le budget |
 
 ## Vérification d'exécution
 

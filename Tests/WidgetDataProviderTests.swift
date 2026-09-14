@@ -57,6 +57,16 @@ final class WidgetDataProviderTests: XCTestCase {
         }
     }
 
+    /// A real (tiny) image: the provider re-encodes every thumbnail it carries,
+    /// so a fake byte sequence would be dropped instead of drawn.
+    private func tinyImage() -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        return renderer.image { context in
+            UIColor.systemTeal.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }.pngData() ?? Data()
+    }
+
     private struct StubSessionStore: WidgetSessionStoring {
         let session: WidgetSession?
         func save(_ session: WidgetSession) {}
@@ -85,7 +95,7 @@ final class WidgetDataProviderTests: XCTestCase {
             case "/api/timeline/bucket":
                 return (200, Data(#"{"id":["hero","second","third"],"isImage":[true,false,true]}"#.utf8))
             default:
-                return (200, Data([0xFF, 0xD8, 0xFF]))
+                return (200, self.tinyImage())
             }
         }
 
@@ -126,7 +136,7 @@ final class WidgetDataProviderTests: XCTestCase {
             if request.url?.path == "/api/timeline/bucket" {
                 return (200, Data(#"{"id":["fav"],"isFavorite":[true]}"#.utf8))
             }
-            return (200, Data([0xFF, 0xD8]))
+            return (200, self.tinyImage())
         }
 
         let wall = await provider(spy).favoritePhotos(limit: 2)
@@ -152,7 +162,7 @@ final class WidgetDataProviderTests: XCTestCase {
         ]
         """#
         let spy = TransportSpy { request in
-            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, Data([0xFF, 0xD8]))
+            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, self.tinyImage())
         }
         let year = Calendar.current.component(.year, from: Date())
 
@@ -174,7 +184,7 @@ final class WidgetDataProviderTests: XCTestCase {
     func test_memories_withMoreCardsThanAvailable_wrapsInsteadOfCrashing() async {
         let payload = #"[{"id":"only","memoryAt":"2019-01-01T00:00:00.000Z","data":{"year":2019},"assets":[{"id":"a1","type":"IMAGE"}]}]"#
         let spy = TransportSpy { request in
-            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, Data([0xFF, 0xD8]))
+            request.url?.path == "/api/memories" ? (200, Data(payload.utf8)) : (200, self.tinyImage())
         }
 
         let cards = (await provider(spy).memories(limit: 2, offset: 7)).cards
@@ -237,7 +247,7 @@ final class WidgetDataProviderTests: XCTestCase {
             if path == "/api/timeline/bucket" {
                 return (200, Data(#"{"id":["broken","fine"]}"#.utf8))
             }
-            return request.url?.absoluteString.contains("broken") == true ? (500, Data()) : (200, Data([0xFF, 0xD8]))
+            return request.url?.absoluteString.contains("broken") == true ? (500, Data()) : (200, self.tinyImage())
         }
 
         let wall = await provider(spy).recentPhotos(limit: 2)
@@ -325,6 +335,76 @@ final class WidgetDataProviderTests: XCTestCase {
         XCTAssertTrue(wall.isEmpty)
         XCTAssertEqual(wall.availability, .unreachable, "a hung fetch must resolve, not leave the widget redacted forever")
         XCTAssertEqual(feed.availability, .unreachable)
+    }
+
+    // MARK: - Entry weight
+
+    /// A 2000×2000 PNG, i.e. what a real server sends where the stub sends 8×8.
+    private func bigImage(quality: CGFloat = 1.0) -> Data {
+        let side: CGFloat = 2000
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side))
+        let image = renderer.image { context in
+            UIColor.systemOrange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+            for step in stride(from: 0, to: side, by: 40) {
+                UIColor.systemPurple.setFill()
+                context.fill(CGRect(x: step, y: 0, width: 20, height: side))
+            }
+        }
+        return image.pngData() ?? Data()
+    }
+
+    func test_entryImages_areShrunkToWidgetSize() {
+        let original = bigImage()
+        XCTAssertGreaterThan(original.count, 200_000, "the fixture must be heavy enough to matter")
+
+        let hero = WidgetImageEncoder.encode(original, at: .hero)
+        let cell = WidgetImageEncoder.encode(original, at: .cell)
+
+        XCTAssertNotNil(hero)
+        XCTAssertNotNil(cell)
+        XCTAssertLessThan(hero!.count, 220_000, "a 900 px re-encode must not carry the original weight")
+        XCTAssertLessThan(cell!.count, 40_000)
+        XCTAssertLessThan(hero!.count, original.count / 2)
+        guard let decoded = UIImage(data: hero!) else { return XCTFail("hero must stay decodable") }
+        XCTAssertLessThanOrEqual(max(decoded.size.width, decoded.size.height), 900)
+    }
+
+    func test_entryBudget_stopsAttachingBytesInsteadOfExceedingIt() {
+        let heavy = bigImage()
+        let photos = (0..<6).map { index in
+            WidgetPhoto(id: "p-\(index)", imageData: heavy, isVideo: false, isFavorite: false, day: nil)
+        }
+
+        // A budget that fits the hero and nothing else: what survives must be
+        // the hero, never the satellites.
+        let heroOnly = (WidgetImageEncoder.encode(heavy, at: .hero)?.count ?? 0) + 1_000
+        let budgeted = WidgetImageEncoder.budgeted(photos, budget: heroOnly)
+
+        XCTAssertNotNil(budgeted[0].imageData, "the hero is the one that matters")
+        XCTAssertLessThanOrEqual(budgeted.compactMap(\.imageData).reduce(0) { $0 + $1.count }, heroOnly)
+        XCTAssertTrue(budgeted.dropFirst().allSatisfy { $0.imageData == nil }, "the budget is spent by the hero")
+        XCTAssertEqual(budgeted.map(\.id), photos.map(\.id), "every cell survives, just without bytes")
+    }
+
+    func test_wall_fetchedFromARealSizedServer_staysSmall() async {
+        let spy = TransportSpy { request in
+            let path = request.url?.path ?? ""
+            if path == "/api/timeline/buckets" {
+                return (200, Data(#"[{"timeBucket":"2026-09-13T00:00:00.000Z","count":3}]"#.utf8))
+            }
+            if path == "/api/timeline/bucket" {
+                return (200, Data(#"{"id":["a","b","c"]}"#.utf8))
+            }
+            return (200, self.bigImage())
+        }
+
+        let wall = await provider(spy).recentPhotos(limit: 3)
+
+        let carried = wall.photos.compactMap(\.imageData).reduce(0) { $0 + $1.count }
+        XCTAssertEqual(wall.photos.count, 3)
+        XCTAssertGreaterThan(carried, 0, "the wall must still carry pictures")
+        XCTAssertLessThanOrEqual(carried, WidgetImageEncoder.budget, "the entry has to stay archivable")
     }
 
     // MARK: - Copy
