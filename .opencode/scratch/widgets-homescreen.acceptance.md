@@ -1,6 +1,6 @@
 # Task: widgets-homescreen
 
-Status: implemented (2026-09-13), corrected 2026-09-14 — issue #19, `ImmichWidgets` extension
+Status: DONE — implemented 2026-09-13, root cause fixed 2026-09-14, confirmed working on device by the user (issue #19, `ImmichWidgets` extension)
 
 ## Plan
 
@@ -162,7 +162,8 @@ Check post-impl: `sh -c 'grep -q "enum WidgetImageEncoder" Sources/ImmichSharedK
   2. la pastille du widget Favoris était rognée en small (« 12 483 favoris » ne tient pas dans 170 pt) → compteur seul en small + `minimumScaleFactor(0.75)` sur toutes les pastilles ;
   3. le watermark cœur était **invisible** (peint *sous* une mosaïque opaque) → passé en overlay au-dessus des photos.
 - **Widget réellement posé sur un écran d'accueil** (2026-09-14) : `UITests/ImmichWidgetHomeScreen.swift` — simulateur neuf, connexion OAuth réelle contre le stub, pose du widget Photos par SpringBoard (édition → galerie → recherche → page « Photos Immich » → « Ajouter le widget »), capture d'écran, puis lecture des logs du processus widget. Deux configurations : `http://127.0.0.1:8421` et `http://<machine>.local:8422` (proxy LAN). Dans les deux cas le widget affiche « 9 photos », « 9 le 1 juil. » et la vignette servie par le stub — donc **lecture du Keychain depuis le processus widget, fetch HTTP, décodage et rendu vérifiés pour de vrai**.
-- **Non vérifié** : la platter/marges de WidgetKit et les `Button(intent:)` en conditions réelles (non exercés par la capture), et le comportement **ATS/confiance TLS sur appareil** (le simulateur n'applique pas ATS — contrôle négatif joué).
+- **Confirmé sur appareil (2026-09-14, par l'utilisateur)** : les trois widgets affichent les photos. La cause racine des « rien ne s'affiche » était l'**entrée de timeline trop lourde pour être archivée** (AC-3620) — invisible sur simulateur parce que le stub sert des PNG 8×8.
+- **Reste non vérifié** : la platter/marges de WidgetKit et les `Button(intent:)` en conditions réelles (non exercés par les captures), et le comportement ATS sur appareil (le simulateur n'applique pas ATS — contrôle négatif joué).
 
 ## Fichiers
 
