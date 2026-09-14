@@ -51,8 +51,11 @@ struct MemoriesTimelineProvider: TimelineProvider {
             let entry = await entry(for: context)
             completion(Timeline(
                 entries: [entry],
-                // Memories only change at midnight — no point waking sooner.
-                policy: .after(Calendar.current.startOfDay(for: .now).addingTimeInterval(24 * 60 * 60 + 60))
+                // Memories only change at midnight — no point waking sooner,
+                // unless the fetch failed, in which case retry in a quarter hour.
+                policy: .after(entry.feed.availability == .ready
+                    ? Calendar.current.startOfDay(for: .now).addingTimeInterval(24 * 60 * 60 + 60)
+                    : .now.addingTimeInterval(15 * 60))
             ))
         }
     }

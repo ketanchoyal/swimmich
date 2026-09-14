@@ -1669,6 +1669,17 @@
     "Immich Backup" : {
 
     },
+    "Immich could not reach your server. Check the app can open it." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immich n'a pas pu joindre votre serveur. Vérifiez que l'app peut l'ouvrir."
+          }
+        }
+      }
+    },
     "Immich Favorites" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2575,6 +2586,17 @@
         }
       }
     },
+    "Open the app once and your photos appear here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez l'app une fois et vos photos apparaîtront ici."
+          }
+        }
+      }
+    },
     "Options" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2721,6 +2743,17 @@
     },
     "Photos kept only in iCloud are downloaded before they can be uploaded. A slow or not-yet-ready download retries automatically, and anything still pending is picked up on the next backup." : {
 
+    },
+    "Photos show up here once they are backed up." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les photos apparaîtront ici une fois sauvegardées."
+          }
+        }
+      }
     },
     "Photos with a recognized location will appear here as places you can explore." : {
       "localizations" : {
@@ -3276,6 +3309,17 @@
         }
       }
     },
+    "Server unreachable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serveur injoignable"
+          }
+        }
+      }
+    },
     "Server URL" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3421,6 +3465,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Se connecter"
+          }
+        }
+      }
+    },
+    "Sign in to Immich" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous à Immich"
           }
         }
       }
@@ -4025,56 +4080,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vos photos les plus récentes, avec le cœur pour en garder une."
-          }
-        }
-      }
-    },
-    "Immich could not reach your server. Check the app can open it." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Immich n'a pas pu joindre votre serveur. Vérifiez que l'app peut l'ouvrir."
-          }
-        }
-      }
-    },
-    "Open the app once and your photos appear here." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrez l'app une fois et vos photos apparaîtront ici."
-          }
-        }
-      }
-    },
-    "Photos show up here once they are backed up." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les photos apparaîtront ici une fois sauvegardées."
-          }
-        }
-      }
-    },
-    "Server unreachable" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Serveur injoignable"
-          }
-        }
-      }
-    },
-    "Sign in to Immich" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connectez-vous à Immich"
           }
         }
       }

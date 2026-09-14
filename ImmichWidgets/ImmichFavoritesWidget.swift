@@ -48,7 +48,7 @@ struct FavoritesTimelineProvider: TimelineProvider {
             let wall = await provider.favoritePhotos(limit: context.family.photoLimit)
             completion(Timeline(
                 entries: [FavoritesEntry(date: .now, wall: wall)],
-                policy: .after(.now.addingTimeInterval(60 * 60))
+                policy: .after(.now.addingTimeInterval(wall.availability == .ready ? 60 * 60 : 5 * 60))
             ))
         }
     }

@@ -80,6 +80,8 @@ Le symptôme est arrivé par le seul chemin que la livraison du 2026-09-13 n'ava
 | Le widget fetchait avec `URLSession.shared`, donc **sans gestionnaire de certificat**, là où l'app a `TrustEvaluatingURLSessionDelegate` : un serveur auto-signé accepté dans l'app était injoignable depuis le widget | inspection des deux chemins réseau ; l'app possède tout un flux « faire confiance à ce serveur » qui n'avait aucun équivalent widget | AC-3613 : `WidgetTrustDelegate` + la liste des hôtes acceptés voyage **avec la session** (le widget ne peut pas lire le trust store de l'app, autre conteneur) |
 | L'état vide **mentait** : « Pas encore de photos » pour « pas connecté » comme pour « serveur injoignable », et la branche sans session ne loggait rien | lecture du code + reproduction | AC-3614 : `WidgetAvailability` (`.ready` / `.signedOut` / `.unreachable`) porté par `PhotoWall` et `WidgetMemoryFeed`, copie dédiée par cause, log explicite quand la session manque ou quand le Keychain refuse (`-34018`) |
 
+**Diagnostic du rapport utilisateur** : la capture montre, dans la pastille du widget, des **rectangles gris uniformes sans un seul caractère** et un glyphe de bouton réduit à un **blob gris** — la signature du rendu *redacté* du placeholder de WidgetKit, c'est-à-dire un widget qui n'a **jamais reçu de timeline**. La cause mécanique plausible : l'ancien build fetchait avec `URLSession.shared` (timeouts 60 s / 7 jours) ; un serveur injoignable depuis le processus widget consommait tout le budget de WidgetKit, l'entrée n'arrivait jamais et le widget restait sur l'aperçu système. Corrigé par AC-3615 : le widget rend désormais toujours quelque chose — les photos, ou le motif exact de l'échec.
+
 **Ce qui n'a PAS pu être imputé** : la cause exacte du cas de l'utilisateur. Sur le simulateur, **ATS n'est pas appliqué** — une requête HTTP vers un hostname `.local` passe dans le processus widget même *sans* l'exception ATS (contrôle négatif joué : build sans `NSAppTransportSecurity`, widget posé, fetch réussi). L'exception ATS est donc une **parité défensive** (l'app l'a, l'extension doit avoir la même politique), pas une cause prouvée. Sur appareil, ATS est appliqué ; le correctif reste juste, mais la vérification doit se faire sur device.
 
 ### AC-3612 [type: new]
@@ -94,6 +96,10 @@ Check post-impl: `sh -c 'grep -q "class WidgetTrustDelegate" Sources/ImmichShare
 Assertion: un widget vide dit **pourquoi** (déconnecté / serveur injoignable / rien à montrer) et la branche sans session est journalisée.
 Check post-impl: `sh -c 'grep -q "enum WidgetAvailability" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "WidgetEmptyCopy" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "Server unreachable" Sources/ImmichSharedKit/WidgetViews.swift && grep -q "no widget session in the keychain" Sources/ImmichSharedKit/WidgetDataProvider.swift && echo PASS || echo FAIL'`
 
+### AC-3615 [type: new]
+Assertion: une requête qui n'aboutit pas rend **quand même** une timeline (bornée), et l'échec rejoue vite au lieu d'attendre la période nominale.
+Check post-impl: `sh -c 'grep -q "defaultDeadline" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "func bounded" Sources/ImmichSharedKit/WidgetDataProvider.swift && grep -q "availability == .ready ? 30 \* 60 : 5 \* 60" ImmichWidgets/ImmichGridWidget.swift && grep -q "test_aServerThatNeverAnswers_stillYieldsATimeline" Tests/WidgetDataProviderTests.swift && echo PASS || echo FAIL'`
+
 ## Résultats (2026-09-13, complétés le 2026-09-14)
 
 | AC | État | Preuve |
@@ -106,10 +112,14 @@ Check post-impl: `sh -c 'grep -q "enum WidgetAvailability" Sources/ImmichSharedK
 | AC-3605 | PASS | `.onOpenURL` dans `AuthenticatedRoot` + 13 tests de parsing (`WidgetDeepLinkTests`) |
 | AC-3606 | PASS | 12 tests `WidgetDataProviderTests` (contrat HTTP, 401/500/payload invalide, rotation) |
 | AC-3607 | PASS | `@main` unique dans `ImmichWidgetsBundle.swift` |
-| AC-3608 | PASS | **864 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
+| AC-3608 | PASS | **869 tests, TEST SUCCEEDED** (`/tmp/immich_widgets_test_summary.txt`), baseline 837 |
 | AC-3609 | PASS | `publishWidgetSession()` (login, OAuth, restaurer, changer de compte) + `clear()` ; 2 tests |
 | AC-3610 | PASS | entitlements décodés dans les deux binaires livrés (`2MJF39L8VY.fr.millianlmx.immich-ios`) ; `fr.lproj/Localizable.strings` dans l'appex |
 | AC-3611 | PASS | `ShuffleMemoriesIntent` (aucun réseau) + `ToggleFavoriteIntent` (`PATCH /api/assets/{id}`, timeout 15 s) |
+| AC-3612 | PASS | `NSAllowsArbitraryLoads` désormais dans `ImmichWidgets/Info.plist` comme dans celui de l'app |
+| AC-3613 | PASS | `WidgetTrustDelegate` + `trustedHosts` transportés par la session ; test de politique par hôte |
+| AC-3614 | PASS | `WidgetAvailability` + copie dédiée par cause ; log explicite quand la session manque ou que le Keychain refuse |
+| AC-3615 | PASS | `defaultDeadline` 10 s + helper `bounded` (test : transport qui n'aboutit jamais → `.unreachable`) ; reprise à 5 min (15 min pour les souvenirs) après un échec |
 
 ## Vérification d'exécution
 

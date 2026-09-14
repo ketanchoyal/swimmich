@@ -55,7 +55,9 @@ struct PhotosTimelineProvider: TimelineProvider {
             let wall = await provider.recentPhotos(limit: context.family.photoLimit)
             completion(Timeline(
                 entries: [PhotosEntry(date: .now, wall: wall)],
-                policy: .after(.now.addingTimeInterval(30 * 60))
+                // A failed fetch (offline, locked, server down) retries soon:
+                // half an hour of an empty widget is a long time to be wrong.
+                policy: .after(.now.addingTimeInterval(wall.availability == .ready ? 30 * 60 : 5 * 60))
             ))
         }
     }

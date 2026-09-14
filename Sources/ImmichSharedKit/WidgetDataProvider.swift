@@ -133,7 +133,7 @@ public struct URLSessionWidgetTransport: WidgetDataTransport {
     public init(
         session: URLSession? = nil,
         sessionStore: any WidgetSessionStoring = WidgetSessionStore(),
-        timeout: TimeInterval = 30
+        timeout: TimeInterval = 12
     ) {
         self.session = session ?? Self.makeSession(sessionStore: sessionStore, timeout: timeout)
     }
@@ -178,16 +178,27 @@ public enum WidgetDataError: Error, Equatable {
 /// Every failure degrades to an empty wall or an empty memory list — a widget
 /// must never render an error, and must never crash on a malformed payload.
 public struct WidgetDataProvider: Sendable {
+    /// How long the whole fetch may take, network included.
+    ///
+    /// WidgetKit gives a timeline request a budget of about half a minute, and a
+    /// request that misses it does not fail — the widget simply keeps showing
+    /// the redacted placeholder it was born with. A bounded fetch that gives up
+    /// and *reports* is always better than a fetch that never lands.
+    public static let defaultDeadline: Duration = .seconds(10)
+
     private let sessionStore: any WidgetSessionStoring
     private let transport: any WidgetDataTransport
+    private let deadline: Duration
     private let logger = Logger(subsystem: "app.immich.swiftui", category: "widget-data")
 
     public init(
         sessionStore: any WidgetSessionStoring = WidgetSessionStore(),
-        transport: any WidgetDataTransport = URLSessionWidgetTransport()
+        transport: any WidgetDataTransport = URLSessionWidgetTransport(),
+        deadline: Duration = WidgetDataProvider.defaultDeadline
     ) {
         self.sessionStore = sessionStore
         self.transport = transport
+        self.deadline = deadline
     }
 
     // MARK: Public surfaces
@@ -195,17 +206,21 @@ public struct WidgetDataProvider: Sendable {
     /// Newest photos of the library, hero first, with the library total and the
     /// newest day's count.
     public func recentPhotos(limit: Int) async -> PhotoWall {
-        await wall(isFavorite: nil, limit: limit)
+        await bounded { await wall(isFavorite: nil, limit: limit) }
     }
 
     /// Newest favorites, same shape.
     public func favoritePhotos(limit: Int) async -> PhotoWall {
-        await wall(isFavorite: true, limit: limit)
+        await bounded { await wall(isFavorite: true, limit: limit) }
     }
 
     /// Today's memories, rotated by `offset` so the shuffle intent shows a
     /// different one on every tap.
     public func memories(limit: Int, offset: Int) async -> WidgetMemoryFeed {
+        await bounded { await loadMemories(limit: limit, offset: offset) }
+    }
+
+    private func loadMemories(limit: Int, offset: Int) async -> WidgetMemoryFeed {
         guard let session = sessionStore.load() else {
             logger.error("no widget session in the keychain — sign in in the app, or the widget process cannot read the shared group")
             return .empty.empty(.signedOut)
@@ -264,6 +279,40 @@ public struct WidgetDataProvider: Sendable {
         } catch {
             logger.error("wall fetch failed: \(String(describing: error), privacy: .public)")
             return .empty(availability(for: error))
+        }
+    }
+
+    /// Runs `work` but never longer than `deadline`: past it the widget reports
+    /// "server unreachable" instead of leaving WidgetKit with nothing to show.
+    /// (`Task.sleep` wins the race on timeout, and cancelling the group cancels
+    /// the in-flight URLSession calls.)
+    private func bounded(_ work: @escaping @Sendable () async -> PhotoWall) async -> PhotoWall {
+        await withTaskGroup(of: PhotoWall?.self) { group in
+            group.addTask { await work() }
+            group.addTask {
+                try? await Task.sleep(for: deadline)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            if let first { return first }
+            logger.error("widget fetch exceeded \(deadline, privacy: .public) — reporting the server as unreachable")
+            return .empty(.unreachable)
+        }
+    }
+
+    private func bounded(_ work: @escaping @Sendable () async -> WidgetMemoryFeed) async -> WidgetMemoryFeed {
+        await withTaskGroup(of: WidgetMemoryFeed?.self) { group in
+            group.addTask { await work() }
+            group.addTask {
+                try? await Task.sleep(for: deadline)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            if let first { return first }
+            logger.error("widget fetch exceeded \(deadline, privacy: .public) — reporting the server as unreachable")
+            return WidgetMemoryFeed(cards: [], availability: .unreachable)
         }
     }
 

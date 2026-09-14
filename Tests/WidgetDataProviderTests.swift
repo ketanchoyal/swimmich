@@ -47,6 +47,16 @@ final class WidgetDataProviderTests: XCTestCase {
         }
     }
 
+    /// Never answers in time: the case of a server the widget cannot reach at
+    /// all, which used to leave WidgetKit with no timeline and the Home Screen
+    /// stuck on its redacted placeholder.
+    private struct HangingTransport: WidgetDataTransport {
+        func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+            try await Task.sleep(for: .seconds(30))
+            throw WidgetDataError.transport
+        }
+    }
+
     private struct StubSessionStore: WidgetSessionStoring {
         let session: WidgetSession?
         func save(_ session: WidgetSession) {}
@@ -235,6 +245,21 @@ final class WidgetDataProviderTests: XCTestCase {
         XCTAssertEqual(wall.photos.count, 2, "one failed thumbnail does not drop the photo")
         XCTAssertNil(wall.photos[0].imageData)
         XCTAssertNotNil(wall.photos[1].imageData)
+    }
+
+    func test_aServerThatNeverAnswers_stillYieldsATimeline() async {
+        let provider = WidgetDataProvider(
+            sessionStore: StubSessionStore(session: WidgetSession(baseURL: "https://photos.example.com", token: "jwt")),
+            transport: HangingTransport(),
+            deadline: .milliseconds(80)
+        )
+
+        let wall = await provider.recentPhotos(limit: 3)
+        let feed = await provider.memories(limit: 1, offset: 0)
+
+        XCTAssertTrue(wall.isEmpty)
+        XCTAssertEqual(wall.availability, .unreachable, "a hung fetch must resolve, not leave the widget redacted forever")
+        XCTAssertEqual(feed.availability, .unreachable)
     }
 
     // MARK: - Copy
