@@ -32,6 +32,10 @@ struct AssetThumbnailCell: View {
     var onToggleFavorite: () -> Void = {}
     var onDelete: () -> Void = {}
     var onArchive: (() -> Void)? = nil
+    /// Locked folder (gap G12): moves this asset into the PIN-protected
+    /// folder. Optional like `onArchive` — surfaces that show assets the user
+    /// cannot lock (trash) leave it nil and get no menu entry.
+    var onMoveToLockedFolder: (() -> Void)? = nil
     /// Trash-only callbacks. When `onRestore` is set, the context menu switches
     /// to Restore + Delete Permanently (AC-301 / AC-303). Callers that leave
     /// these `nil` keep the existing Favorite + Delete menu (TimelineView).
@@ -128,6 +132,13 @@ struct AssetThumbnailCell: View {
                             onArchive()
                         } label: {
                             Label("Archive", systemImage: "archivebox")
+                        }
+                    }
+                    if onMoveToLockedFolder != nil {
+                        Button {
+                            onMoveToLockedFolder?()
+                        } label: {
+                            Label("Move to Locked Folder", systemImage: "lock")
                         }
                     }
                     Button(role: .destructive) {

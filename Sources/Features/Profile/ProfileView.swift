@@ -30,6 +30,10 @@ struct ProfileView: View {
     /// Profile picture screen (gap G16). Built by the composition root and owned
     /// by `RootView`, so the row below and the pushed screen show one photo.
     @State var profilePicture: ProfilePictureViewModel
+    /// Locked folder (gap G12). A plain `let`, not a `@State`: the ViewModel's
+    /// lifetime is the Me sheet's (`AuthenticatedRoot` owns it), so re-entering
+    /// the row does not reset a folder the user is working in.
+    let lockedFolder: LockedFolderViewModel
 
     var body: some View {
         NavigationStack {
@@ -204,6 +208,16 @@ struct ProfileView: View {
                 // App lock lives here rather than on the Backup screen: it
                 // guards the whole app, not the backup run.
                 Section {
+                    // The locked folder is a place, the toggle below is a
+                    // setting: a row, not a switch — and it comes first because
+                    // it is the narrower protection (one folder vs the app).
+                    NavigationLink {
+                        LockedFolderView(vm: lockedFolder)
+                    } label: {
+                        Label("Locked Folder", systemImage: "lock")
+                    }
+                    .accessibilityIdentifier("lockedFolderRow")
+
                     Toggle("Require Face ID", isOn: $appLockEnabled)
                         .onChange(of: appLockEnabled) { _, newValue in
                             appLock.setEnabled(newValue)
@@ -213,6 +227,7 @@ struct ProfileView: View {
                     Text("Security")
                 } footer: {
                     Text("Asks for Face ID (or your passcode) every time Immich comes back to the foreground, so someone holding your unlocked phone can't browse your photos.")
+                    Text("Photos in the locked folder are hidden everywhere else and open with your Immich PIN — a separate code from this app lock.")
                 }
 
                 Section {

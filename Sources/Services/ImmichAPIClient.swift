@@ -86,6 +86,40 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.POST, path: ImmichAPI.auth.path("/validateToken"))
     }
 
+    // MARK: - Locked folder (gap G12)
+
+    func getAuthStatus() async throws -> AuthStatusResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.auth.path("/status"))
+    }
+
+    func setupPinCode(_ pinCode: String) async throws {
+        _ = try await sendAuthedRaw(
+            .POST,
+            path: ImmichAPI.auth.path("/pin-code"),
+            body: AnyEncodable(PinCodeSetupDto(pinCode: pinCode))
+        )
+    }
+
+    func changePinCode(dto: PinCodeChangeDto) async throws {
+        _ = try await sendAuthedRaw(.PUT, path: ImmichAPI.auth.path("/pin-code"), body: AnyEncodable(dto))
+    }
+
+    /// POST (not PUT) on the session routes: the server creates an elevation
+    /// for the current session rather than replacing a resource.
+    func unlockAuthSession(pinCode: String) async throws {
+        _ = try await sendAuthedRaw(
+            .POST,
+            path: ImmichAPI.auth.path("/session/unlock"),
+            body: AnyEncodable(SessionUnlockDto(pinCode: pinCode))
+        )
+    }
+
+    /// Bodyless on purpose: the route drops the elevation for the whole
+    /// session, so there is nothing to name.
+    func lockAuthSession() async throws {
+        _ = try await sendAuthedRaw(.POST, path: ImmichAPI.auth.path("/session/lock"), body: nil)
+    }
+
     // MARK: - OAuth (P5 oauth)
 
     func authorizeOAuth(redirectURI: String, state: String, codeChallenge: String) async throws -> OAuthAuthorizeResponseDto {

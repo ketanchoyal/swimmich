@@ -95,6 +95,11 @@ final class DependencyContainer {
     /// with the sheet (exactly the defect this feature fixes).
     let downloadQueue: DownloadQueueViewModel
 
+    /// Keychain slot for the locked folder's remembered PIN (gap G12). One
+    /// store per process so the folder's ViewModel and any future Face ID
+    /// shortcut read the same entry; never the session token slot.
+    let lockedFolderPINs: any LockedFolderPINStoring
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
@@ -107,6 +112,7 @@ final class DependencyContainer {
         self.photos = photoLibrary
         self.cleanupSource = photoLibrary
         self.appLock = AppLockViewModel()
+        self.lockedFolderPINs = KeychainLockedFolderPINStore(keychain: keychain)
         self.realtime = RealtimeService()
         self.backupScheduler = BGTaskBackupScheduler()
         self.backupLedger = BackupLedger.persistent()
@@ -397,5 +403,15 @@ final class DependencyContainer {
         let vm = PhotoEditorViewModel(assetId: asset.id)
         vm.renderDebounceInterval = 0.033
         return vm
+    }
+
+    /// Locked folder (gap G12). Takes the active account because the remembered
+    /// PIN is stored per account — two servers must never share one code.
+    func makeLockedFolderViewModel(accountID: String) -> LockedFolderViewModel {
+        LockedFolderViewModel(
+            client: client as any ImmichClient,
+            pins: lockedFolderPINs,
+            accountID: accountID
+        )
     }
 }
