@@ -18,6 +18,7 @@ struct ProfileView: View {
     @State var partners: PartnersViewModel
     @State var admin: AdminViewModel
     @State var offline: OfflineDownloadViewModel
+    @State var syncStatus: SyncStatusViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
 
@@ -64,6 +65,15 @@ struct ProfileView: View {
                     } label: {
                         Label("Backup", systemImage: "icloud.and.arrow.up")
                     }
+
+                    // Right after Backup: this screen reads the ledger that
+                    // screen feeds.
+                    NavigationLink {
+                        SyncStatusView(vm: syncStatus)
+                    } label: {
+                        Label("Sync Status", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .accessibilityIdentifier("syncStatusRow")
 
                     // Next to Backup on purpose: the only notification this app
                     // posts is the end of a backup run.
