@@ -167,6 +167,10 @@ protocol ImmichClient: AnyObject, Sendable {
     func getPeople(page: Int?, withHidden: Bool?) async throws -> PeopleResponseDto
     func createPerson(name: String) async throws -> PersonResponseDto
     func updatePerson(id: String, dto: PersonUpdateDto) async throws -> PersonResponseDto
+    /// Same route as `updatePerson` (`PUT /api/people/{id}`), with the
+    /// `PersonBirthdayClearDto` body that sends the explicit `null` an erase
+    /// needs — `PersonUpdateDto(birthDate: nil)` omits the key entirely.
+    func clearPersonBirthday(id: String) async throws -> PersonResponseDto
     /// `POST /api/people/{id}/merge` — merge persons; returns bulk results.
     func mergePeople(ids: [String], into id: String) async throws -> [BulkIdResponseDto]
     func getPersonStatistics(id: String) async throws -> PersonStatisticsResponseDto

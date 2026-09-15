@@ -112,6 +112,60 @@ final class PeopleViewModelTests: XCTestCase {
         XCTAssertTrue(vm.people[0].isHidden)
     }
 
+    // MARK: - Birthday (gap G15)
+
+    /// The invariant of the feature: posing a date must not carry any other
+    /// field, or editing a birthday silently rewrites the person's name or
+    /// cover photo.
+    @MainActor
+    func test_people_setBirthday_sendsBirthDateOnly() async {
+        let mock = MockImmichClient()
+        mock.peopleResponse = PeopleResponseDto(people: [makePerson(id: "p1")], hidden: 0, total: 1, hasNextPage: nil)
+        let vm = makeVM(mock)
+        await vm.load()
+
+        await vm.setBirthday(vm.people[0], to: "1990-05-12")
+        XCTAssertEqual(mock.lastUpdatePersonId, "p1")
+        XCTAssertEqual(mock.lastUpdatePersonDto?.birthDate, "1990-05-12")
+        XCTAssertNil(mock.lastUpdatePersonDto?.name)
+        XCTAssertNil(mock.lastUpdatePersonDto?.color)
+        XCTAssertNil(mock.lastUpdatePersonDto?.featureFaceAssetId)
+        XCTAssertNil(mock.lastUpdatePersonDto?.isFavorite)
+        XCTAssertNil(mock.lastUpdatePersonDto?.isHidden)
+        XCTAssertEqual(vm.people[0].birthDate, "1990-05-12")
+    }
+
+    /// Clearing must not go through `PersonUpdateDto`: its synthesized encoder
+    /// omits a nil `birthDate`, so that route would leave the birthday in place
+    /// while looking successful.
+    @MainActor
+    func test_people_setBirthday_clearsViaDedicatedRoute() async {
+        let mock = MockImmichClient()
+        mock.peopleResponse = PeopleResponseDto(people: [makePerson(id: "p1")], hidden: 0, total: 1, hasNextPage: nil)
+        let vm = makeVM(mock)
+        await vm.load()
+
+        await vm.setBirthday(vm.people[0], to: nil)
+        XCTAssertEqual(mock.lastClearedPersonBirthdayId, "p1")
+        XCTAssertNil(mock.lastUpdatePersonDto)
+        XCTAssertNil(vm.people[0].birthDate)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func test_people_setBirthday_failure_setsError() async {
+        let mock = MockImmichClient()
+        mock.peopleResponse = PeopleResponseDto(people: [makePerson(id: "p1")], hidden: 0, total: 1, hasNextPage: nil)
+        let vm = makeVM(mock)
+        await vm.load()
+        let before = vm.people
+
+        mock.peopleError = APIError.serverError(500, "boom")
+        await vm.setBirthday(vm.people[0], to: "1990-05-12")
+        XCTAssertEqual(vm.errorMessage, "Server error 500: boom")
+        XCTAssertEqual(vm.people, before)
+    }
+
     // MARK: - Statistics
 
     @MainActor

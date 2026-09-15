@@ -352,6 +352,24 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertNil(obj?["featureFaceAssetId"])
     }
 
+    /// AC-5151: the erase body must carry an explicit `null`, because the
+    /// synthesized `PersonUpdateDto` encoder drops nil optionals — a body it
+    /// produces has no `birthDate` key at all, which the server reads as "no
+    /// change". The two halves of this test are what stop the two bodies from
+    /// being merged back into one.
+    func test_AC_5151_personBirthdayClearDtoWritesExplicitNull() throws {
+        let omitted = try JSONSerialization.jsonObject(
+            with: JSONEncoder.immich.encode(PersonUpdateDto(birthDate: nil))
+        ) as? [String: Any]
+        XCTAssertNil(omitted?["birthDate"], "the set DTO cannot express a clear")
+
+        let cleared = try JSONSerialization.jsonObject(
+            with: JSONEncoder.immich.encode(PersonBirthdayClearDto())
+        ) as? [String: Any]
+        XCTAssertEqual(cleared?.count, 1, "the clear body must carry birthDate only")
+        XCTAssertTrue(cleared?["birthDate"] is NSNull)
+    }
+
     func test_P0_partnerResponseDto() throws {
         let json = """
         {"id": "u9", "name": "Pat", "email": "pat@test", "profileImagePath": "", "avatarColor": "#00FF00", "profileChangedAt": "2024-01-01T00:00:00.000Z", "inTimeline": true}

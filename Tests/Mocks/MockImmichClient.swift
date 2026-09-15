@@ -173,6 +173,10 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastPeopleWithHidden: Bool?
     var lastUpdatePersonId: String?
     var lastUpdatePersonDto: PersonUpdateDto?
+    /// Set by `clearPersonBirthday` — a test proves the erase took the
+    /// dedicated route instead of `PersonUpdateDto(birthDate: nil)`, which
+    /// would leave `lastUpdatePersonDto` non-nil.
+    var lastClearedPersonBirthdayId: String?
     var lastMergePersonIds: [String]?
     var lastMergeTargetId: String?
     var mergePeopleResponse: [BulkIdResponseDto]?
@@ -738,8 +742,18 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         if let e = globalError ?? peopleError { throw e }
         var person = cannedPerson(id: id)
         if let name = dto.name { person.name = name }
+        if let birthDate = dto.birthDate { person.birthDate = birthDate }
         if let isHidden = dto.isHidden { person.isHidden = isHidden }
         if let isFavorite = dto.isFavorite { person.isFavorite = isFavorite }
+        return person
+    }
+
+    func clearPersonBirthday(id: String) async throws -> PersonResponseDto {
+        bump()
+        lastClearedPersonBirthdayId = id
+        if let e = globalError ?? peopleError { throw e }
+        var person = cannedPerson(id: id)
+        person.birthDate = nil
         return person
     }
 

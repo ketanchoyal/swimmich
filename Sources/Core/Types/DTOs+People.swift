@@ -34,6 +34,27 @@ struct PersonUpdateDto: Codable, Equatable {
     var isHidden: Bool?
 }
 
+/// Body of the birthday-clear call (`PUT /api/people/{id}`).
+///
+/// `PersonUpdateDto` **cannot** express "set `birthDate` to null": Swift's
+/// synthesized `encode(to:)` writes optional properties with `encodeIfPresent`,
+/// so `PersonUpdateDto(birthDate: nil)` emits a body with no `birthDate` key at
+/// all — the server has nothing to update and the birthday silently stays put.
+/// The OpenAPI schema declares the field `nullable: true`, so an explicit
+/// `null` is the only accepted clear (`""` is rejected by `format: date`), and
+/// this single-field body is the only way to send one.
+///
+/// Mono-field by construction: it can never overwrite `name`, `color`,
+/// `featureFaceAssetId`, `isFavorite` or `isHidden`.
+struct PersonBirthdayClearDto: Encodable {
+    enum CodingKeys: String, CodingKey { case birthDate }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeNil(forKey: .birthDate)
+    }
+}
+
 /// `POST /api/people` — create a new person.
 struct PersonCreateDto: Codable, Equatable {
     var name: String

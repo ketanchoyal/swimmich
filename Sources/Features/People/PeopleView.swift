@@ -41,7 +41,7 @@ struct PeopleView: View {
         }
         .navigationTitle("People")
         .navigationDestination(for: PersonResponseDto.self) { person in
-            PersonDetailView(vm: vm, person: person, columns: columns, viewerItem: $viewerItem)
+            PersonDetailView(vm: vm, pushed: person, columns: columns, viewerItem: $viewerItem)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -146,15 +146,26 @@ struct PeopleView: View {
     }
 }
 
-/// Faces drill-down: person header (avatar, name, count) + action toolbar
-/// (favorite / rename / hide / merge) + 3-column faces grid with full viewer.
+/// Faces drill-down: person header (avatar, name, count, birthday) + action
+/// toolbar (favorite / rename / hide / birthday / merge) + 3-column faces grid
+/// with full viewer.
 private struct PersonDetailView: View {
     @Bindable var vm: PeopleViewModel
-    let person: PersonResponseDto
+    /// The row the navigation pushed, captured once. `let`, not `private let`:
+    /// a private stored property makes the synthesized initializer private too.
+    let pushed: PersonResponseDto
     let columns: [GridItem]
     @Binding var viewerItem: PhotoViewerItem?
 
     @Environment(AuthViewModel.self) private var auth
+
+    /// The live row: every write goes through `PeopleViewModel.apply`, which
+    /// replaces `vm.people[i]` with the server's answer, so reading the pushed
+    /// snapshot would keep showing a birthday that was just changed (and would
+    /// re-open the editor pre-filled with the old one).
+    private var person: PersonResponseDto {
+        vm.people.first { $0.id == pushed.id } ?? pushed
+    }
 
     var body: some View {
         ScrollView {
@@ -178,7 +189,18 @@ private struct PersonDetailView: View {
                     Text("\(vm.assetCount(for: person.id)) photos")
                         .font(.pvCaption)
                         .foregroundStyle(Color.textSecondaryPV)
+                    // Nothing at all when the person has no birthday (or the
+                    // server sent something unparseable): no placeholder, no
+                    // empty line, so the header keeps its height.
+                    if let birthday = PersonBirthday.display(person.birthDate) {
+                        Label(birthday, systemImage: "calendar")
+                            .font(.pvCaption)
+                            .foregroundStyle(Color.textSecondaryPV)
+                            .transition(.opacity)
+                            .accessibilityIdentifier("personBirthdayValue")
+                    }
                 }
+                .animation(.default, value: person.birthDate)
 
                 HStack(spacing: PVSpacing.s8) {
                     actionButton("star.fill", person.isFavorite == true ? Color.immichPrimary : Color.textSecondaryPV, "Favorite") {
@@ -191,6 +213,11 @@ private struct PersonDetailView: View {
                     actionButton("eye.slash", .textSecondaryPV, person.isHidden ? "Unhide" : "Hide") {
                         Task { await vm.toggleHidden(person) }
                     }
+                    actionButton("calendar", .textSecondaryPV, "Birthday") {
+                        birthdayDraft = PersonBirthday.date(from: person.birthDate) ?? Date()
+                        birthdayPerson = person
+                    }
+                    .accessibilityIdentifier("personBirthdayAction")
                     mergeMenu
                 }
             }
@@ -256,10 +283,25 @@ private struct PersonDetailView: View {
         } message: {
             Text(person.name)
         }
+        // `PersonResponseDto` is already `Identifiable`, so no ad-hoc id is
+        // needed; the rename alert and this sheet are never live at once.
+        .sheet(item: $birthdayPerson) { person in
+            BirthdayEditorSheet(
+                draft: $birthdayDraft,
+                hasExistingBirthday: person.birthDate != nil,
+                onSave: { date in
+                    // The wire conversion happens here, at the last moment: the
+                    // sheet stays presentation-only.
+                    Task { await vm.setBirthday(person, to: date.map(PersonBirthday.wire(from:))) }
+                }
+            )
+        }
     }
 
     @State private var renamePerson: PersonResponseDto?
     @State private var renameText = ""
+    @State private var birthdayPerson: PersonResponseDto?
+    @State private var birthdayDraft = Date()
 
     private func actionButton(_ systemName: String, _ color: Color, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {

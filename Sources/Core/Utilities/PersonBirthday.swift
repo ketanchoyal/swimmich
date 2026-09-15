@@ -1,0 +1,56 @@
+import Foundation
+
+/// Wire-format helpers for a person's birthday (gap G15).
+///
+/// The server carries the field as a **date-only** `"YYYY-MM-DD"` string
+/// (`PersonUpdateDto.birthDate`, OpenAPI `format: date`, `nullable: true`), and
+/// none of the repo's date formats can read it: `ISO8601DateFormatter` rejects
+/// `"1990-05-12"` outright, and routing the value through `JSONCoding`'s
+/// `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` would shift the day by one in any time zone
+/// west of UTC. `date(from:)` and `wire(from:)` are therefore an identity over
+/// `Calendar.current`, with no time component anywhere.
+///
+/// This is the only risky logic of the feature, so it lives here rather than in
+/// the view: a one-day drift is invisible until it is wrong.
+enum PersonBirthday {
+
+    /// Parses the wire's `"YYYY-MM-DD"` into a `Date` at the start of that day.
+    ///
+    /// `nil` for `nil`, for any other shape (`"12/05/1990"`, a full timestamp,
+    /// an unpadded month), and for a day that does not exist (`"1990-02-30"`) —
+    /// the components are read back from the parsed date, so a calendar that
+    /// normalizes an out-of-range day instead of refusing it cannot slip one
+    /// through.
+    static func date(from wire: String?) -> Date? {
+        guard let wire else { return nil }
+        let parts = wire.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+              let date = Calendar.current.date(from: DateComponents(year: year, month: month, day: day))
+        else { return nil }
+
+        let roundTrip = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        guard roundTrip.year == year, roundTrip.month == month, roundTrip.day == day else { return nil }
+        return date
+    }
+
+    /// Renders `date` as the wire's `"YYYY-MM-DD"`, in the user's calendar —
+    /// the exact inverse of `date(from:)`.
+    static func wire(from date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// Localized label for the detail header (e.g. "May 12, 1990" / "12 mai
+    /// 1990"), `nil` when there is nothing to show.
+    ///
+    /// `AppDateFormat` renders it — the repo's single cached formatter — so the
+    /// label follows the app's language (an inline `DateFormatter` or a
+    /// `static let` here would freeze the launch language), and the caller's
+    /// `if let` draws no line at all for a person without a birthday.
+    static func display(_ wire: String?) -> String? {
+        guard let date = date(from: wire) else { return nil }
+        return AppDateFormat.string(from: date, style: .yearMonthDay)
+    }
+}

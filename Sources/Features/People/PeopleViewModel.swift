@@ -111,9 +111,30 @@ final class PeopleViewModel {
         await update(person.id, PersonUpdateDto(featureFaceAssetId: assetId))
     }
 
+    /// Sets or clears a person's birthday (gap G15). `wire` is the date-only
+    /// `"YYYY-MM-DD"` form: a value rides `PersonUpdateDto(birthDate:)`, so the
+    /// synthesized encoder leaves the other five fields out of the body; `nil`
+    /// rides `clearPersonBirthday`, whose body is the explicit `null` — the only
+    /// form the server reads as an erase.
+    func setBirthday(_ person: PersonResponseDto, to wire: String?) async {
+        if let wire {
+            await apply(person.id) { try await client.updatePerson(id: person.id, dto: PersonUpdateDto(birthDate: wire)) }
+        } else {
+            await apply(person.id) { try await client.clearPersonBirthday(id: person.id) }
+        }
+    }
+
     private func update(_ id: String, _ dto: PersonUpdateDto) async {
+        await apply(id) { try await client.updatePerson(id: id, dto: dto) }
+    }
+
+    /// The one path both write shapes share: run `call`, replace the row with
+    /// the server's answer, and surface a failure. Neither the erase nor the
+    /// set may duplicate it — an erase that forgot to rewrite `people` would
+    /// look applied until the next load.
+    private func apply(_ id: String, _ call: () async throws -> PersonResponseDto) async {
         do {
-            let updated = try await client.updatePerson(id: id, dto: dto)
+            let updated = try await call()
             if let i = people.firstIndex(where: { $0.id == id }) { people[i] = updated }
             errorMessage = nil
         } catch {
