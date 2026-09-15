@@ -408,6 +408,12 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.PUT, path: ImmichAPI.people.path("/\(id)"), body: AnyEncodable(dto))
     }
 
+    /// Same route as `updatePerson` — only the body differs, so no other field
+    /// of the person can be touched by a birthday clear.
+    func clearPersonBirthday(id: String) async throws -> PersonResponseDto {
+        try await sendAuthed(.PUT, path: ImmichAPI.people.path("/\(id)"), body: AnyEncodable(PersonBirthdayClearDto()))
+    }
+
     func createPerson(name: String) async throws -> PersonResponseDto {
         try await sendAuthed(.POST, path: ImmichAPI.people.path(""), body: AnyEncodable(PersonCreateDto(name: name)))
     }
