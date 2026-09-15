@@ -51,6 +51,13 @@ final class BackupSettingsStore {
         didSet { defaults.set(autoDetectNewPhotos, forKey: Self.autoDetectNewPhotosKey) }
     }
 
+    /// "Show backup status on thumbnails" (G6). Off by default: the badge is a
+    /// statement about the server, and asking for it is a choice — the tiles
+    /// stay bare until the user does.
+    var showSyncBadge: Bool {
+        didSet { defaults.set(showSyncBadge, forKey: Self.showSyncBadgeKey) }
+    }
+
     /// Which album set applies. Only one is ever in force, so the two sets can
     /// no longer contradict each other.
     var albumScope: BackupAlbumScope {
@@ -79,6 +86,7 @@ final class BackupSettingsStore {
     static let albumsKey = "photoBackupSelectedAlbums"
     static let excludedAlbumsKey = "photoBackupExcludedAlbums"
     static let autoDetectNewPhotosKey = "photoBackupAutoDetectNewPhotos"
+    static let showSyncBadgeKey = "photoBackupShowSyncBadge"
 
     /// Legacy keys, read once for the one-shot migration and then deleted.
     /// The old screenshots toggle becomes the Screenshots smart album; the
@@ -98,6 +106,7 @@ final class BackupSettingsStore {
         allowCellularForPhotos = defaults.bool(forKey: Self.cellularPhotosKey)
         allowCellularForVideos = defaults.bool(forKey: Self.cellularVideosKey)
         autoDetectNewPhotos = defaults.bool(forKey: Self.autoDetectNewPhotosKey)
+        showSyncBadge = defaults.bool(forKey: Self.showSyncBadgeKey)
         let selected = Set(defaults.stringArray(forKey: Self.albumsKey) ?? [])
         selectedAlbumIDs = selected
         let excluded: Set<String>
@@ -147,7 +156,8 @@ final class BackupSettingsStore {
             allowCellularForPhotos: allowCellularForPhotos,
             allowCellularForVideos: allowCellularForVideos,
             excludedAlbumIDs: inForce == .excluded ? excludedAlbumIDs : [],
-            selectedAlbumIDs: inForce == .selected ? selectedAlbumIDs : []
+            selectedAlbumIDs: inForce == .selected ? selectedAlbumIDs : [],
+            showSyncBadge: showSyncBadge
         )
     }
 }
@@ -198,6 +208,9 @@ final class UploadViewModel {
     let scheduler: any BackgroundBackupScheduling
     let activityService: any BackupLiveActivityServicing
     let notifications: any NotificationServicing
+    /// Thumbnail badge mirror (G6). Optional: a VM built without an index has
+    /// no badge to gate, and the setting simply writes itself to disk.
+    @ObservationIgnored let cloudStatus: CloudBackupStatusIndex?
 
     var albums: [BackupAlbum] = []
 
@@ -225,7 +238,8 @@ final class UploadViewModel {
         settings: BackupSettingsStore? = nil,
         scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
         activityService: any BackupLiveActivityServicing = LiveActivityBackupService(),
-        notifications: any NotificationServicing = NotificationService()
+        notifications: any NotificationServicing = NotificationService(),
+        cloudStatus: CloudBackupStatusIndex? = nil
     ) {
         self.client = client
         self.photos = photos
@@ -238,6 +252,15 @@ final class UploadViewModel {
         self.scheduler = scheduler
         self.activityService = activityService
         self.notifications = notifications
+        self.cloudStatus = cloudStatus
+    }
+
+    /// Pushes the "Show backup status on thumbnails" preference into the badge
+    /// index — the badge's only gate. Called once at composition (so a
+    /// relaunch restores the choice before the first tile is drawn) and on
+    /// every toggle flip.
+    func syncBadgeIndex() {
+        cloudStatus?.setEnabled(settings.snapshot().showSyncBadge)
     }
 
     var running: Bool {
@@ -573,6 +596,11 @@ struct BackupSettingsView: View {
                 .onChange(of: vm.settings.autoDetectNewPhotos) { _, _ in
                     DependencyContainer.shared.syncLibraryMonitor()
                 }
+            Toggle("Show backup status on thumbnails", isOn: $vm.settings.showSyncBadge)
+                .onChange(of: vm.settings.showSyncBadge) { _, _ in
+                    vm.syncBadgeIndex()
+                }
+                .accessibilityIdentifier("syncBadgeToggle")
         } header: {
             Text("Auto backup")
         } footer: {

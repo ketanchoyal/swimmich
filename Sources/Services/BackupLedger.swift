@@ -14,21 +14,26 @@ final class BackupLedger: BackupLedgerStoring, @unchecked Sendable {
     /// file format — the checksum was simply not stored then, and re-deriving it
     /// would mean re-downloading the asset, the exact cost the ledger exists to
     /// avoid. Such an entry stays valid for the skip and gains its checksum at
-    /// the next run that marks it.
+    /// the next run that marks it. `serverAssetId` is absent for the same
+    /// reason (v1 and v2 files never carried it): it is the asset's UUID on the
+    /// server, which is what the timeline renders, while the entry is keyed by
+    /// the Photos `localIdentifier`.
     private struct Entry: Codable {
         let signature: String
         var checksum: String?
+        var serverAssetId: String?
     }
 
     /// On-disk shape. Versioned so a v1 file (`[String: String]`) can be told
-    /// apart from v2 without guessing at the shape.
+    /// apart from a v3 snapshot without guessing at the shape. v2 files decode
+    /// as-is: both fields v3 added are optional.
     private struct Snapshot: Codable {
         var version: Int
         var lastReconciliation: Date?
         var entries: [String: Entry]
     }
 
-    private static let currentVersion = 2
+    private static let currentVersion = 3
 
     /// nil = pure in-memory ledger (no disk I/O).
     private let fileURL: URL?
@@ -87,15 +92,40 @@ final class BackupLedger: BackupLedgerStoring, @unchecked Sendable {
         return entries[id]?.signature == signature
     }
 
-    func markBackedUp(id: String, signature: String, checksum: String) {
+    func markBackedUp(id: String, signature: String, checksum: String, serverAssetId: String?) {
         lock.lock()
         ensureLoaded()
         let existing = entries[id]
-        if existing?.signature != signature || existing?.checksum != checksum {
-            entries[id] = Entry(signature: signature, checksum: checksum)
+        // A write that carries no UUID keeps the one already stored: the id
+        // belongs to the asset, and the badge would go dark on an asset this
+        // device already proved if a `reject` answered without it (the DTO
+        // only *requires* `action` and `id`). An id the server no longer has
+        // is dropped by reconciliation, which forgets the whole entry.
+        let resolved = serverAssetId ?? existing?.serverAssetId
+        if existing?.signature != signature || existing?.checksum != checksum
+            || existing?.serverAssetId != resolved {
+            entries[id] = Entry(signature: signature, checksum: checksum, serverAssetId: resolved)
             dirty = true
         }
         lock.unlock()
+    }
+
+    func uploadedServerAssetIDs() -> Set<String> {
+        lock.lock(); defer { lock.unlock() }
+        ensureLoaded()
+        return Set(entries.values.compactMap(\.serverAssetId))
+    }
+
+    func uploadedLocalAssetIDs() -> Set<String> {
+        lock.lock(); defer { lock.unlock() }
+        ensureLoaded()
+        return Set(entries.keys)
+    }
+
+    func hasUploaded(id: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        ensureLoaded()
+        return entries[id] != nil
     }
 
     func entriesForReconciliation() -> [(id: String, checksum: String)] {

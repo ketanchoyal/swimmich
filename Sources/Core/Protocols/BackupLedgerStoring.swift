@@ -18,7 +18,29 @@ protocol BackupLedgerStoring: Sendable {
     /// it is replayed against `bulk-upload-check` to detect assets the server
     /// no longer has, at no media-byte cost. In-memory and cheap; durability is
     /// flushed by `save()`.
-    func markBackedUp(id: String, signature: String, checksum: String)
+    ///
+    /// `serverAssetId` is the asset's UUID on the server — the ledger's key is
+    /// the Photos `localIdentifier`, so this is the only bridge between what
+    /// the timeline renders (server ids) and what the ledger knows (library
+    /// ids). Both paths that hold it already have it in hand: a `reject` from
+    /// `bulk-upload-check` carries the existing asset's UUID, and an upload
+    /// returns the new one. It stays optional — entries written before v3, and
+    /// a `reject` the server answered without an id, have none.
+    func markBackedUp(id: String, signature: String, checksum: String, serverAssetId: String?)
+
+    /// Every tracked asset's **server** UUID. A set rather than a walk over
+    /// the entries: a thumbnail asks one question per cell, and an O(n) sweep
+    /// per cell would put the whole ledger on the render path.
+    func uploadedServerAssetIDs() -> Set<String>
+
+    /// Every tracked asset's library id, whatever the entry's shape. Unlike
+    /// `entriesForReconciliation()` this keeps v1 entries, which are backed up
+    /// even though their checksum was never stored.
+    func uploadedLocalAssetIDs() -> Set<String>
+
+    /// Whether a single library id is tracked. Same predicate as
+    /// `uploadedLocalAssetIDs()`, for callers holding one id and no set.
+    func hasUploaded(id: String) -> Bool
 
     /// Every tracked entry that has a checksum — the reconciliation payload.
     /// Entries migrated from the v1 file have none and are skipped: replaying
@@ -44,4 +66,14 @@ protocol BackupLedgerStoring: Sendable {
     /// Forgets every tracked asset, forcing a full re-backup on the next run.
     /// Used when the server library was wiped and the local ledger is stale.
     func removeAll()
+}
+
+extension BackupLedgerStoring {
+    /// Records an asset whose server UUID isn't known to the caller. Not a
+    /// protocol requirement: a default argument is not allowed on one, and
+    /// callers that hold only the checksum would otherwise have to spell out
+    /// `serverAssetId: nil` — a value they do not know, not one they chose.
+    func markBackedUp(id: String, signature: String, checksum: String) {
+        markBackedUp(id: id, signature: signature, checksum: checksum, serverAssetId: nil)
+    }
 }
