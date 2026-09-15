@@ -703,24 +703,53 @@ final class PersonBirthdayUITests: XCTestCase {
         assertNoBirthdayLine("the write was refused with a 400")
         shot("pb10-after-refused-write")
 
-        // …and the failure is visible in the app. Measured: the drill-down has
-        // no error surface of its own — `setBirthday` lands its failure in
-        // `PeopleViewModel.errorMessage`, which the PEOPLE LIST renders, so the
-        // error is read one back-tap away (never on the card itself).
+        // …and the refusal is visible in the app.
+        //
+        // MEASURED, and the reason this does not read the people list's own error
+        // row: `setBirthday` lands its failure in `PeopleViewModel.errorMessage`,
+        // which the list renders — but popping the card RE-CREATES the list, whose
+        // `.task` then runs `load()`, and a successful load clears that message
+        // before any query can see it (the failed run's own screenshot of the list
+        // shows no error line at all). The client's log is the surface that keeps
+        // it: one entry per request, carrying the verb, the path and the server's
+        // answer, on a screen the Me hub owns (`appLogsRow`).
         backToPeopleList(from: adaName, expecting: adaId)
-        let error = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Server error 400"))
-            .firstMatch
-        for _ in 0..<4 where !error.exists {
+        XCTAssertTrue(personRow(adaId).exists, "the list lost \(adaName) after the refused write")
+
+        let back = app.buttons.matching(identifier: "BackButton").firstMatch
+        if back.waitForExistence(timeout: 15) { back.tap() }
+        var logsRow = hubRow("appLogsRow")
+        if !logsRow.exists {
+            // One back tap can leave the whole Me sheet (measured elsewhere in
+            // this wave): the avatar is then the way back in. Both are
+            // identifiers, and the covered timeline's own avatar is never
+            // tapped — it would send the touch to whatever covers it.
+            let avatar = app.buttons.matching(identifier: "profileAvatar").firstMatch
+            XCTAssertTrue(avatar.waitForExistence(timeout: 20),
+                          "neither the Me hub nor the timeline is on screen:\n\(app.debugDescription)")
+            avatar.tap()
+            XCTAssertTrue(app.buttons.matching(identifier: "profilePictureRow").firstMatch
+                .waitForExistence(timeout: 20), "the Me hub never opened after touching the avatar")
+            logsRow = hubRow("appLogsRow")
+        }
+        XCTAssertTrue(logsRow.waitForExistence(timeout: 20),
+                      "the App Logs row is missing in the Me hub:\n\(app.debugDescription)")
+        logsRow.tap()
+
+        // The entry reads `warning PUT /api/people/<id> → 400` — the client logs
+        // the STATUS, not the message it raises from it. Read off the failed run's
+        // own accessibility dump, whose other entries read
+        // `info GET /api/timeline/buckets → 200`.
+        let refusal = app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS %@ AND label CONTAINS %@", "/api/people/", "→ 400")).firstMatch
+        for _ in 0..<4 where !refusal.exists {
             app.swipeUp()
             sleep(1)
         }
-        if !error.waitForExistence(timeout: 10) {
-            shot("pb11b-no-error-row")
-            XCTFail("the refused write left no visible error in the people list:\n\(app.debugDescription)")
+        if !refusal.waitForExistence(timeout: 10) {
+            shot("pb11b-no-log-entry")
+            XCTFail("the refused write left no `PUT /api/people/… → 400` entry in the app log:\n\(app.debugDescription)")
         }
-        shot("pb11-refused-write-error")
-        // And the list still shows the people: the error is a row under them,
-        // not the empty state.
-        XCTAssertTrue(personRow(adaId).exists, "the list lost \(adaName) while reporting the error")
+        shot("pb11-refused-write-in-app-log")
     }
 }

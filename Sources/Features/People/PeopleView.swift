@@ -40,9 +40,6 @@ struct PeopleView: View {
             }
         }
         .navigationTitle("People")
-        .navigationDestination(for: PersonResponseDto.self) { person in
-            PersonDetailView(vm: vm, pushed: person, columns: columns, viewerItem: $viewerItem)
-        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -114,8 +111,17 @@ struct PeopleView: View {
         }
     }
 
+    /// A row is pushed as a **view**, not by value: the hub opens this screen with
+    /// a view-destination link, and SwiftUI keeps value destinations *below* view
+    /// destinations inside one stack — a `NavigationLink(value:)` here silently
+    /// did nothing (measured by XCUITest: eight gestures across two list
+    /// instances, row hittable, screen unmoved, while a tap on the same screen's
+    /// refresh button did reach the app). `FolderView` hit the same wall and was
+    /// fixed the same way.
     private func personRow(_ person: PersonResponseDto) -> some View {
-        NavigationLink(value: person) {
+        NavigationLink {
+            PersonDetailView(vm: vm, pushed: person, columns: columns, viewerItem: $viewerItem)
+        } label: {
             HStack(spacing: PVSpacing.s12) {
                 AuthenticatedAsyncImage(
                     url: ImmichAssetURL.personThumbnail(personId: person.id, baseURL: auth.baseURL ?? URL(string: "https://example.com")!),
