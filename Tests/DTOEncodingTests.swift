@@ -470,4 +470,48 @@ final class DTOEncodingTests: XCTestCase {
         XCTAssertEqual(obj?["rating"] as? Int, 5)
         XCTAssertEqual(try JSONDecoder.immich.decode(RatingUpdateDto.self, from: enc), RatingUpdateDto(rating: 5))
     }
+
+    // MARK: - ocr-text: detected-text search filter (v3.2.0)
+
+    /// The filter is the v3.2.0 replacement of the deprecated scalar `ocr`
+    /// field: `filter.ocr.matches`, a `StringSimilarityFilter`.
+    func test_ocrFilter_encodesStringSimilarityFilter() throws {
+        let dto = MetadataSearchDto(
+            query: nil,
+            filter: SearchFilterDto(ocr: StringSimilarityFilterDto(matches: "receipt"))
+        )
+        let enc = try JSONEncoder.immich.encode(dto)
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+        let filter = try XCTUnwrap(obj?["filter"] as? [String: Any])
+        let ocr = try XCTUnwrap(filter["ocr"] as? [String: Any])
+        XCTAssertEqual(ocr["matches"] as? String, "receipt")
+        XCTAssertNil(filter["ocr"] as? String, "ocr is an object, never the deprecated scalar")
+        XCTAssertNil(obj?["ocr"], "the deprecated top-level ocr field is never sent")
+    }
+
+    /// No active filter → no `filter` key at all (the server rejects unknown
+    /// and null properties on this schema).
+    func test_ocrFilter_absentWhenInactive() throws {
+        let enc = try JSONEncoder.immich.encode(MetadataSearchDto(query: "receipt"))
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+        XCTAssertEqual(obj?["query"] as? String, "receipt")
+        XCTAssertNil(obj?["filter"])
+    }
+
+    /// The response is the exact 13-field mirror of `AssetOcrResponseDto` —
+    /// the eight coordinates are four corners, so a decode must keep each one.
+    func test_ocrResponse_decodesFourCorners() throws {
+        let json = """
+        [{"id": "o1", "assetId": "asset-1", "text": "Receipt", "boxScore": 0.91, "textScore": 0.77,
+          "x1": 0.1, "y1": 0.2, "x2": 0.5, "y2": 0.21, "x3": 0.5, "y3": 0.3, "x4": 0.1, "y4": 0.29}]
+        """.data(using: .utf8)!
+        let boxes = try JSONDecoder.immich.decode([AssetOcrResponseDto].self, from: json)
+        let box = try XCTUnwrap(boxes.first)
+        XCTAssertEqual(box.text, "Receipt")
+        XCTAssertEqual(box.quad.topLeft, CGPoint(x: 0.1, y: 0.2))
+        XCTAssertEqual(box.quad.bottomRight, CGPoint(x: 0.5, y: 0.3))
+        XCTAssertTrue(box.isConfident)
+        let reencoded = try JSONEncoder.immich.encode(box)
+        XCTAssertEqual(try JSONDecoder.immich.decode(AssetOcrResponseDto.self, from: reencoded), box)
+    }
 }

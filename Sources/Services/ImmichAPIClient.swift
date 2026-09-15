@@ -421,6 +421,11 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         return try await sendAuthed(.GET, path: ImmichAPI.faces.path(""), query: query)
     }
 
+    /// `GET /api/assets/{id}/ocr` — path param only, like `getAsset`.
+    func getAssetOcr(id: String) async throws -> [AssetOcrResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.assets.path("/\(id)/ocr"))
+    }
+
     // MARK: - Partners (P0 api-surface-expansion; direction corrected 2026-09-13)
 
     func getPartners(direction: PartnerDirection) async throws -> [PartnerResponseDto] {

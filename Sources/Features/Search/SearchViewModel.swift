@@ -75,6 +75,10 @@ final class SearchViewModel {
     var query: String = ""
     var searchMode: SearchMode = .smart
     var viewMode: ViewMode = .results
+    /// Restrict metadata results to assets whose *detected text* matches the
+    /// query (ocr-text). Sent as the v3.2.0 `filter.ocr.matches` similarity
+    /// filter, never as the deprecated scalar `MetadataSearchDto.ocr`.
+    var ocrFilterEnabled = false
     /// Active Explore drill-down filter (AC-404b, generalized to any field).
     /// When non-nil, metadata `search()` ignores free-text `query` and filters
     /// by this field instead. Public for `recordRecentSearch` / view wiring.
@@ -341,6 +345,17 @@ final class SearchViewModel {
                 field.apply(value, to: &dto)
             }
             dto.rating = ratingFilter
+
+            let matches = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if ocrFilterEnabled, !matches.isEmpty {
+                // Detected text goes through the v3.2.0 replacement of the
+                // deprecated scalar `ocr` field: `filter.ocr.matches`, a
+                // similarity filter (not an equality). Free text is dropped —
+                // on this route the query and a filter are alternatives, the
+                // same rule the Explore field filter above follows.
+                dto.query = nil
+                dto.filter = SearchFilterDto(ocr: StringSimilarityFilterDto(matches: matches))
+            }
             return try await client.searchMetadata(dto: dto)
         case .smart:
             let dto = SmartSearchDto(query: query, page: page)

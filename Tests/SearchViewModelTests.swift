@@ -516,6 +516,64 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mock.lastMetadataSearchDto?.page, 2)
     }
 
+    // MARK: - ocr-text: detected-text filter (v3.2.0 `filter.ocr`)
+
+    /// The filter goes out as `filter.ocr.matches` (a similarity filter) and
+    /// replaces the free-text query — the deprecated scalar `ocr` field is
+    /// never sent.
+    func test_ocrFilter_dispatchesSimilarityFilter() async {
+        let mock = makeMock(items: [makeAsset(id: "r1")])
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .metadata
+        vm.query = "receipt"
+        vm.ocrFilterEnabled = true
+
+        await vm.search()
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.filter?.ocr?.matches, "receipt")
+        XCTAssertNil(mock.lastMetadataSearchDto?.query, "the filter replaces the free-text query")
+    }
+
+    /// Typed-in whitespace must not reach the filter: the server requires
+    /// `matches` to have at least one character.
+    func test_ocrFilter_trimsTheQuery() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .metadata
+        vm.query = "  receipt  "
+        vm.ocrFilterEnabled = true
+
+        await vm.search()
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.filter?.ocr?.matches, "receipt")
+    }
+
+    /// Toggle off (or nothing typed) → the payload is exactly what it was
+    /// before the feature: a plain free-text metadata search.
+    func test_ocrFilter_offLeavesQueryAlone() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .metadata
+        vm.query = "receipt"
+
+        await vm.search()
+
+        XCTAssertEqual(mock.lastMetadataSearchDto?.query, "receipt")
+        XCTAssertNil(mock.lastMetadataSearchDto?.filter)
+    }
+
+    func test_ocrFilter_emptyQuery_doesNotSendFilter() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .metadata
+        vm.query = "   "
+        vm.ocrFilterEnabled = true
+
+        await vm.search()
+
+        XCTAssertNil(mock.lastMetadataSearchDto?.filter, "minLength 1 — an empty match is invalid")
+    }
+
     // MARK: - Live search (debounced) + clear + recents
 
     func test_liveSearch_debounced_dispatches_after_idle() async {
