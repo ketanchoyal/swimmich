@@ -307,6 +307,9 @@ final class DependencyContainer {
             photoLibrary: photos,
             albumSource: (photos as? BackupAssetSource) ?? PhotoLibraryServiceImpl(),
             client: client as any ImmichClient
+        )
+    }
+
     /// Free Up Space (gap G1). The ledger passed here is the SAME instance the
     /// backup engine writes: it is the only record of which checksums the server
     /// was told about, and a fresh ledger would make the scan find nothing.
