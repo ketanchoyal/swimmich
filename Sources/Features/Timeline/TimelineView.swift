@@ -119,17 +119,26 @@ struct TimelineView: View {
                             // changes. Under `.none` no group reports a frame,
                             // so `pinnedDay` stays nil and this whole overlay is
                             // gone — which is the point of a flat timeline.
+                            // The IDs are what an XCUITest scenario asserts the
+                            // grouping on (settings-parity): the copy below is
+                            // localized, so a scenario reading the text would
+                            // tie itself to the device's language. They sit on
+                            // the two Texts, never on the VStack: an identifier
+                            // on a container overwrites every descendant's.
                             if appSettings.groupBy == .month {
                                 Text(pinnedMonthDisplay ?? day)
                                     .font(.pvTitle)
                                     .foregroundStyle(Color.white)
+                                    .accessibilityIdentifier("timelinePinnedMonthHeader")
                             } else {
                                 Text(DateHeaderFormatter.yearString(for: day))
                                     .font(.pvTitle)
                                     .foregroundStyle(Color.white)
+                                    .accessibilityIdentifier("timelinePinnedYearHeader")
                                 Text(DateHeaderFormatter.dayMonthString(for: day))
                                     .font(.pvSubhead.weight(.bold))
                                     .foregroundStyle(Color.white)
+                                    .accessibilityIdentifier("timelinePinnedDayHeader")
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
