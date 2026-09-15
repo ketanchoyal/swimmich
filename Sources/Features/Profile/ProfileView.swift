@@ -27,12 +27,22 @@ struct ProfileView: View {
     @State var localLibrary: LocalLibraryViewModel
     @State var freeUpSpace: FreeUpSpaceViewModel
     @State var folders: FolderViewModel
+    /// Profile picture screen (gap G16). Built by the composition root and owned
+    /// by `RootView`, so the row below and the pushed screen show one photo.
+    @State var profilePicture: ProfilePictureViewModel
 
     var body: some View {
         NavigationStack {
             Form {
                 if let user = auth.userName, let email = auth.userEmail {
                     Section {
+                        NavigationLink {
+                            ProfilePictureView(vm: profilePicture)
+                        } label: {
+                            profilePictureRow
+                        }
+                        .accessibilityIdentifier("profilePictureRow")
+
                         LabeledContent("Name", value: user)
                         LabeledContent("Email", value: email)
                     } header: {
@@ -217,8 +227,32 @@ struct ProfileView: View {
             .navigationTitle("Me")
             .navigationBarTitleDisplayMode(.inline)
             .task { await storage.load() }
+            // The Account row carries the avatar, so the identity has to be
+            // known before the screen that publishes the photo is opened.
+            .task { await profilePicture.load() }
             .refreshable { await storage.load() }
         }
+    }
+
+    /// Account row for the profile picture (gap G16). It carries the avatar on
+    /// purpose: a plain label would promise a photo the hub never shows.
+    @ViewBuilder
+    private var profilePictureRow: some View {
+        HStack(spacing: PVSpacing.s12) {
+            if let user = profilePicture.avatarUser {
+                UserAvatarCircle(user: user, size: 40, baseURL: auth.baseURL, token: auth.accessToken)
+            } else {
+                // Identity still in flight (or unreachable): keep the row's
+                // height and let the avatar arrive rather than jump.
+                Circle()
+                    .fill(Color.bgTertiary)
+                    .frame(width: 40, height: 40)
+            }
+            Text("Profile Picture")
+                .font(.pvBody)
+                .foregroundStyle(Color.textPrimaryPV)
+        }
+        .frame(minHeight: 44)
     }
 
     /// Saved accounts / servers (P5 multi-server): tap to switch, swipe to

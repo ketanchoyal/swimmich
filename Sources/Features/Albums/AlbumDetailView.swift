@@ -598,7 +598,7 @@ struct AlbumDetailView: View {
         if !others.isEmpty {
             HStack(spacing: -PVSpacing.s8) {
                 ForEach(others.prefix(4), id: \.user.id) { entry in
-                    UserAvatarCircle(user: entry.user, size: 24)
+                    UserAvatarCircle(user: entry.user, size: 24, baseURL: auth.baseURL, token: auth.accessToken)
                         .overlay(Circle().stroke(.white.opacity(0.35), lineWidth: 1))
                 }
                 if others.count > 4 {

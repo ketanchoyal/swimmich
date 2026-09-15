@@ -137,6 +137,16 @@ struct UserResponseDto: Codable, Equatable {
     let profileChangedAt: String
 }
 
+/// `POST /api/users/profile-image` (gap G16) — the `201` body of
+/// `CreateProfileImageResponseDto` in the OpenAPI `main` spec. Only the photo
+/// moved: the rest of the user row is untouched, so the screen reuses the
+/// identity it already loaded rather than refetching.
+struct CreateProfileImageResponseDto: Codable, Equatable {
+    let userId: String
+    let profileImagePath: String
+    let profileChangedAt: String
+}
+
 struct ExifResponseDto: Codable, Equatable {
     var make: String?
     var model: String?

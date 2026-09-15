@@ -12,6 +12,7 @@ import SwiftUI
 struct AlbumShareSheet: View {
     @Bindable var vm: AlbumShareViewModel
 
+    @Environment(AuthViewModel.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var pendingRevokeUser: UserResponseDto?
 
@@ -106,7 +107,7 @@ struct AlbumShareSheet: View {
 
     private func ownerRow(_ user: UserResponseDto) -> some View {
         HStack(spacing: PVSpacing.s12) {
-            UserAvatarCircle(user: user)
+            UserAvatarCircle(user: user, baseURL: auth.baseURL, token: auth.accessToken)
             VStack(alignment: .leading, spacing: PVSpacing.s2) {
                 Text(user.name)
                     .font(.pvBody)
@@ -128,7 +129,7 @@ struct AlbumShareSheet: View {
 
     private func collaboratorRow(_ user: UserResponseDto) -> some View {
         HStack(spacing: PVSpacing.s12) {
-            UserAvatarCircle(user: user)
+            UserAvatarCircle(user: user, baseURL: auth.baseURL, token: auth.accessToken)
             VStack(alignment: .leading, spacing: PVSpacing.s2) {
                 Text(user.name)
                     .font(.pvBody)
@@ -187,6 +188,8 @@ struct AlbumShareSheet: View {
 private struct AlbumInvitePeopleView: View {
     @Bindable var vm: AlbumShareViewModel
 
+    @Environment(AuthViewModel.self) private var auth
+
     var body: some View {
         Group {
             if vm.inviteCandidates.isEmpty {
@@ -229,7 +232,7 @@ private struct AlbumInvitePeopleView: View {
 
     private func candidateRow(_ user: UserResponseDto) -> some View {
         HStack(spacing: PVSpacing.s12) {
-            UserAvatarCircle(user: user)
+            UserAvatarCircle(user: user, baseURL: auth.baseURL, token: auth.accessToken)
             VStack(alignment: .leading, spacing: PVSpacing.s2) {
                 Text(user.name)
                     .font(.pvBody)

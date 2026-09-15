@@ -349,6 +349,8 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         // / deviceId); the visitor has no say over favorite, visibility or a
         // Live Photo pair, so those are left out.
         let multipart = try makeUploadBody(
+            fieldName: "assetData",
+            contentType: "application/octet-stream",
             fileURL: fileURL,
             filename: filename,
             fields: [
@@ -632,13 +634,62 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.GET, path: ImmichAPI.users.path(""))
     }
 
+    // MARK: - Profile picture (gap G16)
+
+    /// `GET /api/users/me` — the signed-in user's own row, re-read from the
+    /// server so `profileImagePath`/`profileChangedAt` are never a stale copy.
+    func getMyUser() async throws -> UserAdminResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.users.path("/me"))
+    }
+
+    /// `POST /api/users/profile-image` (`CreateProfileImageDto`: one binary
+    /// `file` field). Same streamed multipart body as an asset upload — the
+    /// field name and content type are passed in — and deliberately **no**
+    /// `x-immich-checksum`: that header drives the asset dedup table and means
+    /// nothing on this route.
+    func uploadProfileImage(
+        fileURL: URL,
+        filename: String,
+        contentType: String
+    ) async throws -> CreateProfileImageResponseDto {
+        let multipart = try makeUploadBody(
+            fieldName: "file",
+            contentType: contentType,
+            fileURL: fileURL,
+            filename: filename,
+            fields: []
+        )
+        defer { try? FileManager.default.removeItem(at: multipart.file) }
+
+        var request = try baseRequest(HTTPMethod.POST, path: ImmichAPI.users.path("/profile-image"), query: [], auth: false)
+        request.setValue(multipart.contentType, forHTTPHeaderField: ImmichHeader.contentType)
+        if let token = token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: ImmichHeader.authorization)
+        }
+
+        let (responseData, response) = try await dispatchUpload(request, fromFile: multipart.file)
+        try validate(response: response, data: responseData)
+        return try Self.decode(CreateProfileImageResponseDto.self, from: responseData)
+    }
+
+    /// `DELETE /api/users/profile-image` — `204` with no body (same shape as
+    /// `deleteAPIKey`). No `{id}` parameter exists: only your own photo.
+    func deleteProfileImage() async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.users.path("/profile-image"), body: nil)
+    }
+
     // MARK: - Upload
 
-    /// Assembles a multipart/form-data body on disk (asset bytes streamed from
+    /// Assembles a multipart/form-data body on disk (file bytes streamed from
     /// the file, never held in memory) and returns the temp file plus the
-    /// `Content-Type` boundary that goes with it — shared by the owner upload
-    /// and the guest upload from a shared link. The caller removes the file.
+    /// `Content-Type` boundary that goes with it — shared by the owner upload,
+    /// the guest upload from a shared link and the profile-picture upload. The
+    /// field name and content type belong to the caller: an asset goes under
+    /// `assetData`/`application/octet-stream`, a profile picture under
+    /// `file`/`image/jpeg` (`CreateProfileImageDto`). The caller removes the file.
     private func makeUploadBody(
+        fieldName: String,
+        contentType: String,
         fileURL: URL,
         filename: String,
         fields: [(name: String, value: String)]
@@ -647,7 +698,7 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         let bodyURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("immich-upload-\(UUID().uuidString).multipart")
         try multipart.writeStreamed(
-            fileField: ("assetData", filename, "application/octet-stream", fileURL),
+            fileField: (fieldName, filename, contentType, fileURL),
             fields: fields,
             to: bodyURL
         )
@@ -682,7 +733,13 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
             fields.append(("livePhotoVideoId", livePhotoVideoId))
         }
 
-        let multipart = try makeUploadBody(fileURL: fileURL, filename: filename, fields: fields)
+        let multipart = try makeUploadBody(
+            fieldName: "assetData",
+            contentType: "application/octet-stream",
+            fileURL: fileURL,
+            filename: filename,
+            fields: fields
+        )
         defer { try? FileManager.default.removeItem(at: multipart.file) }
 
         var request = try baseRequest(HTTPMethod.POST, path: ImmichAPI.assets.path(""), query: [], auth: false)

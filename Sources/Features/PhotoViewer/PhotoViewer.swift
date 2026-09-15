@@ -1195,7 +1195,7 @@ private struct PhotoShareSheet: View {
                             vm.toggleUser(user.id)
                         } label: {
                             HStack(spacing: PVSpacing.s12) {
-                                UserAvatarCircle(user: user)
+                                UserAvatarCircle(user: user, baseURL: auth.baseURL, token: auth.accessToken)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(user.name)
                                         .foregroundStyle(Color.textPrimaryPV)

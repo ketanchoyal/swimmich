@@ -176,6 +176,17 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var getUsersResponse: [UserResponseDto]?
     var getUsersError: Error?
 
+    // Profile picture capture (gap G16)
+    var getMyUserResponse: UserAdminResponseDto?
+    var getMyUserError: Error?
+    var uploadProfileImageResponse: CreateProfileImageResponseDto?
+    var uploadProfileImageError: Error?
+    var deleteProfileImageError: Error?
+    var deleteProfileImageCallCount = 0
+    /// What the upload actually received: the test asserts on the bytes and the
+    /// part's filename/content type, not on the fact that a method ran.
+    var lastProfileImageUpload: (filename: String, contentType: String, data: Data)?
+
     // P0 api-surface-expansion capture
     var peopleResponse: PeopleResponseDto?
     var peopleError: Error?
@@ -984,6 +995,36 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? getUsersError { throw e }
         return getUsersResponse ?? []
+    }
+
+    func getMyUser() async throws -> UserAdminResponseDto {
+        bump()
+        if let e = globalError ?? getMyUserError { throw e }
+        return getMyUserResponse ?? UserAdminResponseDto(
+            id: "me", name: "Me Myself", email: "me@example.com",
+            profileImagePath: nil, avatarColor: "#123456", profileChangedAt: nil
+        )
+    }
+
+    func uploadProfileImage(
+        fileURL: URL,
+        filename: String,
+        contentType: String
+    ) async throws -> CreateProfileImageResponseDto {
+        bump()
+        lastProfileImageUpload = (filename, contentType, (try? Data(contentsOf: fileURL)) ?? Data())
+        if let e = globalError ?? uploadProfileImageError { throw e }
+        return uploadProfileImageResponse ?? CreateProfileImageResponseDto(
+            userId: "me",
+            profileImagePath: "upload/me/profile.jpg",
+            profileChangedAt: "2026-09-15T10:00:00.000Z"
+        )
+    }
+
+    func deleteProfileImage() async throws {
+        bump()
+        deleteProfileImageCallCount += 1
+        if let e = globalError ?? deleteProfileImageError { throw e }
     }
 
     func uploadAsset(

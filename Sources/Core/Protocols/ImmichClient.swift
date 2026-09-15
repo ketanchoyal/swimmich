@@ -291,6 +291,22 @@ protocol ImmichClient: AnyObject, Sendable {
     // MARK: - Users (photo share — shared-album user picker)
     func getUsers() async throws -> [UserResponseDto]
 
+    // MARK: - Profile picture (gap G16)
+
+    /// `GET /api/users/me` — the signed-in user's own row. It is the only
+    /// source of `profileImagePath` / `profileChangedAt`, so it is what the
+    /// Profile Picture screen reads instead of trusting a cached copy.
+    func getMyUser() async throws -> UserAdminResponseDto
+
+    /// `POST /api/users/profile-image` — `multipart/form-data` with the single
+    /// binary field `file` (`CreateProfileImageDto`); answers `201` with the
+    /// new path + timestamp.
+    func uploadProfileImage(fileURL: URL, filename: String, contentType: String) async throws -> CreateProfileImageResponseDto
+
+    /// `DELETE /api/users/profile-image` — `204`, no body. The route takes no
+    /// `{id}`: a user can only remove their own photo.
+    func deleteProfileImage() async throws
+
     /// Uploads an asset via streamed multipart/form-data — the body is
     /// assembled from `fileURL` on disk, never held in memory.
     /// `checksum` is base64-encoded SHA1 (also sent as `x-immich-checksum` header).

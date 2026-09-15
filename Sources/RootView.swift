@@ -33,7 +33,7 @@ struct RootView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if auth.isAuthenticated {
-                    AuthenticatedRoot(container: container)
+                    AuthenticatedRoot(container: container, session: auth)
                         .id(auth.activeAccountID)
                 } else {
                     OnboardingFlowView()
@@ -113,6 +113,9 @@ private struct AuthenticatedRoot: View {
     @State private var language: LanguageSettingsViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
     @State private var folders: FolderViewModel
+    /// Profile picture screen (gap G16). Owned here so the account row of the Me
+    /// hub and the screen it pushes project the same photo.
+    @State private var profilePicture: ProfilePictureViewModel
     /// Process-wide download queue (gap G10). Held here so the panel, the
     /// info screen and the viewer's "Download to Files" all project ONE queue
     /// — the container's instance, never a per-view one.
@@ -126,7 +129,7 @@ private struct AuthenticatedRoot: View {
     @State private var showProfile = false
     @State private var showDownloadInfo = false
 
-    init(container: DependencyContainer) {
+    init(container: DependencyContainer, session: AuthViewModel) {
         self.container = container
         _timeline = State(initialValue: container.makeTimelineViewModel())
         _recentTaken = State(initialValue: container.makeRecentAssetsViewModel(mode: .taken))
@@ -156,6 +159,10 @@ private struct AuthenticatedRoot: View {
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
         _folders = State(initialValue: container.makeFolderViewModel())
+        _profilePicture = State(initialValue: container.makeProfilePictureViewModel(
+            baseURL: session.baseURL,
+            token: session.accessToken
+        ))
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
     }
 
@@ -280,6 +287,7 @@ private struct AuthenticatedRoot: View {
         .sheet(isPresented: $showProfile) {
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, profilePicture: profilePicture)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

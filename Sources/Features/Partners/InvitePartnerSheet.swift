@@ -16,6 +16,7 @@ struct InvitePartnerSheet: View {
     let currentUserId: String
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AuthViewModel.self) private var auth
 
     var body: some View {
         NavigationStack {
@@ -44,7 +45,7 @@ struct InvitePartnerSheet: View {
                             vm.selectCandidate(user)
                         } label: {
                             HStack(spacing: PVSpacing.s12) {
-                                UserAvatarCircle(user: user)
+                                UserAvatarCircle(user: user, baseURL: auth.baseURL, token: auth.accessToken)
                                 VStack(alignment: .leading, spacing: PVSpacing.s2) {
                                     Text(user.name)
                                         .font(.pvBody)
