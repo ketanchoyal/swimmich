@@ -391,6 +391,26 @@ private struct AuthenticatedRoot: View {
                 mediaStats: mediaStats,
                 downloadInfo: downloadInfo
             )
+            // The Me hub re-states everything its own subtree needs. Measured
+            // on 2026-09-15: what is injected on THIS view's modifier chain (the
+            // tabs' subtree) does not reach a sheet's content, nor the screens
+            // that content pushes — `BackupSettingsView` reads a non-optional
+            // `@Environment(ReadOnlyModeStore.self)` and the app died the moment
+            // the Backup row was tapped ("No Observable object of type
+            // ReadOnlyModeStore found", inside
+            // `NavigationStackCoordinator.setViewControllers`). Values injected
+            // one level up (`auth`, `appSettings`, on `RootView`'s own body) do
+            // arrive, which is why the hub itself always looked fine. Re-stating
+            // them here is what makes the whole hub tree — Backup, Offline
+            // Storage, Folders, On this device, Free Up Space, Sync Status, the
+            // rest — see the same instances the tabs use, instead of silently
+            // getting nothing.
+            .environment(upload)
+            .environment(readOnly)
+            .environment(albums)
+            .environment(offline)
+            .environment(container.offlineIndex)
+            .environment(container.cloudStatus)
         }
         // What's New (gap G23): presented from the stable root presenter, like
         // the Me sheet above — never from a tab view that comes and goes.

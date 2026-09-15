@@ -600,6 +600,10 @@ struct PhotoViewer: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Details")
+                // Its label is translated ("Détails" / "Dettagli"…) and the
+                // simulator's language is not the source's: the rating scenario
+                // reaches the info panel by identifier, never by label.
+                .accessibilityIdentifier("viewerDetailsButton")
             }
         }
         .padding(.horizontal, PVSpacing.s16)
