@@ -23,6 +23,13 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      # The share sheet's model and its view model are compiled into the app
+      # module as well. They hold no UI and no extension API — only the
+      # protocol seam — and the card requires the tests that exercise them to
+      # `@testable import ImmichSwiftUI` (a unit-test bundle cannot link an
+      # .appex). The sheet's view and its view controller stay extension-only.
+      - path: ImmichShareExtension/ShareItem.swift
+      - path: ImmichShareExtension/ShareExtensionViewModel.swift
       - path: Resources/Assets.xcassets
         buildPhase: resources
       - path: Resources/Localizable.xcstrings
@@ -80,6 +87,8 @@ targets:
         embed: true
       - target: ImmichWidgets
         embed: true
+      - target: ImmichShareExtension
+        embed: true
       - package: SocketIO
         product: SocketIO
   ImmichSharedKit:
@@ -131,6 +140,63 @@ targets:
     dependencies:
       - target: ImmichSharedKit
         embed: true
+  ImmichShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ImmichShareExtension
+      # The app's design tokens (spacing, radius, fonts, brand colours) are
+      # compiled into the extension as well. The app target compiles `Sources/`
+      # as one flat entry, so the tokens belong to no framework an extension
+      # could link — without this the sheet would re-invent the app's type
+      # scale, which the UI brief forbids. Only `Tokens/` travels:
+      # `Components/` pulls app-only types and must not enter an extension.
+      - path: Sources/DesignSystem/Tokens
+      # Same catalog as the app. The sheet draws its own copy, so without this
+      # every string would fall back to English inside the extension process.
+      - path: Resources/Localizable.xcstrings
+        buildPhase: resources
+      # The structural tokens (BgSecondary, SeparatorColor, …) are asset-catalog
+      # coloursets; without the catalog in the extension bundle they resolve to
+      # nothing and the sheet renders untinted.
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+    info:
+      path: ImmichShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Immich
+        # Same versions as the containing app, for the same reason as the
+        # widget: an extension whose version drifts from its app is a
+        # launch-and-store rejection waiting to happen.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Same policy as the app and the widget: a self-hosted Immich is usually
+        # plain HTTP on the LAN, which App Transport Security blocks in the
+        # extension process. Loopback is exempt from ATS, so a simulator run
+        # against 127.0.0.1 never notices.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            PHSupportedMediaTypes:
+              - Image
+              - Video
+            # Same shape as the upstream Flutter share extension: at least one
+            # attachment that conforms to image or movie. No storyboard key —
+            # the principal class builds the UI host itself.
+            NSExtensionActivationRule: 'SUBQUERY(extensionItems, $extensionItem, SUBQUERY($extensionItem.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.image" OR ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.movie").@count >= 1).@count >= 1'
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.millianlmx.immich-ios.share-extension
+        DEVELOPMENT_TEAM: 2MJF39L8VY
+        # Write side is the app, read side is this extension; same derived
+        # keychain group, so no access group is hardcoded anywhere.
+        CODE_SIGN_ENTITLEMENTS: Resources/ImmichShareExtension.entitlements
+    dependencies:
+      - target: ImmichSharedKit
+        embed: true
   ImmichSwiftUITests:
     type: bundle.unit-test
     platform: iOS
@@ -160,6 +226,7 @@ schemes:
       targets:
         ImmichSwiftUI: all
         ImmichWidgets: all
+        ImmichShareExtension: all
         ImmichSwiftUITests: [test]
         ImmichSwiftUIUITests: [test]
     run:

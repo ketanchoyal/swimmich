@@ -171,7 +171,11 @@ final class AuthViewModel: AuthSessionDelegate {
             token: token,
             userName: userName,
             userId: userId,
-            trustedHosts: trustedHosts
+            trustedHosts: trustedHosts,
+            // The share extension uploads from its own process and reads this
+            // snapshot; without the id its assets would show up as a second
+            // device in the web UI's per-device filter.
+            deviceId: DeviceIdentity.current
         ))
     }
 
