@@ -106,6 +106,12 @@ struct ProfilePictureView: View {
             UserAvatarCircle(user: user, size: Self.avatarSide)
                 .accessibilityIdentifier("profilePictureAvatar")
                 .accessibilityLabel(Text("No profile picture"))
+                // Additive (2026-09-15, profile-picture scenario): the initials
+                // were merged into the container's label, so neither VoiceOver
+                // nor a UI test could read what the circle actually shows — and
+                // the initials are the ONLY thing telling this branch apart from
+                // the empty disc below (both spell "No profile picture").
+                .accessibilityValue(Text(UserAvatarCircle.initials(from: user.name)))
         } else {
             Circle()
                 .fill(Color.bgTertiary)
