@@ -33,7 +33,7 @@ struct RootView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if auth.isAuthenticated {
-                    AuthenticatedRoot(container: container)
+                    AuthenticatedRoot(container: container, accountID: auth.activeAccountID ?? "")
                         .id(auth.activeAccountID)
                 } else {
                     OnboardingFlowView()
@@ -114,6 +114,12 @@ private struct AuthenticatedRoot: View {
     /// info screen and the viewer's "Download to Files" all project ONE queue
     /// — the container's instance, never a per-view one.
     @State private var downloads: DownloadQueueViewModel
+    /// Locked folder (gap G12). Held here, not built in the sheet's content
+    /// closure: the folder's gate (entered PIN, loaded grid) must survive any
+    /// re-render of this view while the Me sheet is up, and a ViewModel rebuilt
+    /// by the closure would throw the user back to the PIN door. Keyed by the
+    /// active account through `.id(auth.activeAccountID)` above.
+    @State private var lockedFolder: LockedFolderViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -123,7 +129,7 @@ private struct AuthenticatedRoot: View {
     @State private var showProfile = false
     @State private var showDownloadInfo = false
 
-    init(container: DependencyContainer) {
+    init(container: DependencyContainer, accountID: String) {
         self.container = container
         _timeline = State(initialValue: container.makeTimelineViewModel())
         _trash = State(initialValue: container.makeTrashViewModel())
@@ -151,6 +157,7 @@ private struct AuthenticatedRoot: View {
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
+        _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
     }
 
     var body: some View {
@@ -272,7 +279,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, lockedFolder: lockedFolder)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

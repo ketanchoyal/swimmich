@@ -473,6 +473,11 @@ struct TimelineView: View {
                 Task {
                     await vm.archive(id: item.id)
                 }
+            },
+            onMoveToLockedFolder: {
+                Task {
+                    await vm.moveToLockedFolder(id: item.id)
+                }
             }
         )
         .buttonStyle(.plain)
@@ -578,6 +583,21 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.isEmpty)
                 .accessibilityIdentifier("archiveButton")
+
+                // Locked folder (gap G12) — bulk visibility "locked". The
+                // assets leave the grid here and are the folder's business
+                // from now on; the filter menu deliberately stays without a
+                // "locked" entry (the folder is not a timeline view).
+                Button {
+                    Task {
+                        await vm.moveSelectedToLockedFolder()
+                    }
+                } label: {
+                    Label("Move to Locked Folder", systemImage: "lock")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(vm.selectedIds.isEmpty)
+                .accessibilityIdentifier("moveToLockedFolderButton")
 
                 // Stack selected assets (gap #1) — 2+ required.
                 Button {

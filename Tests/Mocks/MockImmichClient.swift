@@ -45,6 +45,54 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var validateResponse: ValidateAccessTokenResponseDto?
     var validateError: Error?
 
+    // Locked folder (gap G12)
+    /// `GET /api/auth/status` answer; defaults to a PIN-protected, unelevated
+    /// session (the door the folder shows after the first setup).
+    var authStatus: AuthStatusResponseDto?
+    var authStatusError: Error?
+    /// Every PIN the elevation route was called with, in order — the folder's
+    /// tests assert on what actually reached the server.
+    var unlockedPINs: [String] = []
+    var unlockAuthSessionError: Error?
+    var createdPINs: [String] = []
+    var setupPinCodeError: Error?
+    var changedPINCodeDtos: [PinCodeChangeDto] = []
+    var changePinCodeError: Error?
+    var lockSessionCallCount = 0
+    var lockAuthSessionError: Error?
+
+    func getAuthStatus() async throws -> AuthStatusResponseDto {
+        bump()
+        if let e = globalError ?? authStatusError { throw e }
+        return authStatus ?? AuthStatusResponseDto(
+            expiresAt: nil, isElevated: false, password: true, pinCode: true, pinExpiresAt: nil
+        )
+    }
+
+    func setupPinCode(_ pinCode: String) async throws {
+        bump()
+        createdPINs.append(pinCode)
+        if let e = globalError ?? setupPinCodeError { throw e }
+    }
+
+    func changePinCode(dto: PinCodeChangeDto) async throws {
+        bump()
+        changedPINCodeDtos.append(dto)
+        if let e = globalError ?? changePinCodeError { throw e }
+    }
+
+    func unlockAuthSession(pinCode: String) async throws {
+        bump()
+        unlockedPINs.append(pinCode)
+        if let e = globalError ?? unlockAuthSessionError { throw e }
+    }
+
+    func lockAuthSession() async throws {
+        bump()
+        lockSessionCallCount += 1
+        if let e = globalError ?? lockAuthSessionError { throw e }
+    }
+
     func authorizeOAuth(redirectURI: String, state: String, codeChallenge: String) async throws -> OAuthAuthorizeResponseDto {
         bump()
         lastOAuthRedirectURI = redirectURI

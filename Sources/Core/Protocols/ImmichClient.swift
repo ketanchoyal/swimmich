@@ -258,6 +258,29 @@ protocol ImmichClient: AnyObject, Sendable {
     // MARK: - Server statistics (P0 api-surface-expansion)
     func getServerStatistics() async throws -> ServerStatsResponseDto
 
+    // MARK: - Locked folder (gap G12)
+
+    /// `GET /api/auth/status` — whether the session is elevated (locked assets
+    /// readable) and whether a PIN exists yet.
+    func getAuthStatus() async throws -> AuthStatusResponseDto
+
+    /// `POST /api/auth/pin-code` — creates the 6-digit PIN that guards the
+    /// locked folder. A PIN already set is answered 400 (use `changePinCode`).
+    func setupPinCode(_ pinCode: String) async throws
+
+    /// `PUT /api/auth/pin-code` — replaces the PIN; `dto` carries the new PIN
+    /// plus the old PIN or the account password.
+    func changePinCode(dto: PinCodeChangeDto) async throws
+
+    /// `POST /api/auth/session/unlock` — temporarily elevates the session
+    /// ("Temporarily grant the session elevated access to locked assets").
+    /// Both session routes require a **session token**: an account
+    /// authenticated with an API key is answered 400.
+    func unlockAuthSession(pinCode: String) async throws
+
+    /// `POST /api/auth/session/lock` — drops the elevation, bodyless.
+    func lockAuthSession() async throws
+
     // MARK: - Bulk asset update (P0: archive via visibility)
     func bulkUpdateAssets(dto: AssetBulkUpdateDto) async throws
 

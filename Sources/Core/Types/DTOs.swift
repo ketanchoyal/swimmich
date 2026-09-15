@@ -315,3 +315,43 @@ struct BulkIdsDto: Codable, Equatable {
 struct TrashResponseDto: Codable, Equatable {
     let count: Int
 }
+
+// MARK: - Locked folder / PIN DTOs (gap G12)
+
+/// `GET /api/auth/status` — what the server says about the running session.
+///
+/// `isElevated` is the ONLY answer to "may I read locked assets?": it is not
+/// carried by `SessionResponseDto`, and an unelevated read of
+/// `timeline/buckets?visibility=locked` answers an empty list rather than a
+/// 403, so the folder's gate cannot be inferred from what the grid received.
+/// `pinCode` tells the client whether a PIN was ever created — that is what
+/// separates the "create a PIN" door from the "enter your PIN" door.
+struct AuthStatusResponseDto: Codable, Equatable {
+    let expiresAt: String?
+    let isElevated: Bool
+    let password: Bool
+    let pinCode: Bool
+    let pinExpiresAt: String?
+}
+
+/// `POST /api/auth/pin-code` — first-time PIN creation (exactly 6 digits).
+struct PinCodeSetupDto: Codable {
+    let pinCode: String
+}
+
+/// `PUT /api/auth/pin-code` — PIN change. The server requires the current
+/// credential alongside the new PIN, either the old `pinCode` or the account
+/// `password`; both are optional in the schema because exactly one is needed.
+struct PinCodeChangeDto: Codable {
+    let newPinCode: String
+    var pinCode: String?
+    var password: String?
+}
+
+/// `POST /api/auth/session/unlock` — elevates the session for a server-side
+/// TTL (15 minutes). Optional fields are omitted when nil, so a PIN unlock puts
+/// only `{"pinCode":"…"}` on the wire.
+struct SessionUnlockDto: Codable {
+    var pinCode: String?
+    var password: String?
+}

@@ -152,6 +152,38 @@ final class TimelineViewModel {
         }
     }
 
+    // MARK: - Locked folder (gap G12)
+
+    /// Moves the selection into the locked folder — the same bulk route as
+    /// Archive, with `visibility: locked`. The assets leave the timeline
+    /// immediately (the server stops returning them under the default
+    /// visibility), and the folder is the only screen that reads them back.
+    @MainActor
+    func moveSelectedToLockedFolder() async {
+        guard !selectedIds.isEmpty else { return }
+        let ids = Array(selectedIds)
+        do {
+            try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: ids, visibility: .locked))
+            items.removeAll { selectedIds.contains($0.id) }
+            loadedIds.subtract(selectedIds)
+            exitSelectionMode()
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    /// Single-asset variant, used by a cell's context menu.
+    @MainActor
+    func moveToLockedFolder(id: String) async {
+        do {
+            try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: [id], visibility: .locked))
+            items.removeAll { $0.id == id }
+            loadedIds.remove(id)
+        } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
     @MainActor
     func refresh() async {
         exitSelectionMode()
