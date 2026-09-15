@@ -24,6 +24,10 @@ struct ProfileView: View {
     @State var syncStatus: SyncStatusViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
+    /// Read-only mode (gap G17). The composition root's store, not a copy: the
+    /// switch below, the avatar's badge and the client guard are three readers
+    /// of the same boolean.
+    @State var readOnly: ReadOnlyModeStore
     @State var localLibrary: LocalLibraryViewModel
     @State var freeUpSpace: FreeUpSpaceViewModel
     @State var folders: FolderViewModel
@@ -223,11 +227,25 @@ struct ProfileView: View {
                             appLock.setEnabled(newValue)
                         }
                         .accessibilityIdentifier("appLockToggle")
+
+                    // A device preference like the app lock right above (the
+                    // upstream client keeps it in its own Advanced screen; this
+                    // hub has no such section, and the lock is a lock).
+                    Toggle("Read-only Mode", isOn: Binding(
+                        get: { readOnly.isEnabled },
+                        set: { readOnly.setEnabled($0) }
+                    ))
+                    .accessibilityIdentifier("readOnlyModeToggle")
+
+                    if readOnly.isEnabled {
+                        PVStatusBadge(text: "Read-only", color: .immichWarning, symbol: "lock.fill")
+                    }
                 } header: {
                     Text("Security")
                 } footer: {
                     Text("Asks for Face ID (or your passcode) every time Immich comes back to the foreground, so someone holding your unlocked phone can't browse your photos.")
                     Text("Photos in the locked folder are hidden everywhere else and open with your Immich PIN — a separate code from this app lock.")
+                    Text("Prevents deleting, editing and uploading. Browsing stays available.")
                 }
 
                 Section {

@@ -89,16 +89,30 @@ final class TimelineViewModel {
     @MainActor
     func toggleFavorite(id: String) async {
         guard let current = items.first(where: { $0.id == id }) else { return }
-        let newValue = !current.isFavorite
+        await setFavorite(id: id, isFavorite: !current.isFavorite)
+    }
+
+    /// Writes an **explicit** favorite state. `toggleFavorite(id:)` derives the
+    /// target from the grid row it holds; the photo viewer cannot — it keeps
+    /// its own optimistic set and knows which value it wants, and re-deriving
+    /// it from a snapshot the surface has not refreshed yet would send a no-op.
+    /// Same try-then-mutate discipline; unlike `batchSetFavorite`, an id the
+    /// grid does not hold is still written (the viewer pages through assets the
+    /// timeline never loaded).
+    @MainActor
+    @discardableResult
+    func setFavorite(id: String, isFavorite value: Bool) async -> Bool {
         do {
-            let dto = UpdateAssetDto(isFavorite: newValue)
-            _ = try await client.updateAsset(id: id, dto: dto)
+            _ = try await client.updateAsset(id: id, dto: UpdateAssetDto(isFavorite: value))
             // Mutate only after the network call succeeded.
             if let idx = items.firstIndex(where: { $0.id == id }) {
-                items[idx] = current.with(isFavorite: newValue)
+                items[idx] = items[idx].with(isFavorite: value)
             }
+            errorMessage = nil
+            return true
         } catch let e {
             errorMessage = e.localizedDescription
+            return false
         }
     }
 
@@ -141,14 +155,20 @@ final class TimelineViewModel {
         }
     }
 
+    /// - Returns: `true` when the server accepted the archive. The photo
+    ///   viewer's own path needs the outcome to decide whether the surface it
+    ///   came from should re-read; a refusal is published either way.
     @MainActor
-    func archive(id: String) async {
+    @discardableResult
+    func archive(id: String) async -> Bool {
         do {
             try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: [id], visibility: .archive))
             items.removeAll { $0.id == id }
             loadedIds.remove(id)
+            return true
         } catch let e {
             errorMessage = e.localizedDescription
+            return false
         }
     }
 
@@ -374,14 +394,18 @@ final class TimelineViewModel {
     /// Deletes a single asset by id (used by the cell context menu). Does NOT
     /// touch selection state — distinct from `deleteSelected` which operates on
     /// the selection set. Same try-then-mutate discipline.
+    /// - Returns: `true` when the server accepted the delete (see `archive(id:)`).
     @MainActor
-    func delete(id: String) async {
+    @discardableResult
+    func delete(id: String) async -> Bool {
         do {
             try await client.deleteAssets(ids: [id], force: false)
             items.removeAll { $0.id == id }
             loadedIds.remove(id)
+            return true
         } catch let e {
             errorMessage = e.localizedDescription
+            return false
         }
     }
 

@@ -100,14 +100,20 @@ final class TrashViewModel {
     /// Restores a single asset. Removes it from `items` + `loadedIds` only
     /// after the network call succeeds (try-then-mutate). On throw the local
     /// state is preserved and `errorMessage` is surfaced.
+    /// - Returns: `true` when the server accepted the restore. The photo
+    ///   viewer's own path (no `onRestore` callback) needs the outcome to
+    ///   decide whether the surface it came from should re-read.
     @MainActor
-    func restore(id: String) async {
+    @discardableResult
+    func restore(id: String) async -> Bool {
         do {
             _ = try await client.restoreTrashAssets(ids: [id])
             items.removeAll { $0.id == id }
             loadedIds.remove(id)
+            return true
         } catch let e {
             errorMessage = e.localizedDescription
+            return false
         }
     }
 
@@ -128,14 +134,18 @@ final class TrashViewModel {
     /// Permanently deletes a single asset via `deleteAssets(force: true)`.
     /// Removes it from `items` + `loadedIds` only after the network call
     /// succeeds. On throw the local state is preserved.
+    /// - Returns: `true` when the server accepted the delete (see `restore(id:)`).
     @MainActor
-    func deletePermanently(id: String) async {
+    @discardableResult
+    func deletePermanently(id: String) async -> Bool {
         do {
             try await client.deleteAssets(ids: [id], force: true)
             items.removeAll { $0.id == id }
             loadedIds.remove(id)
+            return true
         } catch let e {
             errorMessage = e.localizedDescription
+            return false
         }
     }
 

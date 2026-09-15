@@ -37,7 +37,7 @@ struct PhotoViewerPresentation: ViewModifier {
     @Binding var item: PhotoViewerItem?
     let baseURL: URL
     let token: String?
-    var client: any ImmichClient = DependencyContainer.shared.client
+    var client: any ImmichClient = DependencyContainer.shared.libraryClient
     /// Cast seam (gap G9). Default-valued like `client`, so the eight
     /// `photoViewer(` call sites keep compiling unchanged.
     var castService: any CastService = DependencyContainer.shared.castService
@@ -82,7 +82,7 @@ extension View {
         item: Binding<PhotoViewerItem?>,
         baseURL: URL,
         token: String?,
-        client: any ImmichClient = DependencyContainer.shared.client,
+        client: any ImmichClient = DependencyContainer.shared.libraryClient,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
         onArchive: ((AssetReactItem) -> Void)? = nil,
@@ -120,11 +120,19 @@ extension View {
 struct PhotoViewer: View {
     let baseURL: URL
     let token: String?
-    var client: any ImmichClient = DependencyContainer.shared.client
+    var client: any ImmichClient = DependencyContainer.shared.libraryClient
     /// The process-wide download queue (gap G10). "Download to Files" hands the
     /// asset to the same queue the floating panel projects; the default is the
     /// composition root's instance, so no presenter has to thread it through.
     let downloads: DownloadQueueViewModel
+    /// The viewer's own mutation paths (favorite, archive, delete, restore —
+    /// the ones a presenting surface does not override) run through these two
+    /// view models, never on the client directly: a write must be published,
+    /// and the two `catch {}` this replaces hid a refusal (read-only mode)
+    /// from the user entirely. Built from the injected client, so a surface
+    /// that hands its own VM still drives its own state.
+    @State private var timeline: TimelineViewModel
+    @State private var trash: TrashViewModel
 
     /// Cast seam (gap G9). Read straight in `body`: the service is `@Observable`,
     /// so the badge follows a route change without a `@State` copy of its state.
@@ -184,7 +192,7 @@ struct PhotoViewer: View {
         index: Int,
         baseURL: URL,
         token: String?,
-        client: any ImmichClient = DependencyContainer.shared.client,
+        client: any ImmichClient = DependencyContainer.shared.libraryClient,
         downloads: DownloadQueueViewModel = DependencyContainer.shared.downloadQueue,
         castService: any CastService = DependencyContainer.shared.castService,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
@@ -208,6 +216,8 @@ struct PhotoViewer: View {
         _localAssets = State(initialValue: assets)
         _selectedIndex = State(initialValue: assets.isEmpty ? 0 : min(max(index, 0), assets.count - 1))
         _favoriteIDs = State(initialValue: Set(assets.filter(\.isFavorite).map(\.id)))
+        _timeline = State(initialValue: TimelineViewModel(client: client))
+        _trash = State(initialValue: TrashViewModel(client: client))
     }
 
     var body: some View {
@@ -217,6 +227,20 @@ struct PhotoViewer: View {
 
                 if !localAssets.isEmpty {
                     pagerView
+                }
+
+                // A refused write (read-only mode, a lost connection) used to
+                // die in a `catch {}`: the two view models publish it, this
+                // shows it. Non-blocking and self-clearing — the next
+                // successful write resets `errorMessage`.
+                if let actionError {
+                    VStack {
+                        InlineErrorBadge(message: actionError)
+                            .padding(.horizontal, PVSpacing.s16)
+                            .padding(.top, PVSpacing.s8)
+                        Spacer()
+                    }
+                    .transition(.opacity)
                 }
             }
             // The chrome RESERVES layout space (not an overlay): the top bar and
@@ -748,6 +772,11 @@ struct PhotoViewer: View {
     /// delete-permanently (no share).
     private var isTrash: Bool { onRestore != nil }
 
+    /// The refusal of the last mutation this viewer performed itself — the
+    /// presenting surface's callback is not consulted here, because a surface
+    /// that provided one owns its own error surface.
+    private var actionError: String? { timeline.errorMessage ?? trash.errorMessage }
+
     /// Starts the slideshow on the currently visible photo. The VM is created
     /// here (top bar button), never stored while inactive — closing the
     /// overlay nils it out, so the next start begins fresh.
@@ -880,10 +909,13 @@ struct PhotoViewer: View {
             return
         }
         Task {
-            do {
-                _ = try await client.updateAsset(id: asset.id, dto: UpdateAssetDto(isFavorite: newValue))
+            // The viewer knows the value it wants (its own optimistic set), so
+            // it hands the state over instead of letting a VM re-derive it —
+            // and the write is published: read-only mode answers with a
+            // message, it never fails silently.
+            if await timeline.setFavorite(id: asset.id, isFavorite: newValue) {
                 onDataChanged?()
-            } catch {
+            } else {
                 // Revert the optimistic toggle — UI never lies about server state.
                 if newValue {
                     favoriteIDs.remove(asset.id)
@@ -903,10 +935,9 @@ struct PhotoViewer: View {
             return
         }
         Task {
-            do {
-                try await client.bulkUpdateAssets(dto: AssetBulkUpdateDto(ids: [asset.id], visibility: .archive))
+            if await timeline.archive(id: asset.id) {
                 onDataChanged?()
-            } catch {}
+            }
         }
         if let index = localAssets.firstIndex(where: { $0.id == asset.id }) {
             removeAsset(at: index)
@@ -919,10 +950,9 @@ struct PhotoViewer: View {
             onRestore(asset)
         } else {
             Task {
-                do {
-                    _ = try await client.restoreTrashAssets(ids: [asset.id])
+                if await trash.restore(id: asset.id) {
                     onDataChanged?()
-                } catch {}
+                }
             }
         }
         if let index = localAssets.firstIndex(where: { $0.id == asset.id }) {
@@ -942,10 +972,9 @@ struct PhotoViewer: View {
                 onDeletePermanent(asset)
             } else {
                 Task {
-                    do {
-                        try await client.deleteAssets(ids: [asset.id], force: true)
+                    if await trash.deletePermanently(id: asset.id) {
                         onDataChanged?()
-                    } catch {}
+                    }
                 }
             }
         } else {
@@ -953,10 +982,9 @@ struct PhotoViewer: View {
                 onDelete(asset)
             } else {
                 Task {
-                    do {
-                        try await client.deleteAssets(ids: [asset.id], force: false)
+                    if await timeline.delete(id: asset.id) {
                         onDataChanged?()
-                    } catch {}
+                    }
                 }
             }
         }
