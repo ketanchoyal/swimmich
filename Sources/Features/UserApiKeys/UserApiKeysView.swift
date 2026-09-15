@@ -143,12 +143,17 @@ struct UserApiKeysView: View {
                 .foregroundStyle(Color.textTertiaryPV)
         }
         .accessibilityElement(children: .combine)
+        // Per key, and on the row itself rather than on a container: the
+        // scenario has to SWIPE this row (the two mutations hang off swipe
+        // actions), and a row found by its name would follow the locale.
+        .accessibilityIdentifier("apiKeyRow_\(key.id)")
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 vm.deletionTarget = key
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+            .accessibilityIdentifier("apiKeyDeleteAction_\(key.id)")
         }
         .swipeActions(edge: .leading) {
             Button {
@@ -156,6 +161,7 @@ struct UserApiKeysView: View {
             } label: {
                 Label("Rotate", systemImage: "arrow.triangle.2.circlepath")
             }
+            .accessibilityIdentifier("apiKeyRotateAction_\(key.id)")
         }
     }
 }
