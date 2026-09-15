@@ -63,7 +63,7 @@
 
 ## Delivery order
 
-1. `docs/feature-audit-vs-flutter.md` ✓
+1. Comparative audit vs Flutter ✓ (artifact retired 2026-09-15)
 2. This plan ✓
 3. `api-surface-expansion.acceptance.md` (P0)
 4. P0 implementation + tests

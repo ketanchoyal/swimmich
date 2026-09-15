@@ -172,9 +172,7 @@ Conventions to follow:
 
 | Doc | Content |
 |---|---|
-| `docs/immich-swiftui-feature-audit.md` | Consolidated audit of the app's feature surfaces |
 | `docs/mobile-features-vs-flutter.md` | Upstream Flutter client reference (parity target) |
-| `docs/feature-parity-plan.md`, `docs/feature-audit-vs-flutter.md` | Flutter parity plans |
-| `docs/audit-2026-08.md` | 2026-08 audit (performance, design, HIG) |
+| `docs/feature-parity-plan.md` | Flutter parity plan |
 | `.omp/backlog/ImmichSwiftUI-backlog.md` | Backlog: phases, AC cards, missing endpoints |
 | `.omp/<feature>/` | Specs + UI briefs per feature |
