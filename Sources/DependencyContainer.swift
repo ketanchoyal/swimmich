@@ -100,6 +100,11 @@ final class DependencyContainer {
     /// shortcut read the same entry; never the session token slot.
     let lockedFolderPINs: any LockedFolderPINStoring
 
+    /// "What's New" seen-state (gap G23). One store per process: the automatic
+    /// sheet, the About row that reopens it and `AuthViewModel`'s
+    /// add-an-account write must all agree on which batch has been presented.
+    let whatsNewStore = WhatsNewStore(defaults: .standard)
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
@@ -352,6 +357,13 @@ final class DependencyContainer {
     /// read.
     func makeLanguageSettingsViewModel() -> LanguageSettingsViewModel {
         LanguageSettingsViewModel(store: language)
+    }
+
+    /// "What's New" (gap G23). Built on the container's store, so the automatic
+    /// sheet, the About row that reopens the same cards and `AuthViewModel`'s
+    /// write at add-account time read one seen-release.
+    func makeWhatsNewViewModel() -> WhatsNewViewModel {
+        WhatsNewViewModel(store: whatsNewStore)
     }
 
     /// Profile picture screen (gap G16). Takes the session as an argument for

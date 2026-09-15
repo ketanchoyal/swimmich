@@ -29,6 +29,11 @@ targets:
         buildPhase: resources
       - path: Resources/TeslaCar.usdz
         buildPhase: resources
+      # Third-party attribution (gap G23). XcodeGen enumerates resources one by
+      # one, so a new folder is not copied until it is listed: without this the
+      # Licenses screen cannot resolve a single file.
+      - path: Resources/Acknowledgements
+        buildPhase: resources
     info:
       path: Resources/Info.plist
       properties:

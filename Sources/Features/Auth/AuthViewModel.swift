@@ -339,6 +339,12 @@ final class AuthViewModel: AuthSessionDelegate {
         if let name { defaults.set(name, forKey: Self.userNameDefaultsKey) }
         if let userId { defaults.set(userId, forKey: Self.userIdDefaultsKey) }
         defaults.set(isAdmin, forKey: Self.isAdminDefaultsKey)
+        // Adding an account counts as having seen the current "What's New" batch
+        // (G23), mirroring upstream's markSeen at login: a batch authored before
+        // this account existed must not be announced to it. Deliberately NOT in
+        // `restoreSession()` — a relaunch that restores a session after an update
+        // is exactly the case the sheet exists for.
+        defaults.set(FeatureHighlightCatalog.release, forKey: WhatsNewStore.seenReleaseKey)
         client.configure(baseURL: baseURL, token: token)
         if let baseURL { realtime.connect(baseURL: baseURL, token: token) }
         publishWidgetSession()
