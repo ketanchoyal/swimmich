@@ -281,6 +281,13 @@ final class DependencyContainer {
         AdminViewModel(client: client as any ImmichClient)
     }
 
+    /// Gap G20: the current account's own API keys. A dedicated VM, not
+    /// `AdminViewModel` — that one's `load()` also fetches users, jobs and
+    /// libraries, and this screen is open to non-admin accounts.
+    func makeUserApiKeysViewModel() -> UserApiKeysViewModel {
+        UserApiKeysViewModel(client: client as any ImmichClient)
+    }
+
     func makeMemoriesViewModel() -> MemoriesViewModel {
         MemoriesViewModel(client: client as any ImmichClient)
     }

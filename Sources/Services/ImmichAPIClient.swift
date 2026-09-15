@@ -640,8 +640,20 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.GET, path: ImmichAPI.apiKeys.path(""))
     }
 
-    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto {
-        try await sendAuthed(.POST, path: ImmichAPI.apiKeys.path(""), body: AnyEncodable(["name": name]))
+    func getMyAPIKey() async throws -> ApiKeyResponseDto {
+        try await sendAuthed(.GET, path: ImmichAPI.apiKeys.path("/me"))
+    }
+
+    func createAPIKey(name: String, permissions: [String]) async throws -> ApiKeyCreateResponseDto {
+        // One value at a time: a dictionary literal mixing a `String` with an
+        // array is not `Encodable` — only `[String: Any]` would type-check, and
+        // `Any` does not conform — so each side is erased before the body.
+        let body: [String: AnyEncodable] = ["name": AnyEncodable(name), "permissions": AnyEncodable(permissions)]
+        return try await sendAuthed(.POST, path: ImmichAPI.apiKeys.path(""), body: AnyEncodable(body))
+    }
+
+    func rotateAPIKey(id: String) async throws -> ApiKeyCreateResponseDto {
+        try await sendAuthed(.POST, path: ImmichAPI.apiKeys.path("/\(id)/rotate"))
     }
 
     func deleteAPIKey(id: String) async throws {

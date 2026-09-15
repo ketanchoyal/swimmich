@@ -1,8 +1,12 @@
 import SwiftUI
 
-/// Admin panel (gap #12): users, jobs, libraries and API keys. Pushed from the
-/// Me section (ProfileView) and only reachable when the current account is an
-/// admin. No own NavigationStack (TrashView pattern).
+/// Admin panel (gap #12): users, jobs and libraries. Pushed from the Me section
+/// (ProfileView) and only reachable when the current account is an admin. No own
+/// NavigationStack (TrashView pattern).
+///
+/// The API-key section that used to live here is gone: `GET /api/api-keys`
+/// returns the keys of the token's bearer with no admin permission, so the list
+/// belongs to every account and now lives in `UserApiKeysView` (gap G20).
 struct AdminView: View {
     @Bindable var vm: AdminViewModel
 
@@ -11,9 +15,6 @@ struct AdminView: View {
     @State private var newUserEmail = ""
     @State private var newUserPassword = ""
     @State private var newUserIsAdmin = false
-
-    @State private var showCreateKey = false
-    @State private var newKeyName = ""
 
     @State private var pendingDeleteUser: UserAdminResponseDto?
     @State private var pendingDeleteLibrary: LibraryResponseDto?
@@ -28,7 +29,6 @@ struct AdminView: View {
                     usersSection
                     jobsSection
                     librariesSection
-                    apiKeysSection
                 }
                 .listStyle(.insetGrouped)
             }
@@ -48,22 +48,6 @@ struct AdminView: View {
             Button("Create") {
                 Task { await vm.createUser(name: newUserName, email: newUserEmail, password: newUserPassword, isAdmin: newUserIsAdmin) }
             }
-        }
-        .alert("New API Key", isPresented: $showCreateKey) {
-            TextField("Name", text: $newKeyName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") {
-                Task { await vm.createAPIKey(name: newKeyName) }
-            }
-        }
-        .alert("API Key Secret", isPresented: Binding(
-            get: { vm.lastAPIKeySecret != nil },
-            set: { if !$0 { vm.lastAPIKeySecret = nil } }
-        )) {
-            Button("Copy") { UIPasteboard.general.string = vm.lastAPIKeySecret }
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(vm.lastAPIKeySecret ?? "")
         }
         .confirmationDialog(
             "Delete user?",
@@ -210,42 +194,6 @@ struct AdminView: View {
             }
         } header: {
             Text("Libraries (\(vm.libraries.count))")
-        }
-    }
-
-    // MARK: - API keys
-
-    @ViewBuilder
-    private var apiKeysSection: some View {
-        Section {
-            ForEach(vm.apiKeys) { key in
-                HStack(spacing: PVSpacing.s12) {
-                    Text(key.name)
-                        .font(.pvBody)
-                        .foregroundStyle(Color.textPrimaryPV)
-                    Spacer()
-                    if let perms = key.permissions {
-                        Text("\(perms.count) permissions")
-                            .font(.pvCaption)
-                            .foregroundStyle(Color.textSecondaryPV)
-                    }
-                }
-                .swipeActions {
-                    Button(role: .destructive) {
-                        Task { await vm.deleteAPIKey(key) }
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-            }
-            Button {
-                newKeyName = ""
-                showCreateKey = true
-            } label: {
-                Label("Add API key", systemImage: "key")
-            }
-        } header: {
-            Text("API Keys (\(vm.apiKeys.count))")
         }
     }
 

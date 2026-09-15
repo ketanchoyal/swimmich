@@ -126,6 +126,10 @@ private struct AuthenticatedRoot: View {
     /// by the closure would throw the user back to the PIN door. Keyed by the
     /// active account through `.id(auth.activeAccountID)` above.
     @State private var lockedFolder: LockedFolderViewModel
+    /// User API keys (gap G20). Owned by the Me sheet's lifetime like the other
+    /// hub ViewModels, so re-entering the screen does not re-create the secret
+    /// the user is still reading.
+    @State private var apiKeys: UserApiKeysViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -171,6 +175,7 @@ private struct AuthenticatedRoot: View {
         ))
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
         _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
+        _apiKeys = State(initialValue: container.makeUserApiKeysViewModel())
     }
 
     var body: some View {
@@ -292,7 +297,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, apiKeys: apiKeys)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
