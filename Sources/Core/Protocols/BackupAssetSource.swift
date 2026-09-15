@@ -116,4 +116,13 @@ protocol BackupAssetSource: Sendable {
     /// a jetsam OOM/expiration killed before it could delete them. Called once
     /// at the start of a run so orphaned exports don't accumulate on disk.
     func purgeStaleExports()
+
+    /// Which of the given albums each library asset belongs to —
+    /// `deviceAssetID → deviceAlbumIDs`. The inverse of `excludedAssetIDs(_:)`:
+    /// one `PHAsset.fetchAssets` per album, so an album's whole membership
+    /// costs one query instead of an album lookup per asset during the scan.
+    /// `BackupCandidate` stays deliberately album-free for exactly this trade:
+    /// carrying a name per asset meant an extra Photos round-trip per asset.
+    /// Albums the library doesn't have are simply absent from the map.
+    func albumMembership(deviceAlbumIDs: Set<String>) -> [String: [String]]
 }

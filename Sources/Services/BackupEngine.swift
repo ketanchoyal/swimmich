@@ -32,6 +32,11 @@ struct BackupSettings: Equatable, Sendable {
     /// engine never reads it; it rides the snapshot so the badge gate is part
     /// of the same persisted preference set as everything the screen shows.
     var showSyncBadge = false
+    /// Albums whose Photos contents are mirrored into a server album of the
+    /// same name (one-way, device → server). Not a scope: it decides where an
+    /// already-selected asset is *filed*, never what gets backed up. Empty by
+    /// default, so an existing install behaves exactly as before.
+    var syncedAlbumIDs: Set<String> = []
 }
 
 /// A single asset the backup couldn't process, kept for the failures list.
@@ -137,6 +142,25 @@ final class BackupEngine {
     /// When the upload phase began — the clock for the ETA estimate.
     private(set) var startedAt: Date?
 
+    /// What the album mirror did, once a run (or a reorganization) has gone
+    /// through it. Nil while the mirror is off. Read by the backup screen.
+    private(set) var albumSyncOutcome: AlbumSyncOutcome?
+    /// `deviceAlbumID → serverAlbumID` for this run. Empty means the mirror is
+    /// inactive: an unmirrored asset costs no buffer entry and no request.
+    private var albumMap: [String: String] = [:]
+    /// `deviceAssetID → deviceAlbumIDs`, resolved once per run by the asset
+    /// source, so staging an uploaded asset never calls back into Photos.
+    private var albumMembership: [String: [String]] = [:]
+    /// The one-way album mirror. A no-op unless `currentUserID` yields an
+    /// account and the user picked albums to mirror.
+    let albumSync: any AlbumSyncServicing
+    /// The signed-in server account, read on demand rather than captured: the
+    /// mirror is inactive while this returns nil, and `AlbumSyncStore` keys its
+    /// mapping by it — capturing the id at construction would leave the mirror
+    /// off for the whole session of a login that happens after the composition
+    /// root was built.
+    private let currentUserID: @MainActor () -> String?
+
     /// Assets whose outcome is final (uploaded, already-on-server, or failed) —
     /// the progress-bar numerator.
     var processedCount: Int { uploadedCount + rejectedCount + failedCount + deferredCount }
@@ -194,7 +218,10 @@ final class BackupEngine {
     private func notifyProgress() { onProgressUpdate?(processedCount, total) }
 
     private var isCancelled = false
-    private static let checkChunkSize = 100
+    /// Chunk size for every batched server call a run makes: the dedup check,
+    /// the ledger reconciliation, and the album mirror's batch size (which the
+    /// service receives from here, never a copy of its own).
+    static let checkChunkSize = 100
     /// Disk ceiling for one hash chunk's retained originals. Videos can be
     /// large; flush (dedup + upload + delete) once a chunk's temp files exceed
     /// this so disk stays bounded even with big movies in a chunk.
@@ -223,16 +250,29 @@ final class BackupEngine {
         client: any ImmichClient,
         source: any BackupAssetSource,
         environment: any BackupEnvironment = SystemBackupEnvironment(),
-        ledger: any BackupLedgerStoring = BackupLedger.inMemory()
+        ledger: any BackupLedgerStoring = BackupLedger.inMemory(),
+        albumSync: (any AlbumSyncServicing)? = nil,
+        userID: (@MainActor () -> String?)? = nil
     ) {
         self.client = client
         self.source = source
         self.environment = environment
         self.ledger = ledger
+        // A default service keeps the engine usable without the composition
+        // root (tests), and is inert without a user id.
+        self.albumSync = albumSync
+            ?? AlbumSyncService(mapping: AlbumSyncStore(), batchSize: Self.checkChunkSize)
+        self.currentUserID = userID ?? { nil }
     }
 
     /// Number of assets the ledger already tracks as backed up.
     var trackedAssetCount: Int { ledger.trackedCount() }
+
+    /// The tracked `(device asset id, checksum)` pairs — what the album mirror's
+    /// catch-up walks to recover the server id of an already-uploaded asset.
+    func entriesForReconciliation() -> [(id: String, checksum: String)] {
+        ledger.entriesForReconciliation()
+    }
 
     /// Clears the backup ledger — the next run re-backs-up everything.
     func forgetAllBackedUp() {
@@ -340,6 +380,11 @@ final class BackupEngine {
             remaining = remaining.filter { !ledger.isBackedUp(id: $0.id, signature: $0.fileModifiedAt) }
         }
 
+        // One album resolution per run, before any asset is staged: album names
+        // and per-album membership come out of Photos here, so the upload loop
+        // never pays a Photos round-trip per asset.
+        await resolveAlbumMirror(settings: settings)
+
         // Denominator is fixed now: everything that passed the filters is an
         // asset to process, whether it uploads, dedups, or fails.
         total = remaining.count
@@ -348,7 +393,7 @@ final class BackupEngine {
         var batchBytes = 0
         var index = 0
         while index < remaining.count {
-            if isCancelled { return cancelStaging(&batch) }
+            if isCancelled { return await cancelStaging(&batch) }
             let candidate = remaining[index]
             index += 1
             // Per-asset iCloud reporting belongs to the asset being worked on:
@@ -371,7 +416,7 @@ final class BackupEngine {
                 deferralReason.insert(.waitingForWiFi)
                 recordDeferral(candidate, reason: .waitingForWiFi)
                 notifyProgress()
-                if isCancelled { return cancelStaging(&batch) }
+                if isCancelled { return await cancelStaging(&batch) }
                 continue
             }
 
@@ -433,7 +478,7 @@ final class BackupEngine {
                 recordDeferral(candidate, reason: .waitingForICloud)
                 statusMessage = nil
                 notifyProgress()
-                if isCancelled { return cancelStaging(&batch) }
+                if isCancelled { return await cancelStaging(&batch) }
                 continue
             } catch {
                 failedCount += 1
@@ -445,7 +490,7 @@ final class BackupEngine {
                     fileSize: candidate.fileSize
                 ))
                 notifyProgress()
-                if isCancelled { return cancelStaging(&batch) }
+                if isCancelled { return await cancelStaging(&batch) }
                 continue
             }
             if batch.count >= Self.checkChunkSize || batchBytes >= Self.maxBatchBytes {
@@ -453,9 +498,8 @@ final class BackupEngine {
                 batchBytes = 0
                 commitLedger()
                 if isCancelled {
-                    phase = .cancelled
                     notifyProgress()
-                    return true
+                    return await cancelStaging(&batch)
                 }
             }
         }
@@ -463,6 +507,7 @@ final class BackupEngine {
             if isCancelled {
                 Self.removeStaged(batch)
                 stagedCount = max(0, stagedCount - batch.count)
+                batch.removeAll()
             } else {
                 await processBatch(&batch)
             }
@@ -471,6 +516,8 @@ final class BackupEngine {
         currentAssetID = nil
         statusMessage = nil
         commitLedger()
+        ledger.save()
+        await flushAlbumMirror()
         phase = isCancelled ? .cancelled : .done
         return true
     }
@@ -484,15 +531,95 @@ final class BackupEngine {
     }
 
     /// Aborts the staging loop: drops the chunk's temp files (Live Photo pairs
-    /// included), releases their half-step progress credit, and parks the
-    /// engine in `.cancelled`.
-    private func cancelStaging(_ batch: inout [StagedAsset]) -> Bool {
+    /// included), releases their half-step progress credit, flushes whatever the
+    /// mirror already buffered, and parks the engine in `.cancelled`.
+    private func cancelStaging(_ batch: inout [StagedAsset]) async -> Bool {
         Self.removeStaged(batch)
         stagedCount = max(0, stagedCount - batch.count)
         batch.removeAll()
         phase = .cancelled
         notifyProgress()
+        // A cancelled run still mounted assets: without this flush they would
+        // sit in the service's buffer and only reach their album on the next
+        // run — or never, if the mirror is turned off in between.
+        await flushAlbumMirror()
         return true
+    }
+
+    // MARK: - Album mirror (device → server)
+
+    /// Resolves the device→server album map for this run, plus the inverse
+    /// membership index the staging loop needs.
+    ///
+    /// A failure here must not interrupt the backup: the mirror is simply
+    /// inactive for this run (`?? [:]`) and the upload carries on. Assets are
+    /// then backed up and can be sorted into their album later with
+    /// "Reorganize into album", which is exactly what that action is for.
+    private func resolveAlbumMirror(settings: BackupSettings) async {
+        albumMap = [:]
+        albumMembership = [:]
+        guard let userID = currentUserID(), !settings.syncedAlbumIDs.isEmpty else { return }
+        let synced = settings.syncedAlbumIDs
+        let source = self.source
+        // Photos work on the utility queue, like the scan itself: enumerating
+        // albums is heavy enough to stutter the UI on the main actor.
+        let deviceAlbums = await Task.detached(priority: .utility) { source.fetchAlbums() }.value
+        let membership = await Task.detached(priority: .utility) {
+            source.albumMembership(deviceAlbumIDs: synced)
+        }.value
+        albumMembership = membership
+        albumMap = (try? await albumSync.resolveAlbums(
+            deviceAlbums: deviceAlbums,
+            syncedDeviceAlbumIDs: synced,
+            albumMembership: membership,
+            userID: userID,
+            client: client
+        )) ?? [:]
+    }
+
+    /// Sends what the mirror buffered and publishes the result. Called at the
+    /// end of a run and on the cancellation path — never per asset, or a run
+    /// would make one `PUT /albums/{id}/assets` per photo.
+    private func flushAlbumMirror() async {
+        let outcome = await albumSync.flush(client: client)
+        // An inactive mirror stays silent: a user who never picked an album
+        // must not be shown "0 added · 0 already there · 0 failed".
+        if !albumMap.isEmpty || !outcome.isEmpty { albumSyncOutcome = outcome }
+    }
+
+    /// Sorts the assets an earlier run already uploaded into the mirrored
+    /// albums — no re-upload: each ledger entry's server id is recovered with
+    /// `bulk-upload-check`. Backs "Reorganize into album".
+    ///
+    /// Resolves the albums first, exactly like a run, so an album whose server
+    /// twin does not exist yet is created here instead of silently skipped.
+    @discardableResult
+    func reorganizeAlbums(
+        entries: [(id: String, checksum: String)],
+        syncedDeviceAlbumIDs: Set<String>
+    ) async -> AlbumSyncOutcome {
+        guard let userID = currentUserID(), !syncedDeviceAlbumIDs.isEmpty else { return AlbumSyncOutcome() }
+        let source = self.source
+        let deviceAlbums = await Task.detached(priority: .utility) { source.fetchAlbums() }.value
+        let membership = await Task.detached(priority: .utility) {
+            source.albumMembership(deviceAlbumIDs: syncedDeviceAlbumIDs)
+        }.value
+        albumMembership = membership
+        albumMap = (try? await albumSync.resolveAlbums(
+            deviceAlbums: deviceAlbums,
+            syncedDeviceAlbumIDs: syncedDeviceAlbumIDs,
+            albumMembership: membership,
+            userID: userID,
+            client: client
+        )) ?? [:]
+        let outcome = await albumSync.reorganize(
+            entries: entries,
+            albumMembership: membership,
+            userID: userID,
+            client: client
+        )
+        albumSyncOutcome = outcome
+        return outcome
     }
 
     /// Dedup-checks one chunk's checksums against the server, then uploads each
@@ -661,6 +788,13 @@ final class BackupEngine {
                     // only moment the client is told it.
                     serverAssetId: uploaded.id
                 )
+                // The id just returned is the only chance to place this asset
+                // in its mirror album without another server round-trip: the
+                // ledger keeps no server id, so a missed one costs a
+                // `bulk-upload-check` later.
+                if !albumMap.isEmpty {
+                    await albumSync.stage(assetID: uploaded.id, deviceAssetID: entry.candidate.id)
+                }
             } catch {
                 failedCount += 1
                 lastError = error.localizedDescription
@@ -888,5 +1022,8 @@ final class BackupEngine {
         iCloudRetryAttempts = [:]
         uploadedBytes = 0
         startedAt = nil
+        albumMap = [:]
+        albumMembership = [:]
+        albumSyncOutcome = nil
     }
 }

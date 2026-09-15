@@ -39,6 +39,14 @@ final class DependencyContainer {
     /// than only at the next scene activation.
     let libraryMonitor: any PhotoLibraryChangeMonitoring
 
+    /// Persisted device album → server album map, one per process for the same
+    /// reason as `upload`: a second store could disagree about which album a
+    /// mirrored album already has.
+    let albumSyncStore: AlbumSyncStore
+    /// The one album mirror this process owns. Two services would each hold
+    /// their own buffer, and the second would lose half a run's assets.
+    let albumSyncService: AlbumSyncService
+
     /// Offline cache (issue #18). One store per process: the timeline badge,
     /// the viewer and the storage screen must all read the same on-disk index,
     /// and two stores would each hold their own copy of it.
@@ -79,6 +87,22 @@ final class DependencyContainer {
             client: client as any ImmichClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
             activityService: backupLiveActivity, cloudStatus: cloudStatus
+        self.albumSyncStore = AlbumSyncStore()
+        self.albumSyncService = AlbumSyncService(
+            mapping: albumSyncStore,
+            // Same chunk size as the dedup check and the ledger reconciliation:
+            // the mirror receives it instead of hard-coding a second copy.
+            batchSize: BackupEngine.checkChunkSize
+        )
+        self.upload = UploadViewModel(
+            client: client as any ImmichClient, photos: photos,
+            ledger: backupLedger, scheduler: backupScheduler,
+            activityService: backupLiveActivity,
+            albumSync: albumSyncService,
+            // Read per run, not captured: a login that happens after this
+            // composition root was built must still mirror, and the mapping is
+            // keyed by the account that owns the albums.
+            userID: { UserDefaults.standard.string(forKey: AuthViewModel.userIdDefaultsKey) }
         )
         // Seed the badge index before anything can draw a tile, then re-read it
         // on every ledger write — the engine's runs are the only thing that adds
@@ -130,6 +154,12 @@ final class DependencyContainer {
     func makeSharedLinksViewModel() -> SharedLinksViewModel {
         SharedLinksViewModel(client: client as any ImmichClient)
     }
+
+    /// The album mirror, for callers that need it explicitly. Always the single
+    /// process-wide instance — same reasoning as `container.upload`: a second
+    /// service would hold a second buffer, and half a run's assets would wait in
+    /// a buffer nobody flushes.
+    func makeAlbumSyncService() -> AlbumSyncService { albumSyncService }
 
     /// Public shared-link viewer (issue #22). Takes the connected server as an
     /// argument: the host check and the public-URL builder both need it, and it
