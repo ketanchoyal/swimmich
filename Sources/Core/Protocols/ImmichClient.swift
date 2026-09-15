@@ -277,6 +277,43 @@ protocol ImmichClient: AnyObject, Sendable {
 
     func bulkUploadCheck(_ request: AssetBulkUploadCheckRequest) async throws -> AssetBulkUploadCheckResponse
 
+    // MARK: - Download queue (gap G10)
+
+    /// `POST /api/download/info` — announces a batch before its bytes are
+    /// asked for.
+    ///
+    /// The server splits the request into archives itself (size/time caps) and
+    /// answers one `Archive` per chunk with the total volume; the route that
+    /// returns the bytes refuses a batch it was never told about ("assets must
+    /// have been previously requested via the getDownloadInfo endpoint"), so
+    /// this call is mandatory for anything but a single asset.
+    func downloadInfo(assetIds: [String], albumId: String?) async throws -> DownloadInfoResponse
+
+    /// `GET /api/assets/{id}/original` as a `URLRequest`, bearer included.
+    ///
+    /// The client stops at the request on purpose: the body is streamed to
+    /// disk by `FileDownloadTransport`, and a `Data`-returning method here
+    /// would hold a multi-gigabyte original in memory.
+    func originalRequest(assetId: String) throws -> URLRequest
+
+    /// `POST /api/download/archive` as a `URLRequest` — the ZIP of one archive
+    /// `downloadInfo` returned. Same split: request here, streaming there.
+    func downloadArchiveRequest(archiveName: String, assetIds: [String], edited: Bool) throws -> URLRequest
+
     /// Number of requests dispatched since creation (test aid).
     var requestCount: Int { get }
+}
+
+/// What `POST /api/download/info` answers for a batch download: the archives
+/// the server decided to make, and the volume they add up to.
+struct DownloadInfoResponse: Sendable, Equatable {
+    /// One archive the server will build — its member assets and its size.
+    struct Archive: Sendable, Equatable {
+        let assetIds: [String]
+        let size: Int64
+    }
+
+    /// Total bytes across every archive.
+    let totalSize: Int64
+    let archives: [Archive]
 }

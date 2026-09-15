@@ -117,6 +117,10 @@ struct PhotoViewer: View {
     let baseURL: URL
     let token: String?
     var client: any ImmichClient = DependencyContainer.shared.client
+    /// The process-wide download queue (gap G10). "Download to Files" hands the
+    /// asset to the same queue the floating panel projects; the default is the
+    /// composition root's instance, so no presenter has to thread it through.
+    let downloads: DownloadQueueViewModel
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
     var onArchive: ((AssetReactItem) -> Void)? = nil
@@ -165,6 +169,7 @@ struct PhotoViewer: View {
         baseURL: URL,
         token: String?,
         client: any ImmichClient = DependencyContainer.shared.client,
+        downloads: DownloadQueueViewModel = DependencyContainer.shared.downloadQueue,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
         onArchive: ((AssetReactItem) -> Void)? = nil,
@@ -175,6 +180,7 @@ struct PhotoViewer: View {
         self.baseURL = baseURL
         self.token = token
         self.client = client
+        self.downloads = downloads
         self.onToggleFavorite = onToggleFavorite
         self.onDelete = onDelete
         self.onArchive = onArchive
@@ -259,7 +265,7 @@ struct PhotoViewer: View {
             }
             .sheet(isPresented: $presentShare) {
                 if let asset = currentAsset {
-                    PhotoShareSheet(asset: asset, baseURL: baseURL, token: token, client: client)
+                    PhotoShareSheet(asset: asset, baseURL: baseURL, token: token, client: client, downloads: downloads)
                         .presentationDetents([.fraction(1.0 / 2.0)])
                         .presentationDragIndicator(.visible)
                 }
@@ -915,6 +921,9 @@ private struct PhotoShareSheet: View {
     let baseURL: URL
     let token: String?
     let client: any ImmichClient
+    /// The process-wide download queue: this sheet only hands assets to it, so
+    /// the transfer outlives the sheet (gap G10).
+    let downloads: DownloadQueueViewModel
 
     @Environment(AuthViewModel.self) private var auth
     @Environment(OfflineDownloadViewModel.self) private var offlineVM: OfflineDownloadViewModel?
@@ -997,7 +1006,7 @@ private struct PhotoShareSheet: View {
         @Bindable var vm = vm
         List {
             if let saveVM {
-                SaveSection(saveVM: saveVM)
+                SaveSection(saveVM: saveVM, asset: asset, downloads: downloads)
             }
 
             if let offlineVM {
@@ -1156,9 +1165,14 @@ private struct PhotoShareSheet: View {
 
 // MARK: - Save section
 
-/// "Save to Photos" / "Download original" actions atop the share sheet.
+/// "Save to Photos" / "Download original" / "Download to Files" actions atop
+/// the share sheet.
 private struct SaveSection: View {
     @Bindable var saveVM: SaveToLibraryViewModel
+    let asset: AssetReactItem
+    /// The queue the "Download to Files" row feeds — owned by the app, not by
+    /// this sheet, so the file keeps downloading after the viewer closes.
+    let downloads: DownloadQueueViewModel
 
     var body: some View {
         Section {
@@ -1189,6 +1203,23 @@ private struct SaveSection: View {
                 }
             }
             .disabled(saveVM.isDownloading)
+
+            // Gap G10: the other intent — "give me the FILE, named like the
+            // server", next to "Download original", which hands it to Photos.
+            // The queue is process-wide, so closing the viewer does not stop it.
+            Button {
+                Task { await downloads.enqueue(asset: asset) }
+            } label: {
+                HStack(spacing: PVSpacing.s12) {
+                    Label("Download to Files", systemImage: "square.and.arrow.down")
+                    Spacer()
+                    if downloads.isDownloading(asset.id) {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(downloads.isDownloading(asset.id))
+            .accessibilityIdentifier("downloadToFilesButton")
 
             if let message = saveVM.errorMessage {
                 Text(message)

@@ -674,6 +674,82 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.POST, path: ImmichAPI.assets.path("/bulk-upload-check"), body: AnyEncodable(request))
     }
 
+    // MARK: - Download queue (gap G10)
+
+    func downloadInfo(assetIds: [String], albumId: String?) async throws -> DownloadInfoResponse {
+        let dto: DownloadResponseDto = try await sendAuthed(
+            .POST,
+            path: apiRooted("download/info"),
+            body: AnyEncodable(DownloadInfoBody(assetIds: assetIds, albumId: albumId))
+        )
+        return DownloadInfoResponse(
+            totalSize: dto.totalSize,
+            archives: dto.archives.map { DownloadInfoResponse.Archive(assetIds: $0.assetIds, size: $0.size) }
+        )
+    }
+
+    func originalRequest(assetId: String) throws -> URLRequest {
+        try authenticatedRequest(.GET, path: ImmichAPI.assets.path("/\(assetId)/original"))
+    }
+
+    func downloadArchiveRequest(archiveName: String, assetIds: [String], edited: Bool) throws -> URLRequest {
+        struct Body: Encodable {
+            let archiveName: String
+            let assetIds: [String]
+            let edited: Bool
+        }
+        var request = try authenticatedRequest(.POST, path: apiRooted("download/archive"))
+        request.setValue("application/json", forHTTPHeaderField: ImmichHeader.contentType)
+        request.httpBody = try JSONEncoder.immich.encode(
+            Body(archiveName: archiveName, assetIds: assetIds, edited: edited)
+        )
+        return request
+    }
+
+    /// `DownloadResponseDto` — the chunks the server decided to make.
+    private struct DownloadResponseDto: Decodable {
+        struct Archive: Decodable {
+            let assetIds: [String]
+            let size: Int64
+        }
+
+        let archives: [Archive]
+        let totalSize: Int64
+    }
+
+    /// `DownloadInfoDto`. `albumId` is omitted rather than sent as `null`: the
+    /// server reads an absent field as "no album".
+    private struct DownloadInfoBody: Encodable {
+        let assetIds: [String]
+        let albumId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case assetIds
+            case albumId
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(assetIds, forKey: .assetIds)
+            try container.encodeIfPresent(albumId, forKey: .albumId)
+        }
+    }
+
+    /// Method + URL + Bearer for the download routes, which the transport
+    /// fetches: the client stops at the request. A missing token throws rather
+    /// than returning a request that would answer 401 — whose error body the
+    /// transport would otherwise stream to disk as a file.
+    private func authenticatedRequest(_ method: HTTPMethod, path: String) throws -> URLRequest {
+        guard let token else { throw APIError.unauthorized }
+        return try baseRequest(method, path: path, query: [], auth: true, token: token)
+    }
+
+    /// Roots a suffix the server publishes directly under the API root rather
+    /// than under a `SubPath` group (`/api/download/{info,archive}`).
+    private func apiRooted(_ suffix: String) -> String {
+        ImmichAPI.apiPath + "/" + suffix
+    }
+
     // MARK: - Core dispatch
 
     private func sendNoAuth<T: Decodable>(_ method: HTTPMethod, path: String, query: [URLQueryItem] = [], body: AnyEncodable? = nil) async throws -> T {

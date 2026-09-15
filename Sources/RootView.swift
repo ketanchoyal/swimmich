@@ -81,6 +81,7 @@ struct RootView: View {
 /// back. The bubble icon mirrors the active tab.
 private struct AuthenticatedRoot: View {
     @Environment(AuthViewModel.self) private var auth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Kept (not only consumed in `init`) so a screen can build a view model at
     /// presentation time — the shared-link viewer needs the connected server,
@@ -109,6 +110,10 @@ private struct AuthenticatedRoot: View {
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
+    /// Process-wide download queue (gap G10). Held here so the panel, the
+    /// info screen and the viewer's "Download to Files" all project ONE queue
+    /// — the container's instance, never a per-view one.
+    @State private var downloads: DownloadQueueViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -116,6 +121,7 @@ private struct AuthenticatedRoot: View {
     @State private var showCreateAlbum = false
     @State private var showCreateSharedLink = false
     @State private var showProfile = false
+    @State private var showDownloadInfo = false
 
     init(container: DependencyContainer) {
         self.container = container
@@ -144,12 +150,13 @@ private struct AuthenticatedRoot: View {
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
+        _downloads = State(initialValue: container.makeDownloadQueueViewModel())
     }
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
-                TimelineView(vm: timeline, stacks: stacks, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
+                TimelineView(vm: timeline, stacks: stacks, downloads: downloads, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
             }
             Tab("Memories", systemImage: "sparkles.rectangle.stack", value: RootTab.memories) {
                 MemoriesView(vm: memories)
@@ -231,6 +238,26 @@ private struct AuthenticatedRoot: View {
                 // it (stable presenter — AuthenticatedRoot — so no teardown trap).
                 map.isPhotoSheetPresented = false
             }
+        }
+        // Download queue (gap G10): the capsule rides above the tab bar from
+        // every tab and stays up while a transfer runs — that is the point of
+        // the feature. Declared before the sheets below so the detail screen
+        // presents over it, on the same pattern as the neighboring `@State`
+        // flows; the root view is already where this app overlays global state
+        // (`LockView`).
+        .overlay(alignment: .bottom) {
+            Group {
+                if downloads.isPanelVisible {
+                    DownloadProgressPanel(vm: downloads) { showDownloadInfo = true }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion), value: downloads.isPanelVisible)
+        }
+        // The stack is the sheet's, not the screen's: `DownloadInfoView`
+        // declares none, so there is exactly one navigation bar.
+        .sheet(isPresented: $showDownloadInfo) {
+            NavigationStack { DownloadInfoView(vm: downloads) }
         }
         .sheet(isPresented: $showCreateAlbum) {
             CreateAlbumSheet(vm: albums, preselectedAssetIds: nil)
