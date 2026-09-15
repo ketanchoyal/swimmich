@@ -46,13 +46,6 @@ struct FolderView: View {
             .background(Color.bgPrimary)
             .navigationTitle(node?.name ?? String(localized: "Folders"))
             .navigationBarTitleDisplayMode(.inline)
-            // Kept, and deliberately NOT what pushes a level: the card pins
-            // this declaration (AC-5105) and the top level registers it for the
-            // stack. A level is pushed as a view, by the rows below — see
-            // `node` for the measurement that forced it.
-            .navigationDestination(for: FolderNode.self) { child in
-                FolderView(vm: vm, node: child)
-            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { sortButton }
             }

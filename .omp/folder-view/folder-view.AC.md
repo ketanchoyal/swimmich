@@ -71,11 +71,12 @@ Post-state attendu: PASS
 
 ```
 ### AC-5105 [type: new]
-Assertion: FolderView est poussée par valeur, ne déclare AUCUN NavigationStack, porte le fil d'Ariane monospace et les identifiants d'accessibilité attendus.
-Check post-impl: sh -c 'f=Sources/Features/Folders/FolderView.swift; test -f "$f" && grep -qE "struct FolderView" "$f" && grep -qE "navigationDestination\(for: FolderNode.self\)" "$f" && grep -qE "design: .monospaced" "$f" && grep -qE "folderRow_" "$f" && grep -qE "folderSortButton" "$f" && grep -qE "foldersEmptyState" "$f" && grep -qE "foldersRetryButton" "$f" && ! grep -qE "NavigationStack \{" "$f" && echo PASS || echo FAIL'
+Assertion: FolderView pousse un niveau en affichant la vue fille, ne déclare AUCUN NavigationStack, porte le fil d'Ariane monospace et les identifiants d'accessibilité attendus.
+Check post-impl: sh -c 'f=Sources/Features/Folders/FolderView.swift; test -f "$f" && grep -qE "struct FolderView" "$f" && grep -qE "NavigationLink \{" "$f" && grep -qE "FolderView\(vm: vm, node: child\)" "$f" && grep -qE "design: .monospaced" "$f" && grep -qE "folderRow_" "$f" && grep -qE "folderSortButton" "$f" && grep -qE "foldersEmptyState" "$f" && grep -qE "foldersRetryButton" "$f" && ! grep -qE "NavigationStack \{" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier absent)
 Post-state attendu: PASS
 Note: le check vise la DÉCLARATION `NavigationStack {` — un grep du seul mot matcherait le doc-comment qui explique l'absence de stack.
+Note (arbitrage du 2026-09-15) : la clause pinnait `navigationDestination(for: FolderNode.self)` et « poussée par valeur ». Mesuré par le scénario XCUITest de la carte, deux fois : avec `NavigationLink(value: child)`, le niveau ouvert **demande bien son chemin au serveur** (`asked ["/Videos"]`) mais l'écran **reste la racine** — les deux lignes racine sont toujours là, aucune barre de chemin, et le bouton retour s'intitule « Videos » : la destination-vue est empilée SOUS la racine au lieu d'être affichée. La forme destination-vue (`NavigationLink { FolderView(vm: vm, node: child) }`) pousse correctement, deux verts. La déclaration `navigationDestination(for:)` devenue morte a été retirée en même temps que cette clause était réécrite — garder une déclaration qu'aucun lien n'alimente, uniquement pour faire verdir un grep, est exactement ce que cette carte ne doit pas encourager.
 ```
 
 ```
