@@ -150,15 +150,9 @@
         }
       }
     },
-    "%@ assets" : {
 
-    },
-    "%@ copies" : {
 
-    },
-    "%@ couldn't be backed up" : {
 
-    },
     "%@ favorites" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -188,29 +182,9 @@
         }
       }
     },
-    "%@ item%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ item%2$@"
-          }
-        }
-      }
-    },
-    "%@ items" : {
 
-    },
-    "%@ of %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ of %2$@"
-          }
-        }
-      }
-    },
+
+
     "%@ on %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -240,19 +214,8 @@
         }
       }
     },
-    "%@ permissions" : {
 
-    },
-    "%@ Photo%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ Photo%2$@"
-          }
-        }
-      }
-    },
+
     "%@ photos" : {
       "localizations" : {
         "de" : {
@@ -281,15 +244,9 @@
         }
       }
     },
-    "%@ Photos" : {
 
-    },
-    "%@ photos in stack" : {
 
-    },
-    "%@ selected" : {
 
-    },
     "%@ today" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -319,16 +276,7 @@
         }
       }
     },
-    "%@ uploaded · %@ already on server" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ uploaded · %2$@ already on server"
-          }
-        }
-      }
-    },
+
     "%@ used" : {
       "localizations" : {
         "de" : {
@@ -2895,9 +2843,7 @@
         }
       }
     },
-    "API Keys (%@)" : {
 
-    },
     "API Keys (%lld)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3731,16 +3677,7 @@
         }
       }
     },
-    "Cancelled — %@ of %@ done" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Cancelled — %1$@ of %2$@ done"
-          }
-        }
-      }
-    },
+
     "Cancelled — %lld of %lld done" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8497,9 +8434,7 @@
         }
       }
     },
-    "Libraries (%@)" : {
 
-    },
     "Libraries (%lld)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17579,9 +17514,7 @@
         }
       }
     },
-    "Users (%@)" : {
 
-    },
     "Users (%lld)" : {
       "extractionState" : "stale",
       "localizations" : {
