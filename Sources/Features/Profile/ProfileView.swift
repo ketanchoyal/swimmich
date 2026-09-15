@@ -265,6 +265,8 @@ struct ProfileView: View {
                     .accessibilityIdentifier("aboutRow")
                 } header: {
                     Text("About")
+                }
+
                 // Instruments, not settings: these three screens only report
                 // what the app believes. One header keeps them apart from the
                 // preferences above, and the fourth diagnostic — the asset

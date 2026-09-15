@@ -66,6 +66,35 @@ final class ReadOnlyGuardClient: ImmichClient {
         try await inner.serverConfig()
     }
 
+    /// Account mechanics, not library writes: the mode guards the library, so a
+    /// read-only session can still change its own password (the server's own
+    /// `shouldChangePassword` request must remain answerable) and read who it is.
+    func changePassword(currentPassword: String, newPassword: String, invalidateSessions: Bool) async throws -> UserAdminResponseDto {
+        try await inner.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            invalidateSessions: invalidateSessions
+        )
+    }
+
+    func currentUser() async throws -> UserAdminResponseDto {
+        try await inner.currentUser()
+    }
+
+    // MARK: - Sessions (account mechanics: never refused)
+
+    func getSessions() async throws -> [SessionResponseDto] {
+        try await inner.getSessions()
+    }
+
+    func deleteSession(id: String) async throws {
+        try await inner.deleteSession(id: id)
+    }
+
+    func deleteAllSessions() async throws {
+        try await inner.deleteAllSessions()
+    }
+
     func login(email: String, password: String) async throws -> LoginResponseDto {
         try await inner.login(email: email, password: password)
     }
@@ -554,9 +583,21 @@ final class ReadOnlyGuardClient: ImmichClient {
         try await inner.getAPIKeys()
     }
 
-    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto {
+    /// The key that carries this very request — a read.
+    func getMyAPIKey() async throws -> ApiKeyResponseDto {
+        try await inner.getMyAPIKey()
+    }
+
+    // API keys are access credentials, so their whole family answers to the
+    // mode: a read-only session must not mint or revoke a way into the server.
+    func createAPIKey(name: String, permissions: [String]) async throws -> ApiKeyCreateResponseDto {
         try assertWritable()
-        return try await inner.createAPIKey(name: name)
+        return try await inner.createAPIKey(name: name, permissions: permissions)
+    }
+
+    func rotateAPIKey(id: String) async throws -> ApiKeyCreateResponseDto {
+        try assertWritable()
+        return try await inner.rotateAPIKey(id: id)
     }
 
     func deleteAPIKey(id: String) async throws {

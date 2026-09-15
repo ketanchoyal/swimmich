@@ -137,7 +137,7 @@ final class DependencyContainer {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
         self.trustedServers = trustStore
-        self.client = ImmichAPIClient(trustStore: trustStore)
+        self.client = ImmichAPIClient(trustStore: trustStore, log: appLog)
         // Read-only mode: the store persists into `.standard` and the guard
         // reads the very same defaults at call time (never a captured value),
         // so the mode can be flipped without a relaunch and the next write
@@ -145,7 +145,6 @@ final class DependencyContainer {
         // client.
         self.readOnly = ReadOnlyModeStore()
         self.libraryClient = ReadOnlyGuardClient(inner: client as any ImmichClient, isEnabled: { ReadOnlyModeStore.isEnabledIn(.standard) })
-        self.client = ImmichAPIClient(trustStore: trustStore, log: appLog)
         // One PhotosKit service for the whole app: the album list, the export
         // path and the deletion path all have to describe the same library.
         let photoLibrary = PhotoLibraryServiceImpl()
@@ -445,12 +444,16 @@ final class DependencyContainer {
     }
 
     func makeDeviceSessionsViewModel() -> DeviceSessionsViewModel {
-        DeviceSessionsViewModel(client: client as any ImmichClient)
+        DeviceSessionsViewModel(client: libraryClient)
+    }
+
     /// Preferences screen (gap G22). Built here, not in the view: the store is
     /// process-wide and a second one would diverge from the instance the
     /// timeline and the viewer read.
     func makeAppSettingsViewModel() -> PreferencesViewModel {
         PreferencesViewModel(store: appSettings)
+    }
+
     /// "What's New" (gap G23). Built on the container's store, so the automatic
     /// sheet, the About row that reopens the same cards and `AuthViewModel`'s
     /// write at add-account time read one seen-release.

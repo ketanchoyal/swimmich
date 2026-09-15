@@ -355,12 +355,38 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, changePassword: changePassword)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, deviceSessions: deviceSessions, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, apiKeys: apiKeys)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, appSettings: appSettings, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, readOnly: readOnly, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, whatsNew: whatsNew)
+            ProfileView(
+                trash: trash,
+                storage: storage,
+                upload: upload,
+                uploadDetail: uploadDetail,
+                duplicates: duplicates,
+                people: people,
+                tags: tags,
+                stacks: stacks,
+                partners: partners,
+                admin: admin,
+                offline: offline,
+                recentTaken: recentTaken,
+                recentAdded: recentAdded,
+                syncStatus: syncStatus,
+                notifications: notifications,
+                language: language,
+                deviceSessions: deviceSessions,
+                appSettings: appSettings,
+                readOnly: readOnly,
+                localLibrary: localLibrary,
+                freeUpSpace: freeUpSpace,
+                folders: folders,
+                profilePicture: profilePicture,
+                lockedFolder: lockedFolder,
+                changePassword: changePassword,
+                apiKeys: apiKeys,
+                whatsNew: whatsNew,
+                appLog: appLog,
+                mediaStats: mediaStats,
+                downloadInfo: downloadInfo
+            )
         }
         // What's New (gap G23): presented from the stable root presenter, like
         // the Me sheet above — never from a tab view that comes and goes.
@@ -378,7 +404,6 @@ private struct AuthenticatedRoot: View {
         // `shouldPresentAutomatically()` answers false for the rest of the run.
         .task(id: auth.userId) {
             showWhatsNew = whatsNew.shouldPresentAutomatically()
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, appLog: appLog, mediaStats: mediaStats, downloadInfo: downloadInfo)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
