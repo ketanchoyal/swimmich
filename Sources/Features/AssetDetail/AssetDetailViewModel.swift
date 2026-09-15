@@ -35,6 +35,17 @@ final class AssetDetailViewModel {
     private(set) var lastUpdateBody: UpdateAssetDto?
     private(set) var lastUpdateAssetId: String?
 
+    /// Star rating (star-ratings) — local-first copy of `exifInfo.rating`.
+    /// `nil` = not rated: the server has no `0` (invalid since v3), so clearing
+    /// a rating is expressed by `null`, never by a sentinel number.
+    var rating: Int?
+    /// True while the rating PATCH is in flight; the bar reads it to stop
+    /// accepting taps rather than queueing them.
+    private(set) var isSavingRating = false
+    /// Test-visible: rating sent + asset id targeted by the last `setRating`.
+    private(set) var lastRatingSent: Int?
+    private(set) var lastRatingAssetId: String?
+
     init(asset: AssetReactItem, client: any ImmichClient) {
         self.asset = asset
         self.client = client
@@ -44,7 +55,10 @@ final class AssetDetailViewModel {
     @MainActor
     func loadDetail() async {
         isLoading = true
-        do { detail = try await client.getAsset(id: asset.id) } catch let e { errorMessage = e.localizedDescription }
+        do {
+            detail = try await client.getAsset(id: asset.id)
+            rating = detail?.exifInfo?.rating
+        } catch let e { errorMessage = e.localizedDescription }
         isLoading = false
         await reverseGeocodeIfNeeded()
         await loadFaces()
@@ -122,6 +136,33 @@ final class AssetDetailViewModel {
             isFavorite = updated.isFavorite
             detail = updated
         } catch let e {
+            errorMessage = e.localizedDescription
+        }
+    }
+
+    /// Star rating (star-ratings): `PATCH /api/assets/:id` with an explicit
+    /// `rating` — optimistic (the bar writes first, the server confirms after),
+    /// and reverted on failure so the UI never claims a rating the server
+    /// refused. `nil` = not rated, which must reach the wire as JSON `null`
+    /// (`RatingUpdateDto`): the server rejects `0` since v3. The response is the
+    /// updated asset, so `detail` — and therefore `exifInfo.rating` — refreshes
+    /// without a follow-up `getAsset`.
+    @MainActor
+    func setRating(_ value: Int?) async {
+        guard !isSavingRating else { return } // one in-flight write at a time
+        let previous = rating
+        isSavingRating = true
+        defer { isSavingRating = false }
+        rating = value
+        lastRatingSent = value
+        lastRatingAssetId = asset.id
+        do {
+            let response = try await client.setAssetRating(id: asset.id, rating: value)
+            detail = response
+            rating = response.exifInfo?.rating ?? value
+            errorMessage = nil
+        } catch let e {
+            rating = previous
             errorMessage = e.localizedDescription
         }
     }

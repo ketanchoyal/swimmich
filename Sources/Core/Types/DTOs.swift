@@ -246,6 +246,46 @@ struct UpdateAssetDto: Codable, Equatable {
     var livePhotoVideoId: String?
 }
 
+/// Body for `PATCH /api/assets/:id` when the only field written is the rating.
+///
+/// The server has three valid rating states — `1…5` (starred), `-1` (rejected)
+/// and `null` (unrated) — and rejects `0` since v3, so « not rated » is the
+/// *absence* of a value and can only travel as an explicit JSON `null`.
+/// `UpdateAssetDto.rating` is a plain `Int?`: its synthesized encoder **omits**
+/// the key when nil, which would make un-rating an asset impossible to express
+/// (the request body would arrive as `{}`). `RatingValue` keeps the key on the
+/// wire, so `RatingUpdateDto(rating: nil)` encodes as `{"rating":null}`.
+struct RatingUpdateDto: Codable, Equatable {
+    var rating: RatingValue
+
+    init(rating: Int?) {
+        self.rating = rating.map(RatingValue.value) ?? .unrated
+    }
+}
+
+/// Nullable rating value: a number in `1…5`, or `null` for "unrated".
+enum RatingValue: Codable, Equatable {
+    case value(Int)
+    case unrated
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .unrated
+        } else {
+            self = .value(try container.decode(Int.self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .value(let number): try container.encode(number)
+        case .unrated: try container.encodeNil()
+        }
+    }
+}
+
 struct AssetBulkDeleteDto: Codable, Equatable {
     let ids: [String]
     var force: Bool?

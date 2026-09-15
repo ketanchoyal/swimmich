@@ -449,4 +449,25 @@ final class DTOEncodingTests: XCTestCase {
         let decoded = try JSONDecoder.immich.decode(AssetBulkUpdateDto.self, from: enc)
         XCTAssertEqual(decoded, dto)
     }
+
+    // star-ratings AC-5068: "unrated" can only travel as an explicit `null` —
+    // an omitted key is not a value the server can act on, which is exactly
+    // what `UpdateAssetDto`'s synthesized `Int?` encoder produces.
+    func test_ratingUpdateDto_encodesExplicitNull() throws {
+        let enc = try JSONEncoder.immich.encode(RatingUpdateDto(rating: nil))
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+
+        XCTAssertEqual(obj?.keys.count, 1)
+        XCTAssertTrue(obj?.keys.contains("rating") ?? false, "the key must be on the wire, not omitted")
+        XCTAssertTrue(obj?["rating"] is NSNull)
+        XCTAssertEqual(try JSONDecoder.immich.decode(RatingUpdateDto.self, from: enc), RatingUpdateDto(rating: nil))
+    }
+
+    func test_ratingUpdateDto_encodesValue() throws {
+        let enc = try JSONEncoder.immich.encode(RatingUpdateDto(rating: 5))
+        let obj = try JSONSerialization.jsonObject(with: enc) as? [String: Any]
+
+        XCTAssertEqual(obj?["rating"] as? Int, 5)
+        XCTAssertEqual(try JSONDecoder.immich.decode(RatingUpdateDto.self, from: enc), RatingUpdateDto(rating: 5))
+    }
 }

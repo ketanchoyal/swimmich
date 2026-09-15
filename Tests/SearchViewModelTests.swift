@@ -620,4 +620,54 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertTrue(vm.recentSearches.isEmpty, "city filter must not be recorded as a text search")
         XCTAssertTrue(store.load().isEmpty)
     }
+
+    // MARK: - Star-rating filter (star-ratings, AC-5067)
+
+    func test_setRatingFilter_sendsFlatRatingField() async {
+        let mock = makeMock(items: [makeAsset(id: "a1")])
+        let vm = SearchViewModel(client: mock)
+
+        await vm.setRatingFilter(4)
+
+        XCTAssertEqual(vm.ratingFilter, 4)
+        XCTAssertEqual(mock.lastMetadataSearchDto?.rating, 4)
+        XCTAssertNil(mock.lastSmartSearchDto, "SmartSearchDto carries no rating field")
+    }
+
+    func test_setRatingFilter_forcesMetadataMode() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+        vm.searchMode = .smart
+
+        await vm.setRatingFilter(2)
+
+        XCTAssertEqual(vm.searchMode, .metadata)
+        XCTAssertEqual(mock.lastMetadataSearchDto?.rating, 2)
+        XCTAssertNil(mock.lastSmartSearchDto)
+    }
+
+    func test_setRatingFilter_anyClearsField() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+
+        await vm.setRatingFilter(3)
+        XCTAssertEqual(vm.ratingFilter, 3)
+
+        await vm.setRatingFilter(nil)
+
+        XCTAssertNil(vm.ratingFilter)
+        XCTAssertNil(mock.lastMetadataSearchDto?.rating, "the filter must leave the request body")
+    }
+
+    func test_clearSearch_clearsRatingFilter() async {
+        let mock = makeMock()
+        let vm = SearchViewModel(client: mock)
+        await vm.setRatingFilter(3)
+
+        vm.clearSearch()
+
+        XCTAssertNil(vm.ratingFilter)
+        await vm.search()
+        XCTAssertNil(mock.lastMetadataSearchDto?.rating, "a cleared search must not keep filtering by rating")
+    }
 }

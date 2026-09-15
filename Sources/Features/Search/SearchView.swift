@@ -63,6 +63,7 @@ struct SearchView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if vm.viewMode == .results {
+                            ratingFilterMenu
                             searchModeMenu
                             Button {
                                 saveSearchName = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,6 +149,42 @@ struct SearchView: View {
                 .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
+    }
+
+    /// Star-rating filter (star-ratings): mono-valued — "Any rating" or 1…5 —
+    /// and only in the results branch, where there is a grid to filter (`Smart`
+    /// search has no filter field, so the selection forces Metadata). The tinted
+    /// glyph keeps an active filter visible with the menu closed.
+    private var ratingFilterMenu: some View {
+        Menu {
+            Picker("Rating", selection: ratingFilterBinding) {
+                Label("Any rating", systemImage: "star").tag(Int?.none)
+                ForEach(1...5, id: \.self) { value in
+                    Label("\(value) star", systemImage: "star.fill").tag(Int?.some(value))
+                }
+            }
+        } label: {
+            Image(systemName: vm.ratingFilter == nil ? "star" : "star.fill")
+                .font(.pvBody.weight(.semibold))
+                .foregroundStyle(Color.immichPrimary)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityIdentifier("searchRatingFilterMenu")
+        .accessibilityLabel(vm.ratingFilter.map { Text("Rating filter: \($0) stars") } ?? Text("Rating filter: any rating"))
+    }
+
+    /// `Picker` needs an explicit `Binding<Int?>`: with a plain `Int` selection
+    /// `nil` and `0` would be indistinguishable, and `0` is not a rating the
+    /// server accepts. Selecting writes the value first (so the tinted glyph
+    /// updates immediately) and lets the ViewModel own the request.
+    private var ratingFilterBinding: Binding<Int?> {
+        Binding(
+            get: { vm.ratingFilter },
+            set: { newValue in
+                vm.ratingFilter = newValue
+                Task { await vm.setRatingFilter(newValue) }
+            }
+        )
     }
 
     @ViewBuilder
