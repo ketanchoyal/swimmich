@@ -702,6 +702,7 @@ struct PhotoViewer: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Share")
+                    .accessibilityIdentifier("viewerShareButton")
                 }
 
                 Spacer()
