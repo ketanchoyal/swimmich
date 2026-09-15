@@ -1,0 +1,25 @@
+# TEMPORARY — batch integration only, removed before the wave is closed.
+#
+# The nine branches of a wave are developed in parallel worktrees and each one
+# adds a handful of lines to the same spine files (a container property, a
+# ProfileView row, a RootView route). Those additions land on the same anchors,
+# so a plain three-way merge reports a conflict for what is really "keep both".
+# The `union` driver does exactly that.
+#
+# Line-oriented, therefore only safe because every branch was required to keep
+# its spine edits additive and minimal: a rename or a rework on both sides would
+# concatenate nonsense. The build gate, the suite and the 250 card checks behind
+# the merges are what makes this trade acceptable.
+Sources/DependencyContainer.swift merge=union
+Sources/RootView.swift merge=union
+Sources/Features/Profile/ProfileView.swift merge=union
+Sources/Features/Upload/UploadViewModel.swift merge=union
+Sources/Services/BackupEngine.swift merge=union
+Sources/Services/PhotoLibraryServiceImpl.swift merge=union
+Sources/Core/Protocols/ImmichClient.swift merge=union
+Sources/Core/Protocols/PhotoLibraryService.swift merge=union
+Sources/Core/Protocols/BackupAssetSource.swift merge=union
+Sources/Services/ImmichAPIClient.swift merge=union
+Tests/Mocks/MockImmichClient.swift merge=union
+Tests/Mocks/MockBackupAssetSource.swift merge=union
+project.yml merge=union
