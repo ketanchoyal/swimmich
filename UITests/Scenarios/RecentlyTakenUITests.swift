@@ -16,7 +16,13 @@ import XCTest
 /// DerivedData and stub port, and refuses a scenario that skipped itself):
 ///
 ///     .omp/orchestration/uitest.sh <worktree> /tmp/recently-taken.uitest.log \
-///         UITests/stubs/immich_stub_recent.py RecentlyTakenUITests/test_recentlyTaken
+///         UITests/stubs/immich_stub_recent.py RecentlyTakenUITests/test_recentlyTaken \
+///         --erase
+///
+/// `--erase` is not decoration: the stub port is drawn at random per run, so the
+/// session an earlier run persisted points at a port nothing serves — and
+/// `restoreSession()` drops a session on a 401, never on an unreachable host. An
+/// erased device is the only one that walks onboarding and types THIS run's URL.
 ///
 /// The stub inherits `immich_stub_base` (OAuth handshake, server config, user,
 /// ordinary timeline, real PNG thumbnails) and adds the three axes; see its
