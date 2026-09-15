@@ -557,6 +557,165 @@ extension PhotoLibraryServiceImpl: BackupAssetSource {
     }
 }
 
+// MARK: - LocalCleanupSource
+
+extension PhotoLibraryServiceImpl: LocalCleanupSource {
+    /// iPhone's half of upstream's `_deleteBatchSize` (`cleanup.service.dart`:
+    /// 2000 on Android, 10000 on iOS; doc `docs/docs/features/mobile-app.mdx`
+    /// § Free Up Space). One `performChanges` per batch — Photos refuses a
+    /// single request covering a whole library.
+    private static let deleteBatchSize = 10_000
+
+    /// How many identifiers go to `PHAsset.fetchAssets(withLocalIdentifiers:)`
+    /// at once. The ledger can track an entire library, and one call with tens
+    /// of thousands of identifiers makes Photos build a very large intermediate
+    /// result for no benefit.
+    private static let identifierFetchChunkSize = 500
+
+    /// The assets that are on this device *and* provably on the server, with
+    /// everything the user asked to keep filtered out.
+    ///
+    /// The ordering of the filters is the safety property: shared albums and
+    /// kept albums are subtracted by identifier set before anything is even
+    /// looked at, then the cutoff, then the keeps.
+    func cleanupCandidates(
+        cutoff: Date,
+        keepFavorites: Bool,
+        keepMediaType: CleanupKeepMediaType,
+        keepAlbumIDs: Set<String>,
+        backedUpIDs: Set<String>
+    ) -> CleanupScanResult {
+        guard !backedUpIDs.isEmpty else {
+            return CleanupScanResult(
+                candidates: [], skippedNotOnServer: 0, skippedInSharedAlbum: 0, scannedCount: 0
+            )
+        }
+
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        // Property hint, not a filter: it forces Photos to pre-fetch
+        // creationDate/duration/isFavorite so reading them per asset neither
+        // warns nor hits the store once per asset (same as `fetchCandidates`).
+        options.predicate = NSPredicate(format: "creationDate != nil AND duration != nil AND isFavorite != nil")
+
+        // Both exclusions are resolved once into identifier sets, the strategy
+        // `excludedAssetIDs(_:)` already uses: one fetch per album, instead of
+        // an album lookup per asset (which is what made a whole-library scan
+        // stall under the old filename heuristics).
+        let sharedAlbumIDs = Self.iCloudSharedAlbumAssetIDs()
+        let keptAlbumIDs = Self.excludedAssetIDs(keepAlbumIDs)
+
+        var candidates: [CleanupCandidate] = []
+        var skippedInSharedAlbum = 0
+        var scannedCount = 0
+
+        for chunk in Self.chunks(of: Array(backedUpIDs), size: Self.identifierFetchChunkSize) {
+            PHAsset.fetchAssets(withLocalIdentifiers: chunk, options: options)
+                .enumerateObjects { asset, _, _ in
+                    // Per-asset pool: `PHAssetResource.assetResources`
+                    // autoreleases Photos objects that would otherwise pile up
+                    // across a whole library (same reason as `fetchCandidates`).
+                    autoreleasepool {
+                        let id = asset.localIdentifier
+                        if sharedAlbumIDs.contains(id) {
+                            skippedInSharedAlbum += 1
+                            return
+                        }
+                        scannedCount += 1
+                        guard !keptAlbumIDs.contains(id) else { return }
+                        // Inclusive: "Free Up Space will only look for photos and
+                        // videos on or before this date".
+                        guard let creationDate = asset.creationDate, creationDate <= cutoff else { return }
+                        if keepFavorites, asset.isFavorite { return }
+                        guard let backup = self.makeCandidate(asset) else { return }
+                        // "Keep photos" is what stays, so a video is a
+                        // candidate — and the other way round.
+                        if keepMediaType == .photos, backup.kind == .video { return }
+                        if keepMediaType == .videos, backup.kind == .image { return }
+                        candidates.append(CleanupCandidate(
+                            id: id,
+                            kind: backup.kind,
+                            fileName: backup.fileName,
+                            creationDate: creationDate,
+                            byteSize: Self.byteSize(of: asset),
+                            isFavorite: backup.isFavorite
+                        ))
+                    }
+                }
+        }
+
+        return CleanupScanResult(
+            candidates: candidates,
+            skippedNotOnServer: 0,
+            skippedInSharedAlbum: skippedInSharedAlbum,
+            scannedCount: scannedCount
+        )
+    }
+
+    /// Removes the originals from the photo library — and only from there. The
+    /// server copy is what the whole feature promises to keep.
+    func deleteLocalAssets(ids: [String]) async throws -> Int {
+        guard !ids.isEmpty else { return 0 }
+        var deleted = 0
+        for index in stride(from: 0, to: ids.count, by: Self.deleteBatchSize) {
+            let batch = Array(ids[index..<min(index + Self.deleteBatchSize, ids.count)])
+            var assets: [PHAsset] = []
+            let fetched = PHAsset.fetchAssets(withLocalIdentifiers: batch, options: nil)
+            assets.reserveCapacity(fetched.count)
+            fetched.enumerateObjects { asset, _, _ in assets.append(asset) }
+            // An asset already gone from Photos (deleted there since the scan)
+            // resolves to nothing: the batch is empty and counts for zero,
+            // like upstream's "a batch that deletes nothing doesn't count".
+            guard !assets.isEmpty else { continue }
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.deleteAssets(assets as NSArray)
+            }
+            deleted += assets.count
+        }
+        return deleted
+    }
+
+    /// Every asset living in an iCloud Shared Album. iOS cannot remove an item
+    /// from such an album from the device, so they are never offered: removing
+    /// them here would delete the user's original without freeing the album.
+    private static func iCloudSharedAlbumAssetIDs() -> Set<String> {
+        let collections = PHAssetCollection.fetchAssetCollections(
+            with: .album, subtype: .albumCloudShared, options: nil
+        )
+        var ids = Set<String>()
+        collections.enumerateObjects { collection, _, _ in
+            PHAsset.fetchAssets(in: collection, options: nil)
+                .enumerateObjects { asset, _, _ in ids.insert(asset.localIdentifier) }
+        }
+        return ids
+    }
+
+    /// Bytes the asset's resources occupy on disk.
+    ///
+    /// `PHAssetResource` exposes no public `fileSize`, and exporting the
+    /// resource to measure it would download every iCloud-optimized original —
+    /// the one thing this screen must not do, since the premise is that the
+    /// server already holds those bytes. Photos does keep the size reachable
+    /// through KVC; the `responds(to:)` guard keeps an OS that stops exposing it
+    /// from raising `NSUnknownKeyException`, in which case the size reads 0 and
+    /// "Reclaimable" understates rather than lies.
+    private static func byteSize(of asset: PHAsset) -> Int64 {
+        let selector = NSSelectorFromString("fileSize")
+        return PHAssetResource.assetResources(for: asset).reduce(into: Int64(0)) { total, resource in
+            guard resource.responds(to: selector),
+                  let size = resource.value(forKey: "fileSize") as? NSNumber else { return }
+            total += size.int64Value
+        }
+    }
+
+    private static func chunks(of ids: [String], size: Int) -> [[String]] {
+        guard size > 0 else { return [ids] }
+        return stride(from: 0, to: ids.count, by: size).map {
+            Array(ids[$0..<min($0 + size, ids.count)])
+        }
+    }
+}
+
 /// Single-delivery async gate bridging a completion-handler API to
 /// async/await. Robust to the completion firing *before* the awaiter installs
 /// its continuation — common with fast, fully-local PhotosKit resources whose
