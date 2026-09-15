@@ -40,10 +40,11 @@ Post-state attendu: PASS
 ```
 ### AC-5171 [type: new — la garde est unique et typée, pas dans l'UI]
 Assertion: ReadOnlyGuardClient est un décorateur du protocole (il relaie tout et ne peut pas être incomplet) dont au moins les 22 méthodes d'écriture de l'inventaire commencent par assertWritable() : le contrôle est donc absent — levée de APIError.readOnlyMode — pour tout appelant, y compris les 8 sites qui appellent le client depuis une vue.
-Check post-impl: sh -c 'f=Sources/Features/ReadOnly/ReadOnlyGuardClient.swift; test -f "$f" && grep -qE "struct ReadOnlyGuardClient: ImmichClient" "$f" && grep -qE "let inner: any ImmichClient" "$f" && grep -qE "func assertWritable" "$f" && grep -qE "APIError.readOnlyMode" "$f" && n=$(grep -cE "try assertWritable\(\)" "$f" | cat) && test "$n" -ge 22 && echo PASS || echo FAIL'
+Check post-impl: sh -c 'f=Sources/Features/ReadOnly/ReadOnlyGuardClient.swift; test -f "$f" && grep -qE "final class ReadOnlyGuardClient: ImmichClient" "$f" && grep -qE "let inner: any ImmichClient" "$f" && grep -qE "func assertWritable" "$f" && grep -qE "APIError.readOnlyMode" "$f" && n=$(grep -cE "try assertWritable\(\)" "$f" | cat) && test "$n" -ge 22 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier absent ; `Sources/Core/Protocols/ImmichClient.swift` déclare les écritures — `deleteAssets` :49, `emptyTrash` :54, `deleteAlbum` :74, `deleteStack` :230, `deleteAdminUser` :237, `uploadAsset` :264 — et `ImmichAPIClient.swift` les exécute sans aucune garde, ex. `:154` DELETE /api/assets)
 Post-state attendu: PASS
 Note: le seuil 22 est un plancher — l'inventaire de `ImmichClient.swift` omet des écritures tout aussi destructrices (`restoreTrashAssets` :52 déjà listé, mais aussi `updateAlbumUserRole`, `addUsersToAlbum`, `removeUserFromAlbum`, `tagAssets`, `createAlbum`), qui doivent être classées aussi. Le compilateur garantit que le décorateur implémente TOUT le protocole, pas qu'il classe bien : c'est la seule relecture humaine à faire.
+Note (arbitrage du 2026-09-15) : le décorateur est une **`final class`**, pas une `struct`. `ImmichClient` est déclaré `AnyObject, Sendable` (`Sources/Core/Protocols/ImmichClient.swift:10`), donc un type valeur ne peut pas le conformer — mesuré : `struct S: P {}` sur un protocole class-constrained rend « non-class type 'S' cannot conform to class protocol 'P' ». La carte demandait une forme que le contrat du protocole interdit ; c'est la carte qui cède, sur cette seule clause.
 ```
 
 ```
