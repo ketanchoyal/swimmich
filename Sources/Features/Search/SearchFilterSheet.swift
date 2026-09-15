@@ -1,12 +1,11 @@
 import SwiftUI
 
 /// The Filters sheet of the Search tab (search-filters): every constraint the
-/// tab can send, plus the two display options that belong next to them.
+/// tab can send.
 ///
-/// The sheet holds **no logic**: its controls write `vm.filter.*` and its two
-/// display pickers call `vm.setSort` / `vm.setDensity`; the requests are the
-/// ViewModel's (`applyFilters()` on Done, `clearFilters()` on Reset). Nothing
-/// here knows the client or builds a body.
+/// The sheet holds **no logic**: its controls write `vm.filter.*`; the requests
+/// are the ViewModel's (`applyFilters()` on Done, `clearFilters()` on Reset).
+/// Nothing here knows the client or builds a body.
 ///
 /// It declares its own `NavigationStack` because it is presented *over* the
 /// Search tab (whose stack lives in `SearchView`), not pushed from the "Me" hub.
@@ -14,7 +13,6 @@ struct SearchFilterSheet: View {
     @Bindable var vm: SearchViewModel
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -85,37 +83,6 @@ struct SearchFilterSheet: View {
                     if vm.filter.takenBefore != nil {
                         DatePicker("To", selection: date($vm.filter.takenBefore), displayedComponents: .date)
                             .accessibilityIdentifier("searchFilterTakenBeforePicker")
-                    }
-                }
-
-                Section {
-                    Picker("Sort", selection: sort) {
-                        ForEach(SearchSortOrder.allCases) { order in
-                            Text(verbatim: order.label).tag(order)
-                        }
-                    }
-                    .accessibilityIdentifier("searchFilterSort")
-
-                    Picker("Density", selection: density) {
-                        ForEach(SearchGridDensity.allCases) { value in
-                            Text(verbatim: value.label).tag(value)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("searchFilterDensity")
-                } header: {
-                    Text("Display")
-                } footer: {
-                    VStack(alignment: .leading, spacing: PVSpacing.s4) {
-                        Text("Applies to Metadata search")
-                        // The sort is a server-side `orderBy` (v3.2.0): the flat
-                        // route has no field that names one, so on an older
-                        // server the picker keeps its value but the request
-                        // cannot carry it. Say so instead of quietly returning
-                        // the server's default order.
-                        if vm.sort != .newestTaken, !vm.supportsStructuredSearch {
-                            Text("Sorting requires Immich 3.2 or later.")
-                        }
                     }
                 }
             }
@@ -223,24 +190,4 @@ struct SearchFilterSheet: View {
     }
 
     private static var today: Date { Calendar.current.startOfDay(for: Date()) }
-
-    /// The sort is the server's (`orderBy`), so it re-runs the search; the
-    /// density only re-flows the grid, hence the local animation.
-    private var sort: Binding<SearchSortOrder> {
-        Binding(
-            get: { vm.sort },
-            set: { order in Task { await vm.setSort(order) } }
-        )
-    }
-
-    private var density: Binding<SearchGridDensity> {
-        Binding(
-            get: { vm.density },
-            set: { value in
-                withAnimation(PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion)) {
-                    vm.setDensity(value)
-                }
-            }
-        )
-    }
 }

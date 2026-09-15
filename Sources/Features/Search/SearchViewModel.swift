@@ -74,7 +74,6 @@ final class SearchViewModel {
     let client: any ImmichClient
     private let recentsStore: RecentSearchesStore
     private let savedStore: SavedSearchesStore
-    private let displayStore: SearchDisplayOptionsStore
 
     // Inputs
     var query: String = ""
@@ -92,11 +91,6 @@ final class SearchViewModel {
     /// The Filters sheet's state (search-filters): every constraint the sheet
     /// edits lives here, and `apply(to:)` is the only reader that touches a DTO.
     var filter = SearchFilter()
-    /// Display options from the sheet's Display section, persisted by
-    /// `displayStore`. Not filters: they stay out of `activeFilterCount`, out
-    /// of the chips bar and out of `clearFilters()`.
-    private(set) var sort: SearchSortOrder
-    private(set) var density: SearchGridDensity
     /// Active constraints — the number the toolbar button badges.
     var activeFilterCount: Int { filter.activeCount }
     var isFilterActive: Bool { !filter.isEmpty }
@@ -197,15 +191,11 @@ final class SearchViewModel {
     init(
         client: any ImmichClient,
         recents: RecentSearchesStore = RecentSearchesStore(),
-        saved: SavedSearchesStore = SavedSearchesStore(),
-        display: SearchDisplayOptionsStore = SearchDisplayOptionsStore()
+        saved: SavedSearchesStore = SavedSearchesStore()
     ) {
         self.client = client
         self.recentsStore = recents
         self.savedStore = saved
-        self.displayStore = display
-        self.sort = display.loadSort()
-        self.density = display.loadDensity()
         self.recentSearches = recents.load()
         self.savedSearches = saved.load()
     }
@@ -331,23 +321,6 @@ final class SearchViewModel {
         await search()
     }
 
-    /// Display option: the sort is applied by the **server** (`orderBy`), so a
-    /// change re-runs the current search; the density below does not.
-    func setSort(_ order: SearchSortOrder) async {
-        guard order != sort else { return }
-        sort = order
-        displayStore.saveSort(order)
-        await search()
-    }
-
-    /// Display option: density is client-only. Write it, persist it, and let the
-    /// grid re-flow from `density.columnCount` — no refetch.
-    func setDensity(_ density: SearchGridDensity) {
-        guard density != self.density else { return }
-        self.density = density
-        displayStore.saveDensity(density)
-    }
-
     /// Done in the Filters sheet: run the filter as it now stands.
     ///
     /// Metadata mode is forced when the mode is CLIP (`SmartSearchDto` has no
@@ -363,8 +336,7 @@ final class SearchViewModel {
     }
 
     /// Reset, from the sheet or the chips bar: back to `SearchFilter()`, then
-    /// the same dispatch path. The display options are **not** touched — sort
-    /// and density are not filters — and neither is the query: only the
+    /// the same dispatch path. The query is **not** touched — only the
     /// constraints go.
     ///
     /// An Explore drill-down goes with them: it is a constraint the chips bar
@@ -473,10 +445,9 @@ final class SearchViewModel {
                 dto.query = nil
                 field.apply(value, to: &dto)
             }
-            // The sheet's filter, the sort and the date range: the only writes
-            // of the whole feature into a request body.
+            // The sheet's filter and the date range: the only writes of the
+            // whole feature into a request body.
             filter.apply(to: &dto)
-            dto.orderBy = sort.serverValue
             if let after = filter.takenAfter { dto.takenAfter = ISO8601.immichFormatter.string(from: after) }
             if let before = filter.takenBefore { dto.takenBefore = ISO8601.immichFormatter.string(from: before) }
 
@@ -506,18 +477,15 @@ final class SearchViewModel {
 
     /// The shape this request must go out in.
     ///
-    /// The flat route says everything this screen can ask for *except* three
+    /// The flat route says everything this screen can ask for *except* two
     /// things: a detected-text criterion (the deprecated scalar `ocr` is gone
-    /// for good, so the structured filter is its only field), a sort other than
-    /// the server's own default (`order` carries a direction and no field), and
-    /// — in general — any Filters-sheet constraint, because the sheet's
-    /// contract is that the request carries exactly its constraints and one
-    /// body speaks one language. What the flat route does say identically well
-    /// (free text, an Explore drill-down) never pays for the probe.
+    /// for good, so the structured filter is its only field) and — in general —
+    /// any Filters-sheet constraint, because the sheet's contract is that the
+    /// request carries exactly its constraints and one body speaks one
+    /// language. What the flat route does say identically well (free text, an
+    /// Explore drill-down) never pays for the probe.
     private func searchShape(toggleCarriesCriterion: Bool) async -> SearchShape {
-        // `.newestTaken` *is* the server's default order (fileCreatedAt desc,
-        // both routes), so it needs neither a field nor a probe.
-        let needsStructured = !filter.isEmpty || toggleCarriesCriterion || sort != .newestTaken
+        let needsStructured = !filter.isEmpty || toggleCarriesCriterion
         guard needsStructured else { return .flat }
         await probeSearchShape()
         return supportsStructuredSearch ? .structured : .flat

@@ -24,11 +24,10 @@ struct SearchView: View {
     @State private var saveSearchName = ""
     @State private var showFilters = false
 
-    /// Result columns follow the display option (search-filters). The search
-    /// grid is the only grid the option drives — the map sheet keeps its own.
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: vm.density.columnCount)
-    }
+    /// Result columns. Fixed at three: the density option the Filters sheet
+    /// used to carry is gone (upstream has none), so the grid keeps the columns
+    /// it shipped with.
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
 
     var body: some View {
         NavigationStack {

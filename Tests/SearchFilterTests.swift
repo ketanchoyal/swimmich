@@ -1,10 +1,10 @@
 import XCTest
 @testable import ImmichSwiftUI
 
-/// search-filters (AC-5130…AC-5139): the filter the sheet edits, the display
-/// options it persists, and — the part that matters — what the server actually
-/// receives. Assertions read `MockImmichClient.lastMetadataSearchDto` (the
-/// captured body) rather than the ViewModel's wiring.
+/// search-filters (AC-5130…AC-5139): the filter the sheet edits and — the part
+/// that matters — what the server actually receives. Assertions read
+/// `MockImmichClient.lastMetadataSearchDto` (the captured body) rather than the
+/// ViewModel's wiring.
 @MainActor
 final class SearchFilterTests: XCTestCase {
 
@@ -22,13 +22,6 @@ final class SearchFilterTests: XCTestCase {
         mock.searchMetadataResponse = empty
         mock.smartSearchResponse = empty
         return mock
-    }
-
-    /// Throwaway `UserDefaults` suite: the display options must neither leak
-    /// between cases nor into the host app's defaults. Caller removes the domain.
-    private func makeDefaults() -> (defaults: UserDefaults, suite: String) {
-        let suite = "search-filters-\(UUID().uuidString)"
-        return (UserDefaults(suiteName: suite)!, suite)
     }
 
     // MARK: - AC-5130 / AC-5133: the filter reaches the body, and only what is set
@@ -118,60 +111,20 @@ final class SearchFilterTests: XCTestCase {
         )
     }
 
-    func test_orderBy_isWrittenAndOrderIsNeverSet() async {
-        // `orderBy` is v3.2.0 — and impossible next to the flat `page`.
-        let mock = makeMock(structured: true)
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let vm = SearchViewModel(client: mock, display: SearchDisplayOptionsStore(defaults: defaults))
-        vm.searchMode = .metadata
-        vm.query = "lyon"
-
-        await vm.setSort(.oldestAdded)
-
-        XCTAssertEqual(
-            mock.lastMetadataSearchDto?.orderBy,
-            SearchOrderDto(field: "localDateTime", direction: "asc")
-        )
-        XCTAssertNil(mock.lastMetadataSearchDto?.order, "the flat `order` is deprecated and cannot name a field")
-    }
-
-    func test_setSort_sameOrder_doesNotRefetch() async {
-        let mock = makeMock()
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let vm = SearchViewModel(client: mock, display: SearchDisplayOptionsStore(defaults: defaults))
-        await vm.search()
-        let requests = mock.requestCount
-
-        await vm.setSort(vm.sort)
-
-        XCTAssertEqual(mock.requestCount, requests, "re-picking the current order changes nothing")
-    }
-
     // MARK: - AC-5136 / AC-5138: the two ways back to no filter
 
     func test_clearFilters_resetsFilterButKeepsQuery() async {
         let mock = makeMock()
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let store = SearchDisplayOptionsStore(defaults: defaults)
-        let vm = SearchViewModel(client: mock, display: store)
+        let vm = SearchViewModel(client: mock)
         vm.query = "lyon"
         vm.filter.city = "Lyon"
         vm.filter.rating = 3
-        await vm.setSort(.oldestTaken)
-        vm.setDensity(.large)
 
         await vm.clearFilters()
 
         XCTAssertTrue(vm.filter.isEmpty)
         XCTAssertFalse(vm.isFilterActive)
         XCTAssertEqual(vm.query, "lyon")
-        XCTAssertEqual(vm.sort, .oldestTaken, "display options are not filters")
-        XCTAssertEqual(vm.density, .large)
-        XCTAssertEqual(store.loadSort(), .oldestTaken, "and the reset did not un-persist them")
-        XCTAssertEqual(store.loadDensity(), .large)
         XCTAssertNil(mock.lastMetadataSearchDto?.city)
         XCTAssertNil(mock.lastMetadataSearchDto?.rating)
     }
@@ -192,53 +145,6 @@ final class SearchFilterTests: XCTestCase {
         await vm.applyFilters()
         XCTAssertEqual(mock.lastMetadataSearchDto?.city, "Lyon")
         XCTAssertEqual(mock.lastMetadataSearchDto?.rating, 3)
-    }
-
-    // MARK: - AC-5137: the display options
-
-    func test_displayOptions_roundTripThroughUserDefaults() {
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let store = SearchDisplayOptionsStore(defaults: defaults)
-
-        XCTAssertEqual(store.loadSort(), .newestTaken, "an absent key falls back to the server's own order")
-        XCTAssertEqual(store.loadDensity(), .comfortable, "and to the grid the tab shipped with")
-
-        store.saveSort(.oldestAdded)
-        store.saveDensity(.large)
-        XCTAssertEqual(store.loadSort(), .oldestAdded)
-        XCTAssertEqual(store.loadDensity(), .large)
-
-        // A readable key with an unreadable value is still a fallback, not a crash.
-        defaults.set("nonsense", forKey: "searchSortOrder")
-        defaults.set("nonsense", forKey: "searchGridDensity")
-        XCTAssertEqual(store.loadSort(), .newestTaken)
-        XCTAssertEqual(store.loadDensity(), .comfortable)
-
-        // A fresh ViewModel adopts what was persisted.
-        store.saveSort(.oldestTaken)
-        store.saveDensity(.compact)
-        let vm = SearchViewModel(client: makeMock(), display: SearchDisplayOptionsStore(defaults: defaults))
-        XCTAssertEqual(vm.sort, .oldestTaken)
-        XCTAssertEqual(vm.density, .compact)
-    }
-
-    func test_density_columnCount_matchesDensity() {
-        XCTAssertEqual(SearchGridDensity.compact.columnCount, 5)
-        XCTAssertEqual(SearchGridDensity.comfortable.columnCount, 3)
-        XCTAssertEqual(SearchGridDensity.large.columnCount, 2)
-
-        let mock = makeMock()
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let store = SearchDisplayOptionsStore(defaults: defaults)
-        let vm = SearchViewModel(client: mock, display: store)
-
-        vm.setDensity(.large)
-
-        XCTAssertEqual(vm.density, .large)
-        XCTAssertEqual(store.loadDensity(), .large, "persisted for the next launch")
-        XCTAssertEqual(mock.requestCount, 0, "density is client-only: the grid re-flows, nothing is refetched")
     }
 
     // MARK: - AC-5133: the dates on the wire
@@ -340,7 +246,10 @@ final class SearchFilterTests: XCTestCase {
                     "type", "isFavorite", "rating", "takenAfter", "takenBefore", "order", "ocr"] {
             XCTAssertNil(body[key], "\(key) cannot be combined with filter/orderBy/cursor")
         }
-        XCTAssertEqual((body["orderBy"] as? [String: String])?["field"], "fileCreatedAt")
+        XCTAssertNil(
+            body["orderBy"],
+            "the screen sends no `orderBy`: with the sort option gone the server's own order stands"
+        )
         let filterBody = try XCTUnwrap(body["filter"] as? [String: Any])
         XCTAssertEqual((filterBody["city"] as? [String: String])?["eq"], "Lyon")
         XCTAssertEqual((filterBody["type"] as? [String: String])?["eq"], "IMAGE")
@@ -375,26 +284,6 @@ final class SearchFilterTests: XCTestCase {
         XCTAssertNil(dto.page)
         XCTAssertEqual(dto.filter?.city?.eq, "Lyon", "the constraints survive the page turn")
         XCTAssertFalse(vm.canLoadMore, "the server sent no further cursor")
-    }
-
-    /// ≥ v3.2.0: a sort alone is enough to need the structured shape — the flat
-    /// `order` carries a direction and cannot name a field.
-    func test_structuredServer_sortAlone_sendsOrderByWithoutPage() async throws {
-        let mock = makeMock(structured: true)
-        let (defaults, suite) = makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let vm = SearchViewModel(client: mock, display: SearchDisplayOptionsStore(defaults: defaults))
-        vm.searchMode = .metadata
-        vm.query = "lyon"
-
-        await vm.setSort(.oldestAdded)
-
-        let dto = try XCTUnwrap(mock.lastMetadataSearchDto)
-        XCTAssertEqual(dto.orderBy, SearchOrderDto(field: "localDateTime", direction: "asc"))
-        XCTAssertNil(dto.page)
-        XCTAssertNil(dto.cursor)
-        XCTAssertNil(dto.filter, "a sort is not a filter")
-        XCTAssertEqual(dto.query, "lyon")
     }
 
     /// < v3.2.0: the request is exactly the one this screen has always sent —
