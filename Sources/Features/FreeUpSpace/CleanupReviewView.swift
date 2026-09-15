@@ -78,6 +78,12 @@ struct CleanupReviewView: View {
                                     // read as image/button pairs one by one.
                                     .accessibilityElement(children: .ignore)
                                     .accessibilityLabel(vm.accessibilityLabel(for: candidate))
+                                    // The cell's identity, not just its look:
+                                    // "the review offers exactly the asset the
+                                    // server confirmed" is a claim about WHICH
+                                    // asset, and `FreeUpSpaceUITests` asserts it
+                                    // by this identifier.
+                                    .accessibilityIdentifier("cleanupReviewCell_\(candidate.id)")
                             }
                         }
                         .padding(.horizontal, PVSpacing.s16)
