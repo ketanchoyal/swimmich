@@ -53,10 +53,11 @@ Note: `getAPIKeys()` (`:244`) reste : c'est la seule route de liste, non-admin (
 ```
 ### AC-5201 [type: new]
 Assertion: les trois routes passent par la constante existante `ImmichAPI.apiKeys` (`/me`, `/{id}/rotate`, `PATCH`-free), la rotation est un POST, la suppression est réutilisée telle quelle et la création transmet `permissions` dans le corps.
-Check post-impl: sh -c 'f=Sources/Services/ImmichAPIClient.swift; grep -qE "func getMyAPIKey" "$f" && grep -qF "apiKeys.path(\"/me\")" "$f" && grep -qE "func rotateAPIKey" "$f" && grep -qF "(id)/rotate" "$f" && grep -qE "\.POST, path: ImmichAPI\.apiKeys" "$f" && grep -qF "\"permissions\": permissions" "$f" && echo PASS || echo FAIL'
+Check post-impl: sh -c 'f=Sources/Services/ImmichAPIClient.swift; grep -qE "func getMyAPIKey" "$f" && grep -qF "apiKeys.path(\"/me\")" "$f" && grep -qE "func rotateAPIKey" "$f" && grep -qF "(id)/rotate" "$f" && grep -qE "\.POST, path: ImmichAPI\.apiKeys" "$f" && grep -qF "\"permissions\"" "$f" && grep -qF "AnyEncodable(permissions)" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (`grep -n "getMyAPIKey\|rotateAPIKey\|/me" Sources/Services/ImmichAPIClient.swift` ne renvoie rien ; le corps de `createAPIKey` (`:580-582`) est `AnyEncodable(["name": name])`)
 Post-state attendu: PASS
 Note: la route de rotation est `POST /api/api-keys/{id}/rotate` (`added('v3')`), PAS `PUT` comme l'annonçait l'audit du backlog — le check exige donc `.POST` sur un chemin composé depuis `ImmichAPI.apiKeys`, jamais une seconde constante.
+Note (arbitrage du 2026-09-15) : la clause de création demandait le littéral exact `"permissions": permissions` dans le corps. Aucune implémentation qui compile ne peut l'écrire : un dictionnaire littéral Swift ne peut pas mêler un `String` et un `[String]` (`[String: Any]` n'est pas `Encodable`), le corps passe donc par l'effacement de type du dépôt — `["name": AnyEncodable(name), "permissions": AnyEncodable(permissions)]`. Remplacée par deux clauses satisfaisables qui gardent le fond (le corps nomme `"permissions"` et il transmet bien le **paramètre**, pas une liste figée). Le comportement est prouvé par le test de transport du même commit, qui lit le corps JSON capturé. Même classe de défaut que AC-5045 (parenthèses non échappées) et AC-5081 (`isRouteDetectionEnabled`) : la carte est antérieure au code, c'est la carte qui cède, sur preuve.
 ```
 
 ```
