@@ -41,6 +41,10 @@ struct PhotoViewerPresentation: ViewModifier {
     /// Cast seam (gap G9). Default-valued like `client`, so the eight
     /// `photoViewer(` call sites keep compiling unchanged.
     var castService: any CastService = DependencyContainer.shared.castService
+    /// Per-asset troubleshooter (gap G24). Threaded from the composition root by
+    /// the caller that owns one, defaulted like `client`: a viewer opened from
+    /// another screen still gets a working page instead of a dead row.
+    var troubleshoot: AssetTroubleshootViewModel? = nil
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
     var onArchive: ((AssetReactItem) -> Void)? = nil
@@ -58,6 +62,7 @@ struct PhotoViewerPresentation: ViewModifier {
                     token: token,
                     client: client,
                     castService: castService,
+                    troubleshoot: troubleshoot,
                     onToggleFavorite: onToggleFavorite,
                     onDelete: onDelete,
                     onArchive: onArchive,
@@ -83,6 +88,7 @@ extension View {
         baseURL: URL,
         token: String?,
         client: any ImmichClient = DependencyContainer.shared.libraryClient,
+        troubleshoot: AssetTroubleshootViewModel? = nil,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
         onArchive: ((AssetReactItem) -> Void)? = nil,
@@ -96,6 +102,7 @@ extension View {
                 baseURL: baseURL,
                 token: token,
                 client: client,
+                troubleshoot: troubleshoot,
                 onToggleFavorite: onToggleFavorite,
                 onDelete: onDelete,
                 onArchive: onArchive,
@@ -137,6 +144,9 @@ struct PhotoViewer: View {
     /// Cast seam (gap G9). Read straight in `body`: the service is `@Observable`,
     /// so the badge follows a route change without a `@State` copy of its state.
     var castService: any CastService = DependencyContainer.shared.castService
+    /// Per-asset troubleshooter (gap G24). `nil` builds one from the shared
+    /// container, so the nine other `photoViewer(` call sites keep working.
+    var troubleshoot: AssetTroubleshootViewModel? = nil
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
     var onArchive: ((AssetReactItem) -> Void)? = nil
@@ -199,6 +209,7 @@ struct PhotoViewer: View {
         client: any ImmichClient = DependencyContainer.shared.libraryClient,
         downloads: DownloadQueueViewModel = DependencyContainer.shared.downloadQueue,
         castService: any CastService = DependencyContainer.shared.castService,
+        troubleshoot: AssetTroubleshootViewModel? = nil,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
         onArchive: ((AssetReactItem) -> Void)? = nil,
@@ -211,6 +222,7 @@ struct PhotoViewer: View {
         self.client = client
         self.downloads = downloads
         self.castService = castService
+        self.troubleshoot = troubleshoot
         self.onToggleFavorite = onToggleFavorite
         self.onDelete = onDelete
         self.onArchive = onArchive
@@ -350,7 +362,8 @@ struct PhotoViewer: View {
                                 placeName: placeName
                             )
                         },
-                        onOpenInMaps: openInMaps
+                        onOpenInMaps: openInMaps,
+                        troubleshoot: troubleshoot ?? DependencyContainer.shared.makeAssetTroubleshootViewModel()
                     )
                     .presentationDetents([.fraction(0.7), .large])
                     .presentationDragIndicator(.visible)

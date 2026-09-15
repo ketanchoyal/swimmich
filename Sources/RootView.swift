@@ -158,6 +158,9 @@ private struct AuthenticatedRoot: View {
     /// info screen and the viewer's "Download to Files" all project ONE queue
     /// — the container's instance, never a per-view one.
     @State private var downloads: DownloadQueueViewModel
+    /// Per-asset troubleshooter (gap G24): one instance for the process, so
+    /// the page reached from the viewer's info panel is the hub's own.
+    @State private var troubleshoot: AssetTroubleshootViewModel
     /// Locked folder (gap G12). Held here, not built in the sheet's content
     /// closure: the folder's gate (entered PIN, loaded grid) must survive any
     /// re-render of this view while the Me sheet is up, and a ViewModel rebuilt
@@ -222,6 +225,7 @@ private struct AuthenticatedRoot: View {
             token: session.accessToken
         ))
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
+        _troubleshoot = State(initialValue: container.makeAssetTroubleshootViewModel())
         _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
         _changePassword = State(initialValue: container.makeChangePasswordViewModel())
         _apiKeys = State(initialValue: container.makeUserApiKeysViewModel())
@@ -235,7 +239,7 @@ private struct AuthenticatedRoot: View {
     var body: some View {
         TabView(selection: $selection) {
             Tab("Photos", systemImage: "photo.on.rectangle.angled", value: RootTab.photos) {
-                TimelineView(vm: timeline, stacks: stacks, downloads: downloads, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
+                TimelineView(vm: timeline, stacks: stacks, downloads: downloads, troubleshoot: troubleshoot, scrollTargetID: $pendingTimelineScrollID, scrollTargetDay: $pendingTimelineScrollDay)
             }
             Tab("Memories", systemImage: "sparkles.rectangle.stack", value: RootTab.memories) {
                 MemoriesView(vm: memories)

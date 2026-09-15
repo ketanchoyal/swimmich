@@ -21,6 +21,10 @@ struct TimelineView: View {
     /// the same reason as `stacks`: the mass action must feed the very queue
     /// the floating panel projects — never a second instance built here.
     let downloads: DownloadQueueViewModel
+    /// Per-asset troubleshooter (gap G24), handed down by the root like
+    /// `downloads`: the page opened from the viewer must be the instance the
+    /// composition root owns, never one built here.
+    let troubleshoot: AssetTroubleshootViewModel
     @Binding var scrollTargetID: String?
     @Binding var scrollTargetDay: String?
     @Environment(AuthViewModel.self) private var auth
@@ -67,12 +71,16 @@ struct TimelineView: View {
         vm: TimelineViewModel,
         stacks: StacksViewModel,
         downloads: DownloadQueueViewModel,
+        troubleshoot: AssetTroubleshootViewModel? = nil,
         scrollTargetID: Binding<String?> = .constant(nil),
         scrollTargetDay: Binding<String?> = .constant(nil)
     ) {
         _vm = State(initialValue: vm)
         self.stacks = stacks
         self.downloads = downloads
+        // Defaulted so a preview or a test can build the timeline without the
+        // composition root; the app always passes the root's instance.
+        self.troubleshoot = troubleshoot ?? DependencyContainer.shared.makeAssetTroubleshootViewModel()
         _scrollTargetID = scrollTargetID
         _scrollTargetDay = scrollTargetDay
     }
@@ -332,6 +340,7 @@ struct TimelineView: View {
             item: $viewerItem,
             baseURL: auth.baseURL ?? URL(string: "https://example.com")!,
             token: auth.accessToken,
+            troubleshoot: troubleshoot,
             onToggleFavorite: { asset in
                 Task {
                     await vm.toggleFavorite(id: asset.id)

@@ -230,7 +230,7 @@ final class DependencyContainer {
     /// the ViewModel is an instance per screen, so the form's fields and its
     /// in-flight state never reach the global auth tree.
     func makeChangePasswordViewModel() -> ChangePasswordViewModel {
-        ChangePasswordViewModel(client: client as any ImmichClient)
+        ChangePasswordViewModel(client: libraryClient)
     }
 
     /// One view model per "recent" sort axis (gap G13). Two instances, not one:
@@ -301,7 +301,7 @@ final class DependencyContainer {
     /// Media stats (gap G24): the storage card's call, plus the ledger and the
     /// offline cache the device already holds.
     func makeMediaStatsViewModel(offline: OfflineDownloadViewModel) -> MediaStatsViewModel {
-        MediaStatsViewModel(client: client as any ImmichClient, ledger: backupLedger, offline: offline)
+        MediaStatsViewModel(client: libraryClient, ledger: backupLedger, offline: offline)
     }
 
     /// Asset troubleshoot (gap G24). Reads the same ledger the backup engine
@@ -309,7 +309,7 @@ final class DependencyContainer {
     /// cannot contradict the screen the user came from.
     func makeAssetTroubleshootViewModel() -> AssetTroubleshootViewModel {
         AssetTroubleshootViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             ledger: backupLedger,
             offlineIndex: offlineIndex
         )
@@ -367,7 +367,7 @@ final class DependencyContainer {
     /// `AdminViewModel` — that one's `load()` also fetches users, jobs and
     /// libraries, and this screen is open to non-admin accounts.
     func makeUserApiKeysViewModel() -> UserApiKeysViewModel {
-        UserApiKeysViewModel(client: client as any ImmichClient)
+        UserApiKeysViewModel(client: libraryClient)
     }
 
     func makeMemoriesViewModel() -> MemoriesViewModel {

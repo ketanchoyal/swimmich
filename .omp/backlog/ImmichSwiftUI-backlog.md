@@ -881,7 +881,7 @@ rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et sui
 
 | # | Feature | Slug (`.omp/`) | Phase | Bande AC | Endpoints / mécanisme | Statut |
 |---|---------|----------------|-------|----------|-----------------------|--------|
-| 17 | Journal applicatif, dépannage asset, infos download, stats média | `app-utilities` | P5 | AC-5240–5249 | `GET /api/assets/{id}`, `POST /api/assets/bulk-upload-check`, `GET /api/server/statistics`, état local du cache | 🔴 Planifié |
+| 17 | Journal applicatif, dépannage asset, infos download, stats média | `app-utilities` | P5 | AC-5240–5249 | `GET /api/assets/{id}`, `POST /api/assets/bulk-upload-check`, `GET /api/server/statistics`, état local du cache | ✅ Livré (2026-09-15) — 10/10 AC |
 | 18 | Free Up Space | `free-up-space` | P2 | AC-5000–5009 | PhotoKit `PHPhotoLibrary.performChanges` + `POST /api/assets/bulk-upload-check` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 19 | Album Sync + Reorganize | `album-sync` | P2 | AC-5010–5019 | `GET /api/albums`, `POST /api/albums`, `PUT /api/albums/{id}/assets` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 20 | Bibliothèque locale « On this device » | `local-library` | P2 | AC-5020–5029 | PhotoKit + `POST /api/assets` | ✅ Livré (2026-09-15) — 10/10 AC |
@@ -899,13 +899,13 @@ rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et sui
 | 32 | Réglages carte + carte dans le viewer | `map-settings` | P4 | AC-5140–5149 | `GET /api/map/markers`, plage temporelle de recherche | ✅ Livré (2026-09-15) — 10/10 AC |
 | 33 | Anniversaire d'une personne | `person-birthday` | P4 | AC-5150–5159 | `PUT /api/people/{id}` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 34 | Photo de profil (upload + crop) | `profile-picture` | P4 | AC-5160–5169 | routes `profile-image` de `/api/users` (multipart) | ✅ Livré (2026-09-15) — 10/10 AC |
-| 35 | Mode lecture seule / kid mode | `read-only-mode` | P5 | AC-5170–5179 | client (garde sur les actions destructrices) | 🔴 Planifié |
-| 36 | Changement de mot de passe | `change-password` | P5 | AC-5180–5189 | `POST /api/auth/change-password` | 🔴 Planifié |
-| 37 | Sessions / appareils connectés | `device-sessions` | P5 | AC-5190–5199 | `GET /api/sessions`, `DELETE /api/sessions/{id}`, `POST /api/auth/session/{lock,unlock}` | 🔴 Planifié |
-| 38 | Clés API utilisateur | `user-api-keys` | P5 | AC-5200–5209 | `GET /api/api-keys/me`, `POST /api/api-keys`, `DELETE /api/api-keys/{id}`, rotation | 🔴 Planifié |
-| 39 | Extension de partage iOS | `share-extension` | P5 | AC-5210–5219 | nouvelle cible `ShareExtension` + `POST /api/assets` (Keychain partagé) | 🔴 Planifié |
-| 40 | Réglages grid / viewer / préférences | `settings-parity` | P5 | AC-5220–5229 | client (`@AppStorage`) | 🔴 Planifié |
-| 41 | « Quoi de neuf » + licences | `whats-new` | P5 | AC-5230–5239 | notes embarquées ou serveur (à trancher en lisant l'upstream) | 🔴 Planifié |
+| 35 | Mode lecture seule / kid mode | `read-only-mode` | P5 | AC-5170–5179 | client (garde sur les actions destructrices) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 36 | Changement de mot de passe | `change-password` | P5 | AC-5180–5189 | `POST /api/auth/change-password` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 37 | Sessions / appareils connectés | `device-sessions` | P5 | AC-5190–5199 | `GET /api/sessions`, `DELETE /api/sessions/{id}`, `POST /api/auth/session/{lock,unlock}` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 38 | Clés API utilisateur | `user-api-keys` | P5 | AC-5200–5209 | `GET /api/api-keys/me`, `POST /api/api-keys`, `DELETE /api/api-keys/{id}`, rotation | ✅ Livré (2026-09-15) — 10/10 AC |
+| 39 | Extension de partage iOS | `share-extension` | P5 | AC-5210–5219 | nouvelle cible `ShareExtension` + `POST /api/assets` (Keychain partagé) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 40 | Réglages grid / viewer / préférences | `settings-parity` | P5 | AC-5220–5229 | client (`@AppStorage`) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 41 | « Quoi de neuf » + licences | `whats-new` | P5 | AC-5230–5239 | notes embarquées ou serveur (à trancher en lisant l'upstream) | ✅ Livré (2026-09-15) — 10/10 AC |
 
 ### Ordre d'implémentation conseillé
 
