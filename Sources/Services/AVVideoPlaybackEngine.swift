@@ -50,6 +50,14 @@ final class AVVideoPlaybackEngine: NSObject, VideoPlaybackEngine, @unchecked Sen
         duration = seconds.isFinite ? seconds : 0
         isReady = true
 
+        // Gap G9: let the viewer's stream leave for an external screen. Written
+        // explicitly because the defaults are the only thing that would let a
+        // future engine change break casting silently — and a Bearer-
+        // authenticated URL keeps working over AirPlay, the phone staying the
+        // HTTP client that the route reads through.
+        player.allowsExternalPlayback = true
+        player.usesExternalPlaybackWhileExternalScreenIsActive = true
+
         try? AVAudioSession.sharedInstance()
             .setCategory(.playback, mode: .moviePlayback)
 

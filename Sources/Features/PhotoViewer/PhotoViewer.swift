@@ -38,6 +38,9 @@ struct PhotoViewerPresentation: ViewModifier {
     let baseURL: URL
     let token: String?
     var client: any ImmichClient = DependencyContainer.shared.client
+    /// Cast seam (gap G9). Default-valued like `client`, so the eight
+    /// `photoViewer(` call sites keep compiling unchanged.
+    var castService: any CastService = DependencyContainer.shared.castService
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
     var onArchive: ((AssetReactItem) -> Void)? = nil
@@ -54,6 +57,7 @@ struct PhotoViewerPresentation: ViewModifier {
                     baseURL: baseURL,
                     token: token,
                     client: client,
+                    castService: castService,
                     onToggleFavorite: onToggleFavorite,
                     onDelete: onDelete,
                     onArchive: onArchive,
@@ -117,6 +121,9 @@ struct PhotoViewer: View {
     let baseURL: URL
     let token: String?
     var client: any ImmichClient = DependencyContainer.shared.client
+    /// Cast seam (gap G9). Read straight in `body`: the service is `@Observable`,
+    /// so the badge follows a route change without a `@State` copy of its state.
+    var castService: any CastService = DependencyContainer.shared.castService
     var onToggleFavorite: ((AssetReactItem) -> Void)? = nil
     var onDelete: ((AssetReactItem) -> Void)? = nil
     var onArchive: ((AssetReactItem) -> Void)? = nil
@@ -135,6 +142,7 @@ struct PhotoViewer: View {
     @State private var deleteIsPermanent = false
     @State private var presentEdit = false
     @State private var presentShare = false
+    @State private var showCastSheet = false
     @State private var showInfo = false
     @State private var infoVM: AssetDetailViewModel?
     @State private var filmstripPosition = ScrollPosition()
@@ -165,6 +173,7 @@ struct PhotoViewer: View {
         baseURL: URL,
         token: String?,
         client: any ImmichClient = DependencyContainer.shared.client,
+        castService: any CastService = DependencyContainer.shared.castService,
         onToggleFavorite: ((AssetReactItem) -> Void)? = nil,
         onDelete: ((AssetReactItem) -> Void)? = nil,
         onArchive: ((AssetReactItem) -> Void)? = nil,
@@ -175,6 +184,7 @@ struct PhotoViewer: View {
         self.baseURL = baseURL
         self.token = token
         self.client = client
+        self.castService = castService
         self.onToggleFavorite = onToggleFavorite
         self.onDelete = onDelete
         self.onArchive = onArchive
@@ -261,6 +271,17 @@ struct PhotoViewer: View {
                 if let asset = currentAsset {
                     PhotoShareSheet(asset: asset, baseURL: baseURL, token: token, client: client)
                         .presentationDetents([.fraction(1.0 / 2.0)])
+                        .presentationDragIndicator(.visible)
+                }
+            }
+            // Cast sheet (gap G9), presented on the asset the pager is actually
+            // showing — `localAssets.first` would report a stale state after a
+            // swipe. Attached inside the viewer's body, next to the other
+            // sheets: the viewer is itself a `fullScreenCover`, and a sheet
+            // presented outside it would be swallowed by the cover.
+            .sheet(isPresented: $showCastSheet) {
+                if let asset = currentAsset {
+                    CastSheet(asset: asset, service: castService)
                         .presentationDragIndicator(.visible)
                 }
             }
@@ -408,6 +429,31 @@ struct PhotoViewer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Slideshow")
                 .disabled(localAssets.count < 2)
+
+                // Gap G9: the cast badge sits between slideshow and details,
+                // the two other chrome actions. Hidden in the trash (nothing
+                // there can leave the device) and disabled when no external
+                // screen is reachable — the sheet explains that state.
+                if !isTrash {
+                    Button {
+                        showCastSheet = true
+                    } label: {
+                        Image(systemName: castService.isConnected ? "airplayvideo.circle.fill" : "airplayvideo")
+                            .font(.pvHeadline)
+                            .foregroundStyle(castService.isConnected ? Color.immichPrimary : Color.white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
+                            .contentTransition(.symbolEffect(.replace))
+                            .animation(
+                                PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion),
+                                value: castService.isConnected
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(castService.isConnected ? "Casting" : "Cast")
+                    .accessibilityIdentifier("viewerCastButton")
+                    .disabled(!castService.isAvailable)
+                }
 
                 Button {
                     openInfo()
