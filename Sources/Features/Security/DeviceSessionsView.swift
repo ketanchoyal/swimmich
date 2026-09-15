@@ -108,6 +108,9 @@ struct DeviceSessionsView: View {
             } label: {
                 Text("Log Out")
             }
+            // Same label as the swipe action that raised this dialog: the
+            // identifier is the only unambiguous handle from a UI test.
+            .accessibilityIdentifier("deviceSessionRevokeConfirm")
             Button("Cancel", role: .cancel) { vm.pendingRevocation = nil }
         } message: {
             Text("This device will have to sign in again.")
@@ -122,6 +125,7 @@ struct DeviceSessionsView: View {
             } label: {
                 Text(vm.revokeAllButtonTitle)
             }
+            .accessibilityIdentifier("deviceSessionsRevokeAllConfirm")
             Button("Cancel", role: .cancel) {}
         } message: {
             // The one sentence the single-device confirmation must NOT share:
@@ -208,6 +212,9 @@ struct DeviceSessionsView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
+            // The menu's label is a bare SF Symbol, so without an identifier the
+            // only way to open it would be its position in the toolbar.
+            .accessibilityIdentifier("deviceSessionsMenuButton")
         }
     }
 
