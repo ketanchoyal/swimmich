@@ -1,15 +1,16 @@
 # TEMPORARY — batch integration only, removed before the wave is closed.
 #
-# The nine branches of a wave are developed in parallel worktrees and each one
-# adds a handful of lines to the same spine files (a container property, a
-# ProfileView row, a RootView route). Those additions land on the same anchors,
-# so a plain three-way merge reports a conflict for what is really "keep both".
-# The `union` driver does exactly that.
+# The branches of a wave are developed in parallel worktrees and each one adds a
+# handful of lines to the same spine files (a container property, a ProfileView
+# row, a RootView route, a client method). Those additions land on the same
+# anchors, so a plain three-way merge reports a conflict for what is really
+# "keep both". The `union` driver does exactly that.
 #
 # Line-oriented, therefore only safe because every branch was required to keep
 # its spine edits additive and minimal: a rename or a rework on both sides would
-# concatenate nonsense. The build gate, the suite and the 250 card checks behind
-# the merges are what makes this trade acceptable.
+# concatenate nonsense. Measured: it concatenates exactly where two branches
+# touch the SAME line (four sites in P2/P3). The build gate catches that in
+# seconds; the suite on the integrated tree catches what compiles but lies.
 Sources/DependencyContainer.swift merge=union
 Sources/RootView.swift merge=union
 Sources/Features/Profile/ProfileView.swift merge=union
@@ -19,7 +20,39 @@ Sources/Services/PhotoLibraryServiceImpl.swift merge=union
 Sources/Core/Protocols/ImmichClient.swift merge=union
 Sources/Core/Protocols/PhotoLibraryService.swift merge=union
 Sources/Core/Protocols/BackupAssetSource.swift merge=union
+Sources/Core/Types/DTOs.swift merge=union
+Sources/Core/Types/DTOs+People.swift merge=union
+Sources/Core/Types/SearchDTOs.swift merge=union
+Sources/Core/Constants.swift merge=union
+Sources/Core/Types/APIError.swift merge=union
 Sources/Services/ImmichAPIClient.swift merge=union
+Sources/Services/ImmichAssetURL.swift merge=union
+Sources/DesignSystem/Components/UserAvatarCircle.swift merge=union
+Sources/Features/Timeline/TimelineView.swift merge=union
+Sources/Features/Timeline/TimelineViewModel.swift merge=union
+Sources/Features/Timeline/TimelineSectionBuilder.swift merge=union
+Sources/Features/PhotoViewer/PhotoViewer.swift merge=union
+Sources/Features/PhotoViewer/PhotoInfoPanel.swift merge=union
+Sources/Features/PhotoViewer/ZoomableImageView.swift merge=union
+Sources/Features/PhotoViewer/SlideshowView.swift merge=union
+Sources/Features/PhotoViewer/SlideshowViewModel.swift merge=union
+Sources/Features/PhotoViewer/VideoPlayerView.swift merge=union
+Sources/Features/PhotoViewer/VideoPlaybackViewModel.swift merge=union
+Sources/Features/Search/SearchView.swift merge=union
+Sources/Features/Search/SearchViewModel.swift merge=union
+Sources/Features/Search/MapView.swift merge=union
+Sources/Features/Search/MapViewModel.swift merge=union
+Sources/Features/Search/MapMarkerCache.swift merge=union
+Sources/Features/People/PeopleView.swift merge=union
+Sources/Features/People/PeopleViewModel.swift merge=union
+Sources/Features/Admin/AdminView.swift merge=union
+Sources/Features/Admin/AdminViewModel.swift merge=union
+Sources/Features/Auth/AuthViewModel.swift merge=union
+Sources/Features/AssetDetail/AssetDetailViewModel.swift merge=union
 Tests/Mocks/MockImmichClient.swift merge=union
 Tests/Mocks/MockBackupAssetSource.swift merge=union
+Tests/DTOEncodingTests.swift merge=union
+Tests/PeopleViewModelTests.swift merge=union
+Tests/SearchViewModelTests.swift merge=union
+Tests/AssetDetailViewModelTests.swift merge=union
 project.yml merge=union
