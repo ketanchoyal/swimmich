@@ -143,6 +143,13 @@ struct PeopleView: View {
             .padding(.vertical, PVSpacing.s4)
         }
         .accessibilityElement(children: .combine)
+        // The row is interactive and had no identifier: its label is a
+        // concatenation ("Ada Lovelace, 3 photos"), and after the drill-down is
+        // popped back the same row publishes as a cell whose label is EMPTY, so
+        // a label query stops matching a list that is plainly on screen. (The
+        // combine modifier above is NOT the reason the row does not activate for
+        // XCUITest — removing it was measured to change nothing.)
+        .accessibilityIdentifier("personRow_\(person.id)")
     }
 }
 
