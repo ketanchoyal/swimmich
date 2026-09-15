@@ -1166,9 +1166,21 @@ struct AlbumPickerView: View {
     private var smartAlbums: [BackupAlbum] { albums.filter(\.isSmart) }
 
     var body: some View {
-        List {
-            section("Albums", userAlbums)
-            section("Smart albums", smartAlbums)
+        Group {
+            if albums.isEmpty {
+                // A `List` with no row in it is a blank screen: "your library
+                // has no album" and "this screen failed to load" look exactly
+                // alike. The empty state is the screen's only content in that
+                // case, so it says which of the two it is.
+                ContentUnavailableView("No albums yet", systemImage: "rectangle.stack")
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("albumPickerEmptyState")
+            } else {
+                List {
+                    section("Albums", userAlbums)
+                    section("Smart albums", smartAlbums)
+                }
+            }
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
