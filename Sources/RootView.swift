@@ -146,6 +146,9 @@ private struct AuthenticatedRoot: View {
     /// and a ViewModel rebuilt on every sheet presentation would be a second
     /// reader of the same keys for no gain.
     @State private var appSettings: PreferencesViewModel
+    /// "What's New" (gap G23). Owned here so the automatic sheet and the About
+    /// row pushed from the Me sheet read ONE seen-release — the container's.
+    @State private var whatsNew: WhatsNewViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
     @State private var folders: FolderViewModel
     /// Profile picture screen (gap G16). Owned here so the account row of the Me
@@ -172,6 +175,7 @@ private struct AuthenticatedRoot: View {
     @State private var showCreateAlbum = false
     @State private var showCreateSharedLink = false
     @State private var showProfile = false
+    @State private var showWhatsNew = false
     @State private var showDownloadInfo = false
 
     init(container: DependencyContainer, session: AuthViewModel, accountID: String) {
@@ -204,6 +208,7 @@ private struct AuthenticatedRoot: View {
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
         _deviceSessions = State(initialValue: container.makeDeviceSessionsViewModel())
         _appSettings = State(initialValue: container.makeAppSettingsViewModel())
+        _whatsNew = State(initialValue: container.makeWhatsNewViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
         _folders = State(initialValue: container.makeFolderViewModel())
         _profilePicture = State(initialValue: container.makeProfilePictureViewModel(
@@ -344,6 +349,24 @@ private struct AuthenticatedRoot: View {
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, apiKeys: apiKeys)
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, appSettings: appSettings, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, readOnly: readOnly, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, whatsNew: whatsNew)
+        }
+        // What's New (gap G23): presented from the stable root presenter, like
+        // the Me sheet above — never from a tab view that comes and goes.
+        // `markSeen()` is in `onDismiss` rather than in the Done button so a
+        // swipe-down is a "seen" too, and the sheet cannot come back at the next
+        // launch. The stack is the sheet's: `WhatsNewView` declares none.
+        .sheet(isPresented: $showWhatsNew, onDismiss: { whatsNew.markSeen() }) {
+            NavigationStack {
+                WhatsNewView(vm: whatsNew, onDone: { showWhatsNew = false })
+            }
+        }
+        // Evaluated on the first authenticated frame and again on an account
+        // change (the seen-release is account state, not process state). The
+        // flag is never set back to true: once `markSeen()` has run,
+        // `shouldPresentAutomatically()` answers false for the rest of the run.
+        .task(id: auth.userId) {
+            showWhatsNew = whatsNew.shouldPresentAutomatically()
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

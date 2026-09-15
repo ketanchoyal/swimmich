@@ -50,6 +50,10 @@ struct ProfileView: View {
     /// User API keys (gap G20). A `@State`, like the hub's other ViewModels: the
     /// sheet's lifetime is its owner's.
     @State var apiKeys: UserApiKeysViewModel
+    /// "What's New" (gap G23). Carried through from `AuthenticatedRoot` so the
+    /// About row reopens the same cards, on the same seen-release, as the
+    /// automatic sheet.
+    @State var whatsNew: WhatsNewViewModel
 
     var body: some View {
         NavigationStack {
@@ -240,6 +244,20 @@ struct ProfileView: View {
                     } header: {
                         Text("Administration")
                     }
+                }
+
+                // About sits between Administration and Security on purpose: it
+                // describes the app itself, not the account, and the two rows
+                // above and below it are about what this device is allowed to do.
+                Section {
+                    NavigationLink {
+                        AboutView(whatsNew: whatsNew)
+                    } label: {
+                        Label("About", systemImage: "info.circle")
+                    }
+                    .accessibilityIdentifier("aboutRow")
+                } header: {
+                    Text("About")
                 }
 
                 // App lock lives here rather than on the Backup screen: it

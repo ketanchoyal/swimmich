@@ -122,6 +122,10 @@ final class DependencyContainer {
     /// argument**, and default arguments are evaluated in the caller's context
     /// — its eight presenters must not each have to thread a client through.
     nonisolated let libraryClient: any ImmichClient
+    /// "What's New" seen-state (gap G23). One store per process: the automatic
+    /// sheet, the About row that reopens it and `AuthViewModel`'s
+    /// add-an-account write must all agree on which batch has been presented.
+    let whatsNewStore = WhatsNewStore(defaults: .standard)
 
     init() {
         self.keychain = KeychainStoreImpl()
@@ -410,6 +414,11 @@ final class DependencyContainer {
     /// timeline and the viewer read.
     func makeAppSettingsViewModel() -> PreferencesViewModel {
         PreferencesViewModel(store: appSettings)
+    /// "What's New" (gap G23). Built on the container's store, so the automatic
+    /// sheet, the About row that reopens the same cards and `AuthViewModel`'s
+    /// write at add-account time read one seen-release.
+    func makeWhatsNewViewModel() -> WhatsNewViewModel {
+        WhatsNewViewModel(store: whatsNewStore)
     }
 
     /// Profile picture screen (gap G16). Takes the session as an argument for
