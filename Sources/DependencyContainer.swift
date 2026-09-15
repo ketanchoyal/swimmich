@@ -82,6 +82,13 @@ final class DependencyContainer {
     /// both — a second instance would disagree with the one on screen.
     let language: AppLanguageStore
 
+    /// Process-wide app preferences (gap G22). Same shape of reasoning as
+    /// `language`: `RootView` projects the theme and the accent onto the whole
+    /// tree, and five screens read these switches, so the store must be the
+    /// single writer of all fourteen keys — a second instance would keep a
+    /// second mirror and the next launch would disagree with the screen.
+    let appSettings: AppSettingsStore
+
     /// Process-wide map settings (gap G14b). Same shape of reasoning as
     /// `language`: the map, its settings sheet, its filter badge and the photo
     /// sheet's banner must all project ONE filter, and the choice has to
@@ -121,6 +128,10 @@ final class DependencyContainer {
         self.offlineStore = OfflineAssetStore()
         self.offlineIndex = OfflineAssetIndex()
         self.language = AppLanguageStore()
+        // The shared instance, not a fresh one: view models built with the
+        // defaulted initializer (the video player page) read `AppSettingsStore.shared`,
+        // and the two must be the same object.
+        self.appSettings = AppSettingsStore.shared
         self.mapSettings = MapSettingsStore()
         let cloudStatus = CloudBackupStatusIndex()
         self.cloudStatus = cloudStatus
@@ -352,6 +363,13 @@ final class DependencyContainer {
     /// read.
     func makeLanguageSettingsViewModel() -> LanguageSettingsViewModel {
         LanguageSettingsViewModel(store: language)
+    }
+
+    /// Preferences screen (gap G22). Built here, not in the view: the store is
+    /// process-wide and a second one would diverge from the instance the
+    /// timeline and the viewer read.
+    func makeAppSettingsViewModel() -> PreferencesViewModel {
+        PreferencesViewModel(store: appSettings)
     }
 
     /// Profile picture screen (gap G16). Takes the session as an argument for

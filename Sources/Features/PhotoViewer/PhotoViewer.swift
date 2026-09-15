@@ -175,6 +175,10 @@ struct PhotoViewer: View {
 
     @Environment(\.dismiss) private var dismissAction
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// App preferences (gap G22). "Tap to Navigate" is read **at tap time**,
+    /// not when the page is built, so flipping it in Preferences applies to the
+    /// viewer already on screen; the slideshow is handed the same store.
+    @Environment(AppSettingsStore.self) private var appSettings
     /// Offline cache mirror (issue #18): lets every page serve its full-size
     /// image from disk when the asset has been downloaded.
     @Environment(OfflineAssetIndex.self) private var offlineIndex: OfflineAssetIndex?
@@ -752,7 +756,7 @@ struct PhotoViewer: View {
     /// here (top bar button), never stored while inactive — closing the
     /// overlay nils it out, so the next start begins fresh.
     private func presentSlideshow() {
-        let vm = SlideshowViewModel(assets: localAssets, startIndex: selectedIndex)
+        let vm = SlideshowViewModel(assets: localAssets, startIndex: selectedIndex, appSettings: appSettings)
         // No `vm.start()` here — `SlideshowView.onAppear` starts the loop,
         // avoiding a double start (and the VM is created fresh each time).
         slideshowVM = vm
@@ -815,13 +819,27 @@ struct PhotoViewer: View {
         }
     }
 
-    /// Shared page tap action: an open info panel closes first, otherwise the
-    /// tap toggles the chrome (image zoom pages and video pages both use it).
+    /// Shared page tap action: an open info panel closes first; otherwise the
+    /// tap follows "Tap to Navigate" — off keeps today's behavior (toggle the
+    /// chrome), on advances to the next asset without touching the chrome
+    /// (image zoom pages and video pages both use it).
     private func dismissOrToggleChrome() {
         if showInfo {
             closeInfo()
+        } else if appSettings.tapToNavigate {
+            advanceToNextAsset()
         } else {
             toggleChrome()
+        }
+    }
+
+    /// One step forward for "Tap to Navigate". Bounded by the pager: the last
+    /// photo is the end of the roll (a tap there is simply a no-op — wrapping
+    /// would jump the user back to the top of their library).
+    private func advanceToNextAsset() {
+        guard selectedIndex + 1 < localAssets.count else { return }
+        withAnimation(PVMotion.adaptive(PVMotion.snappy, reduceMotion: reduceMotion)) {
+            selectedIndex += 1
         }
     }
 
@@ -1113,10 +1131,10 @@ private struct PhotoShareSheet: View {
             let saver = SaveToLibraryViewModel(asset: asset, client: client, baseURL: baseURL, token: token)
             saveVM = saver
         }
-        .sensoryFeedback(.success, trigger: vm?.lastCreatedAlbumId)
-        .sensoryFeedback(.success, trigger: vm?.lastAddedAlbumId)
-        .sensoryFeedback(.success, trigger: saveVM?.lastSavedIdentifier)
-        .sensoryFeedback(.success, trigger: saveVM?.didPresentDownload)
+        .appSensoryFeedback(.success, trigger: vm?.lastCreatedAlbumId)
+        .appSensoryFeedback(.success, trigger: vm?.lastAddedAlbumId)
+        .appSensoryFeedback(.success, trigger: saveVM?.lastSavedIdentifier)
+        .appSensoryFeedback(.success, trigger: saveVM?.didPresentDownload)
     }
 
     private var header: some View {

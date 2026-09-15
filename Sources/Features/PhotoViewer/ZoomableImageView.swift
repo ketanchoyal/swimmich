@@ -42,10 +42,24 @@ struct ZoomableImageView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
 
+    /// Image-quality preference (gap G22): original file or the server's
+    /// `.fullsize` rendition. Read at render time, so a page already on screen
+    /// follows a change made in Preferences.
+    @Environment(AppSettingsStore.self) private var appSettings
+
     private let minScale: CGFloat = 1
     private let maxScale: CGFloat = 4
 
     private var isZoomed: Bool { scale > 1.01 }
+
+    /// The one line that decides which variant this page fetches. The offline
+    /// copy (`localFileURL`) and the image cache cover both URLs unchanged —
+    /// the cache key is the URL itself.
+    private var imageURL: URL {
+        appSettings.loadOriginal
+            ? ImmichAssetURL.original(assetId: asset.id, baseURL: baseURL, sharedLink: sharedLink)
+            : asset.thumbnailURL(base: baseURL, size: .fullsize, sharedLink: sharedLink)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -53,7 +67,7 @@ struct ZoomableImageView: View {
             // so a content-sized `.fit` image would sit at the top, not centered.
             // The frame fills the page and centers the fitted image in both axes.
             let base = AuthenticatedAsyncImage(
-                url: asset.thumbnailURL(base: baseURL, size: .fullsize, sharedLink: sharedLink),
+                url: imageURL,
                 token: token,
                 contentMode: .fit,
                 localFileURL: localFileURL,

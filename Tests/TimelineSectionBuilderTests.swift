@@ -109,4 +109,49 @@ final class TimelineSectionBuilderTests: XCTestCase {
         let ids = sections.map(\.id)
         XCTAssertEqual(Set(ids).count, ids.count, "Section ids must be unique")
     }
+
+    // MARK: - Grouping (settings-parity, G22)
+
+    /// `.month`: one banner and one month group per month, with the days' items
+    /// concatenated in the order they arrived (the grid's visual order).
+    func test_build_monthGrouping_emitsOneBannerPerMonthAndConcatenatesDays() {
+        let groups = [
+            (day: "2024-07-15", items: [item(id: "a1")]),
+            (day: "2024-07-14", items: [item(id: "a2")]),
+            (day: "2024-06-30", items: [item(id: "b1")])
+        ]
+
+        let sections = TimelineSectionBuilder.build(from: groups, groupBy: .month)
+
+        XCTAssertEqual(sections.count, 4)
+        guard sections.count == 4,
+              case .monthHeader(let july, _) = sections[0],
+              case .monthGroup(let julyKey, let julyItems) = sections[1],
+              case .monthHeader(let june, _) = sections[2],
+              case .monthGroup(let juneKey, let juneItems) = sections[3] else {
+            return XCTFail("Expected banner + month group per month, got \(sections)")
+        }
+        XCTAssertEqual(july, "2024-07")
+        XCTAssertEqual(julyKey, "2024-07")
+        XCTAssertEqual(julyItems.map(\.id), ["a1", "a2"])
+        XCTAssertEqual(june, "2024-06")
+        XCTAssertEqual(juneKey, "2024-06")
+        XCTAssertEqual(juneItems.map(\.id), ["b1"])
+    }
+
+    /// `.none`: the whole timeline in one section, no banner — which is what
+    /// leaves the sticky header with nothing to follow.
+    func test_build_flatGrouping_returnsOneSectionWithoutBanner() {
+        let groups = [
+            (day: "2024-07-15", items: [item(id: "a1")]),
+            (day: "2024-06-30", items: [item(id: "b1")])
+        ]
+
+        let sections = TimelineSectionBuilder.build(from: groups, groupBy: .none)
+
+        guard sections.count == 1, case .flat(let items) = sections[0] else {
+            return XCTFail("Expected a single flat section, got \(sections)")
+        }
+        XCTAssertEqual(items.map(\.id), ["a1", "b1"])
+    }
 }

@@ -45,7 +45,7 @@ struct PVRatingBar: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assetRatingBar")
         .animation(PVMotion.snappy, value: isEnabled)
-        .sensoryFeedback(.selection, trigger: rating)
+        .appSensoryFeedback(.selection, trigger: rating)
     }
 }
 

@@ -24,6 +24,9 @@ struct ProfileView: View {
     @State var syncStatus: SyncStatusViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
+    /// Preferences screen (gap G22). A pass-through to the process-wide store,
+    /// owned by `AuthenticatedRoot` like the other hub view models.
+    @State var appSettings: PreferencesViewModel
     @State var localLibrary: LocalLibraryViewModel
     @State var freeUpSpace: FreeUpSpaceViewModel
     @State var folders: FolderViewModel
@@ -60,9 +63,19 @@ struct ProfileView: View {
 
                 storageSection
 
-                // Language sits on its own rather than in Management: it is a
-                // device-level choice like Security, not another library screen.
+                // App preferences and Language sit together rather than in
+                // Management: both are device-level choices, not another
+                // library screen. Preferences leads because it is the wider
+                // one — and its icon (`slider.horizontal.3`) stays distinct
+                // from Language's `globe`.
                 Section {
+                    NavigationLink {
+                        PreferencesView(vm: appSettings)
+                    } label: {
+                        Label("Preferences", systemImage: "slider.horizontal.3")
+                    }
+                    .accessibilityIdentifier("preferencesRow")
+
                     NavigationLink {
                         LanguageSettingsView(vm: language)
                     } label: {

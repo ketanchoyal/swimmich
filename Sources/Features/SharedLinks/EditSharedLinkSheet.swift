@@ -114,7 +114,7 @@ struct EditSharedLinkSheet: View {
                 }
             }
         }
-        .sensoryFeedback(.success, trigger: saveTick)
+        .appSensoryFeedback(.success, trigger: saveTick)
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {

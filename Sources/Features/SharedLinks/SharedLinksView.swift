@@ -418,7 +418,7 @@ struct CreateSharedLinkSheet: View {
                 }
             }
         }
-        .sensoryFeedback(.success, trigger: createTick)
+        .appSensoryFeedback(.success, trigger: createTick)
     }
 
     private var form: some View {
@@ -509,7 +509,7 @@ struct CreateSharedLinkSheet: View {
         // container propagates to every descendant and OVERWRITES theirs — the
         // URL text and both buttons all came back as "sharedLinkReadyScreen",
         // which is invisible on screen and makes the identifiers useless.
-        .sensoryFeedback(.success, trigger: copiedTick)
+        .appSensoryFeedback(.success, trigger: copiedTick)
         .task {
             // Flutter copies the link as soon as it exists — the user came here
             // to get one.

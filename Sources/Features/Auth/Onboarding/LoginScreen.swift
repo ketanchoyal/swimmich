@@ -91,7 +91,7 @@ struct LoginScreen: View {
         .navigationTitle("Sign In")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { focus = .email }
-        .sensoryFeedback(.error, trigger: auth.errorMessage)
+        .appSensoryFeedback(.error, trigger: auth.errorMessage)
         .onboardingBottomBar {
             Button(action: signIn) {
                 if auth.isLoading {

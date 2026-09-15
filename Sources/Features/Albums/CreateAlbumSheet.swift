@@ -56,7 +56,7 @@ struct CreateAlbumSheet: View {
                 }
             }
         }
-        .sensoryFeedback(.success, trigger: createTick)
+        .appSensoryFeedback(.success, trigger: createTick)
     }
 
     /// Portrait cover preview: the first selected photo if any, otherwise a

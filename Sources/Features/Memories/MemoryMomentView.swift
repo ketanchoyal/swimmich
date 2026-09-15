@@ -74,7 +74,7 @@ struct MemoryMomentView: View {
                 .frame(width: proxy.size.width)
             }
             .onAppear(perform: appear)
-            .sensoryFeedback(.impact(flexibility: .soft), trigger: appeared)
+            .appSensoryFeedback(.impact(flexibility: .soft), trigger: appeared)
         }
         .statusBarHidden(true)
         .photoViewer(item: $viewerItem, baseURL: baseURL, token: token)

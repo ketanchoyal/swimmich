@@ -41,8 +41,8 @@ struct TrashView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .toolbarBackground(.visible, for: .navigationBar)
-            .sensoryFeedback(.success, trigger: lastRestoreTick)
-            .sensoryFeedback(.warning, trigger: lastDeleteTick)
+            .appSensoryFeedback(.success, trigger: lastRestoreTick)
+            .appSensoryFeedback(.warning, trigger: lastDeleteTick)
             .alert(
                 "Delete Permanently?",
                 isPresented: Binding(

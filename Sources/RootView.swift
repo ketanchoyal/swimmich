@@ -13,6 +13,10 @@ struct RootView: View {
     /// Interface language (issue #21). The store is owned by the container, so
     /// the picker in the Me sheet writes exactly what this reads.
     @State private var language: AppLanguageStore
+    /// App preferences (gap G22). Owned by the container like `language`: this
+    /// is the one instance the Preferences screen writes and the timeline, the
+    /// viewer and the video player read.
+    @State private var appSettings: AppSettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let container: DependencyContainer
 
@@ -22,6 +26,7 @@ struct RootView: View {
         _auth = State(initialValue: authVM)
         _appLock = State(initialValue: container.appLock)
         _language = State(initialValue: container.language)
+        _appSettings = State(initialValue: container.appSettings)
     }
 
     private var isGated: Bool { appLock.isEnabled && appLock.isLocked }
@@ -49,6 +54,13 @@ struct RootView: View {
             // follow on the next launch — `AppLanguageStore` writes
             // `AppleLanguages` for exactly that.
             .environment(\.locale, language.effectiveLocale)
+            // App preferences (gap G22) reach every screen through the
+            // environment — the timeline grid, the viewer, the video player and
+            // the slideshow read the very store the Preferences screen writes.
+            // The haptic gate rides along here so the whole tree, onboarding
+            // and lock screen included, obeys one switch.
+            .environment(appSettings)
+            .environment(\.hapticsEnabled, appSettings.hapticsEnabled)
             .blur(radius: isGated ? 30 : 0)
             .task {
                 // Reconfigure the shared client from the stored session and
@@ -62,6 +74,12 @@ struct RootView: View {
             }
         }
         .animation(PVMotion.adaptive(PVMotion.gentle, reduceMotion: reduceMotion), value: isGated)
+        // Appearance (gap G22) is applied HERE, on the outer `ZStack`, and not
+        // on `AuthenticatedRoot`: the theme and the accent must also cover the
+        // onboarding flow and `LockView`, which live outside it. `nil` (the
+        // `.system` case) is what hands the color scheme back to iOS.
+        .preferredColorScheme(appSettings.theme.colorScheme)
+        .tint(appSettings.accent.color)
     }
 }
 
@@ -111,6 +129,11 @@ private struct AuthenticatedRoot: View {
     @State private var localLibrary: LocalLibraryViewModel
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
+    /// Preferences screen (gap G22). Held here, not built by the Me sheet's
+    /// content closure: the screen is a pass-through to the process-wide store,
+    /// and a ViewModel rebuilt on every sheet presentation would be a second
+    /// reader of the same keys for no gain.
+    @State private var appSettings: PreferencesViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
     @State private var folders: FolderViewModel
     /// Profile picture screen (gap G16). Owned here so the account row of the Me
@@ -163,6 +186,7 @@ private struct AuthenticatedRoot: View {
         _localLibrary = State(initialValue: container.makeLocalLibraryViewModel())
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
+        _appSettings = State(initialValue: container.makeAppSettingsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
         _folders = State(initialValue: container.makeFolderViewModel())
         _profilePicture = State(initialValue: container.makeProfilePictureViewModel(
@@ -292,7 +316,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, appSettings: appSettings, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
