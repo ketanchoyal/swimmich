@@ -327,6 +327,14 @@ final class DependencyContainer {
         LanguageSettingsViewModel(store: language)
     }
 
+    /// Profile picture screen (gap G16). Takes the session as an argument for
+    /// the same reason as `makeSharedLinkViewerViewModel`: the container knows
+    /// the client, but the connected server and its bearer token only exist
+    /// once the app is authenticated.
+    func makeProfilePictureViewModel(baseURL: URL?, token: String?) -> ProfilePictureViewModel {
+        ProfilePictureViewModel(client: client as any ImmichClient, baseURL: baseURL, token: token)
+    }
+
     /// Per-asset upload report (upload-detail). Takes the caller's
     /// `UploadViewModel` rather than choosing one: the screen must project the
     /// engine the process is actually running, and there is only one

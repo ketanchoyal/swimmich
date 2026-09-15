@@ -109,7 +109,7 @@ private struct ActivityRow: View {
 
     var body: some View {
         HStack(spacing: PVSpacing.s12) {
-            UserAvatarCircle(user: activity.user, size: 36)
+            UserAvatarCircle(user: activity.user, size: 36, baseURL: auth.baseURL, token: auth.accessToken)
 
             VStack(alignment: .leading, spacing: PVSpacing.s2) {
                 Text(activity.user.name)

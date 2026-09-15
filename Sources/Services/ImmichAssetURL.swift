@@ -54,4 +54,17 @@ enum ImmichAssetURL {
         }
         return url
     }
+
+    /// Profile picture of a user (`GET /api/users/{id}/profile-image`, served
+    /// as `application/octet-stream`; bearer-authenticated, so it loads through
+    /// `AuthenticatedAsyncImage` — never a token in the query string).
+    ///
+    /// `changedAt` is the cache-buster, with the same role as `thumbhash` in
+    /// `thumbnail(…)`: `ImageCache` is keyed by URL, so without it a photo
+    /// uploaded *over* an older one would still be served from the cache.
+    static func profileImage(userId: String, changedAt: String?, baseURL: URL) -> URL {
+        let url = baseURL.appendingPathComponent(ImmichAPI.users.path("/\(userId)/profile-image"))
+        guard let changedAt, !changedAt.isEmpty else { return url }
+        return url.appending(queryItems: [URLQueryItem(name: "v", value: changedAt)])
+    }
 }
