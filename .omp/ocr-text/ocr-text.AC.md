@@ -93,7 +93,7 @@ l'inclinaison des boîtes (coordonnées = quatre coins, pas une bbox).
 Assertion: l'overlay est dessiné **dans** `ZoomableImageView`, avec `scale` et `offset` passés au calque et
 deux paramètres optionnels de valeur par défaut vide — les appels existants de la vue (viewer simple,
 aperçus) ne changent pas de signature et l'OCR est éteint par défaut.
-Check post-impl: sh -c 'f=Sources/Features/PhotoViewer/ZoomableImageView.swift; grep -qE "var ocrBoxes: \[AssetOcrResponseDto\] = \[\]" "$f" && grep -qE "var showOcr: Bool = false" "$f" && grep -qE "if showOcr" "$f" && grep -qE "OcrOverlayView\(" "$f" && grep -A4 "OcrOverlayView\(" "$f" | grep -qE "scale: scale" && grep -A4 "OcrOverlayView\(" "$f" | grep -qE "offset: offset" && grep -qE "GeometryReader" "$f" && grep -qE "imageRect" "$f" && echo PASS || echo FAIL'
+Check post-impl: sh -c 'f=Sources/Features/PhotoViewer/ZoomableImageView.swift; grep -qE "var ocrBoxes: \[AssetOcrResponseDto\] = \[\]" "$f" && grep -qE "var showOcr: Bool = false" "$f" && grep -qE "if showOcr" "$f" && grep -qE "OcrOverlayView\(" "$f" && grep -A4 "OcrOverlayView[(]" "$f" | grep -qE "scale: scale" && grep -A4 "OcrOverlayView[(]" "$f" | grep -qE "offset: offset" && grep -qE "GeometryReader" "$f" && grep -qE "imageRect" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (aucun `ocrBoxes`, aucun `showOcr`, aucun `OcrOverlayView` — `grep -rn "ocr" Sources/Features/PhotoViewer/ZoomableImageView.swift` est vide)
 Post-state attendu: PASS
 Note: `scale: scale` / `offset: offset` sont vérifiés dans l'appel : sans eux la vue compilerait toujours

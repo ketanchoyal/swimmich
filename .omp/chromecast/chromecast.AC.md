@@ -45,8 +45,8 @@ Post-state attendu: PASS
 
 ```
 ### AC-5081 [type: new]
-Assertion: `AirPlayCastService` est l'unique implémentation livrée et elle l'est en AirPlay natif : `AVRouteDetector`, les deux notifications `routeChangeNotification` / `mediaServicesWereResetNotification`, `routeDetectionEnabled`, le port `.airPlay` de `AVAudioSession.currentRoute.outputs` comme source de l'état connecté, et `supportsStillImages = false` écrit noir sur blanc.
-Check post-impl: sh -c 'f=Sources/Services/AirPlayCastService.swift; test -f "$f" && grep -qE "final class AirPlayCastService: CastService" "$f" && grep -qE "AVRouteDetector\(\)" "$f" && grep -qE "routeChangeNotification" "$f" && grep -qE "mediaServicesWereResetNotification" "$f" && grep -qE "routeDetectionEnabled = true" "$f" && grep -qE "portType == .airPlay" "$f" && grep -qE "let supportsStillImages = false" "$f" && grep -qE "func refresh" "$f" && echo PASS || echo FAIL'
+Assertion: `AirPlayCastService` est l'unique implémentation livrée et elle l'est en AirPlay natif : `AVRouteDetector`, les deux notifications `routeChangeNotification` / `mediaServicesWereResetNotification`, `isRouteDetectionEnabled` (le `getter=is…` du SDK renomme la propriété en Swift : `routeDetectionEnabled` ne compile pas), le port `.airPlay` de `AVAudioSession.currentRoute.outputs` comme source de l'état connecté, et `supportsStillImages = false` écrit noir sur blanc.
+Check post-impl: sh -c 'f=Sources/Services/AirPlayCastService.swift; test -f "$f" && grep -qE "final class AirPlayCastService: CastService" "$f" && grep -qE "AVRouteDetector\(\)" "$f" && grep -qE "routeChangeNotification" "$f" && grep -qE "mediaServicesWereResetNotification" "$f" && grep -qE "isRouteDetectionEnabled = true" "$f" && grep -qE "portType == .airPlay" "$f" && grep -qE "let supportsStillImages = false" "$f" && grep -qE "func refresh" "$f" && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (fichier absent ; `grep -rn "AVRouteDetector\|AVRoutePickerView\|allowsExternalPlayback\|GCKCastContext\|CC1AD845" Sources/ Tests/ project.yml Resources/` → 0 résultat)
 Post-state attendu: PASS
 ```
