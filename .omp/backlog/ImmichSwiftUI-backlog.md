@@ -1011,6 +1011,76 @@ accordée en cours de route.
 - `settings-parity` ajoute deux réglages sans équivalent upstream (densité 5/3/2, clé
   `searchGridDensity`) : convention neuve du dépôt, pas de la parité.
 
+
+---
+
+### 2.19. Vague XCUITest du 2026-09-15 — un scénario par carte
+
+Décision utilisateur : **pas de conteneur Immich** (jugé trop lourd), **un scénario XCUITest
+par carte**, AirPlay suffisant pour G9, retrait des réglages inventés, sonde
+`GET /api/auth/status` après chaque action de l'écran des sessions, simulateurs conservés.
+
+**Ce qui a été construit**
+
+- `UITests/stubs/immich_stub_base.py` — socle de stub partagé (handshake OAuth, buckets,
+  vignettes PNG réelles, `/__requests`, `/__whoami`) ; **25 stubs de feature** fins par-dessus.
+- `UITests/Scenarios/` — **25 classes `XCTestCase`** (26 tests) dans leurs propres fichiers,
+  une par carte, chacune pilotant l'app réelle contre **son** stub, avec assertions d'écran
+  **et de fil** et un contrôle négatif obligatoire (casser la preuve, montrer l'échec, restaurer).
+- `.omp/orchestration/uitest.sh` — le lanceur : un slot = un appareil + un port **tiré au sort**
+  + une vérification d'identité `/__whoami` ; DerivedData **par worktree** ; flux
+  `build-for-testing → install → grant Photos → seed des médias → test-without-building` ;
+  **refus d'un scénario qui s'est « skipped »** (un scénario sauté ne prouve rien).
+- `.omp/orchestration/run-scenarios.sh` — rejeu de **tous** les scénarios, avec la table des
+  médias à semer par carte (sans elle, 5 scénarios échouent pour la mauvaise raison).
+
+**Résultat sur l'arbre intégré**
+
+| | |
+|---|---|
+| Scénarios XCUITest | **26 / 26 verts** (`passed`, aucun `skipped`) |
+| Checks AC des 25 cartes | **250 / 250 PASS** |
+| Suite unitaire | **1193 tests, TEST SUCCEEDED** (arbre propre) |
+
+**Quatre défauts de production trouvés — qu'aucun test unitaire ne pouvait voir**
+
+1. **Crash P0** : « Moi → Backup » tuait l'app. Les valeurs injectées par `.environment(_:)`
+   sur la chaîne d'`AuthenticatedRoot` n'atteignent ni le contenu d'une feuille ni les écrans
+   qu'elle pousse (celles injectées un cran plus haut, comme `auth`, y arrivent) : crash pour
+   le seul lecteur non optionnel, et **perte silencieuse** des pastilles cloud pour les
+   lecteurs optionnels. Corrigé en re-déclarant les six valeurs dans la feuille (`884aa6c`).
+2. **Barre de progression morte** : `URLSessionFileDownloadTransport` n'appelait jamais
+   `onProgress` — la variante *async* de `download(for:delegate:)` ne livre aucun callback de
+   delegate (mesuré : 0 vs 15 `didWriteData`). Le panneau de téléchargement **et** le cache
+   hors-ligne étaient figés. Corrigé par la feature download-panel (`61fba7d`).
+3. **Pieds de `Section` tronqués** : un footer dont le ViewBuilder contient plusieurs vues
+   n'en dessine et n'en publie que la **première**. Deux sites (hub, écran Backup) : les
+   phrases qui expliquent l'interface n'existaient pas. Corrigé (`60b392e`).
+4. **Mur de navigation** : dans une même pile, SwiftUI garde les destinations **par valeur
+   sous** les destinations-vue — un `NavigationLink(value:)` ne s'affiche alors jamais. Le
+   drill-down des **Dossiers** et des **Personnes** ne s'ouvrait pas (`07c24a2`, `af04ef0`).
+
+**Pièges de harnais mesurés (à ne pas réapprendre)**
+
+Un stub résiduel qui squatte un port fixe sert le scénario d'un autre (d'où port tiré au sort
+et `/__whoami`) ; deux lanceurs avec des verrous différents se battent pour un appareil ;
+le handler d'interruption **par défaut** d'XCUITest répond « Ajout uniquement » à l'alerte
+Photos ; le libellé français porte une **apostrophe typographique** (U+2019) ; un appareil
+effacé contient déjà **6 photos d'exemple** et `simctl addmedia` renomme les fichiers en DCIM ;
+un `Toggle` de `Form` veut un tap à `dx = 0.9` ; la feuille « Moi » ne se ferme pas par un
+drag partant de `dy = 0.06` et `navigationBars.firstMatch` y est la barre de la timeline
+couverte ; `__pycache__` sous `UITests/stubs` devient une ressource du bundle au
+`xcodegen generate`.
+
+**Ce qui reste non prouvé (déclaré par les scénarios eux-mêmes)**
+
+`chromecast` — la feuille ne s'ouvre pas dans un simulateur (aucune route AirPlay) : la
+pastille désactivée, le tap inerte et le silence du fil sont prouvés, pas la sortie vers un
+écran réel ; `download-panel` — l'annulation n'est pas tapée (état asserté seulement) et la
+voie multi-assets n'est pas couverte ; `whats-new` — un `markSeen()` devenu no-op passerait
+(l'écriture est couverte par les tests unitaires) ; `share-extension` — la feuille système est
+pilotée et l'upload multipart prouvé au checksum près, mais contre un stub, pas un vrai serveur.
+
 ---
 
 ## Référence API — endpoints ImmichClient
