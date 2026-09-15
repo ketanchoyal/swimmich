@@ -19,6 +19,13 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
     nonisolated(unsafe) var onFirstLoad: (() -> Void)?
     nonisolated(unsafe) var lastAlbumIDs: Set<String>?
     nonisolated(unsafe) var lastExcludedAlbumIDs: Set<String>?
+    /// Ids a restricted run asked for, in order — a retry must look its assets
+    /// up by identifier instead of enumerating the library.
+    nonisolated(unsafe) var requestedIDs: [String] = []
+    /// Per-id iCloud states the export reports before it writes, so the
+    /// engine's per-asset progress maps are observable without a real iCloud.
+    nonisolated(unsafe) var iCloudFractions: [String: Double] = [:]
+    nonisolated(unsafe) var iCloudRetries: [String: Int] = [:]
     /// Candidate ids the excluded albums contain, so the mock can honor the
     /// exclusion contract the real source implements.
     nonisolated(unsafe) var excludedAssetIDs: Set<String> = []
@@ -43,6 +50,15 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
         return candidates.filter { !excludedAssetIDs.contains($0.id) }
     }
 
+    /// Order follows the request, so a restricted run touches exactly the ids
+    /// it named (and a test can hand it the same id twice).
+    func fetchCandidates(ids: [String]) -> [BackupCandidate] {
+        fetchLock.lock()
+        requestedIDs.append(contentsOf: ids)
+        fetchLock.unlock()
+        return ids.compactMap { id in candidates.first { $0.id == id } }
+    }
+
     func exportOriginal(
         for candidate: BackupCandidate,
         onState: @escaping @Sendable (BackupExportState) -> Void
@@ -50,6 +66,12 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
         fetchLock.lock()
         exportedIDs.append(candidate.id)
         fetchLock.unlock()
+        if let fraction = iCloudFractions[candidate.id] {
+            onState(.downloadingFromICloud(fraction: fraction))
+        }
+        if let attempt = iCloudRetries[candidate.id] {
+            onState(.retryingICloud(attempt: attempt))
+        }
         onFirstLoad?()
         onFirstLoad = nil
         if let loadError { throw loadError }

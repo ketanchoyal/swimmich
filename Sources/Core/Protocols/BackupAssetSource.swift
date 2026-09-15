@@ -21,6 +21,11 @@ struct BackupCandidate: Identifiable, Equatable, Sendable {
     /// asset has a paired video resource that must be uploaded alongside the
     /// still, or the server stores a dead image.
     var isLivePhoto: Bool = false
+    /// Bytes the asset occupies on the wire — its original resource plus, for
+    /// a Live Photo, the paired video. `nil` when the library can't report it,
+    /// which the UI renders as "Unknown size" rather than 0 B. Defaulted, so
+    /// every existing construction keeps compiling.
+    var fileSize: Int64? = nil
 }
 
 /// An album the user can scope backups to — user album or smart album.
@@ -81,6 +86,12 @@ protocol BackupAssetSource: Sendable {
     /// the scan. IDs may be user-album `localIdentifier`s or
     /// `BackupAlbum.SmartID` values.
     func fetchCandidates(in albumIDs: Set<String>, excluding excludedAlbumIDs: Set<String>) -> [BackupCandidate]
+    /// The same candidates, resolved from Photos `localIdentifier`s instead of
+    /// enumerated. A retry names the assets it wants, and a point lookup is
+    /// what keeps it from paying a whole-library scan. Ids the library no
+    /// longer holds are simply absent from the result — no album scoping, no
+    /// ordering guarantee beyond the request.
+    func fetchCandidates(ids: [String]) -> [BackupCandidate]
     /// Streams the candidate's full-resolution original to a temporary file on
     /// disk and returns its URL — never materializes the whole asset in memory
     /// (mirrors the upstream Flutter client, which uploads straight from a

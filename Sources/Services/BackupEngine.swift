@@ -37,8 +37,15 @@ struct BackupSettings: Equatable, Sendable {
 /// A single asset the backup couldn't process, kept for the failures list.
 struct BackupFailure: Identifiable, Equatable, Sendable {
     let id = UUID()
+    /// Photos `localIdentifier` of the asset — a targeted retry needs a key the
+    /// library answers to, and a file name is not one.
+    let assetID: String
     let name: String
     let reason: String
+    /// Bytes the run knew for this asset: the scan's size, or the size it
+    /// measured on the exported original. `nil` means genuinely unknown, which
+    /// the UI says out loud rather than showing "0 B".
+    let fileSize: Int64?
 }
 
 /// Why assets were held back this run. Both cases are non-failures: the asset
@@ -48,6 +55,19 @@ struct BackupDeferralReason: OptionSet, Sendable {
     let rawValue: Int
     static let waitingForICloud = BackupDeferralReason(rawValue: 1 << 0)
     static let waitingForWiFi = BackupDeferralReason(rawValue: 1 << 1)
+}
+
+/// One asset held back from a run, with the reason and the size the run knew.
+/// `deferredCount` says how many were held back; this says which — a count
+/// can't be retried or explained asset by asset. `id` is the Photos
+/// `localIdentifier` rather than a UUID for exactly that reason: it is the key
+/// the retry names, and it keeps one asset to one entry.
+struct BackupDeferral: Identifiable, Equatable, Sendable {
+    let id: String
+    let name: String
+    let reason: BackupDeferralReason
+    let fileSize: Int64?
+    let kind: BackupAssetKind
 }
 
 /// Background backup state machine. Pure orchestration over the injected
@@ -101,6 +121,19 @@ final class BackupEngine {
     private(set) var isCancelling = false
     /// Every asset that failed this run (export/hash/dedup/upload), with reason.
     private(set) var failures: [BackupFailure] = []
+    /// Bytes of the assets this run actually uploaded. The successes aren't
+    /// listed asset by asset — the engine keeps no per-asset record of them —
+    /// so this total is what the "Uploaded" summary reports.
+    private(set) var uploadedBytes: Int64 = 0
+    /// Which assets were held back this run, one entry per asset: the reason,
+    /// the size and the kind `deferredCount` only counts.
+    private(set) var deferrals: [BackupDeferral] = []
+    /// iCloud download fraction per asset `localIdentifier`, and the 1-based
+    /// retry attempt per asset. Keyed by asset, not a single scalar, so a
+    /// download is attributed to the asset it belongs to; the entry of the
+    /// asset the run has moved past is dropped, `reset()` clears the rest.
+    private(set) var iCloudProgress: [String: Double] = [:]
+    private(set) var iCloudRetryAttempts: [String: Int] = [:]
     /// When the upload phase began — the clock for the ETA estimate.
     private(set) var startedAt: Date?
 
@@ -236,8 +269,18 @@ final class BackupEngine {
     /// automatic gate rejected it (disabled, no Wi-Fi, not charging) or another
     /// run already owns the engine, so no phase transition — and no Live
     /// Activity, notification or history entry — belongs to this call.
+    ///
+    /// `only` restricts the run to the named Photos `localIdentifiers` — the
+    /// retry path. Such a run reads those assets by identifier
+    /// (`fetchCandidates(ids:)`), skips the ledger reconciliation and skips the
+    /// ledger filter: the user named the assets, so an asset the ledger counts
+    /// as done (a Live Photo whose still is on the server while its link
+    /// warning still stands) must be re-decided instead of filtered out
+    /// forever. Everything downstream — `total = remaining.count`, the staging
+    /// loop, `processBatch`, the ledger writes, the counters — is the same
+    /// code as a full run.
     @discardableResult
-    func run(settings: BackupSettings, manual: Bool = false) async -> Bool {
+    func run(settings: BackupSettings, manual: Bool = false, only assetIDs: [String] = []) async -> Bool {
         guard !(isCancelled || phase == .uploading || phase == .checking) else {
             if isCancelled { phase = .cancelled }
             return false
@@ -261,9 +304,13 @@ final class BackupEngine {
         reset()
         lastError = nil
         phase = .checking
-        // Confront the ledger with the server BEFORE scanning: an asset deleted
-        // server-side is forgotten here, so it is a candidate in this very run.
-        await reconcileLedgerIfDue()
+        let restricted = !assetIDs.isEmpty
+        if !restricted {
+            // Confront the ledger with the server BEFORE scanning: an asset
+            // deleted server-side is forgotten here, so it is a candidate in
+            // this very run. A retry has no scan to reconcile for.
+            await reconcileLedgerIfDue()
+        }
         // Enumerating the library and reading each asset's metadata is heavy
         // Photos work; run it off the main actor so the UI never freezes while
         // the engine is "Checking library…".
@@ -274,6 +321,9 @@ final class BackupEngine {
             // Clear leftover temp originals from a previous run that a jetsam
             // OOM/expiration killed before it could delete them, then scan.
             source.purgeStaleExports()
+            // A retry names its assets: reading a handful of identifiers is a
+            // point lookup, where the enumeration is a whole-library scan.
+            if restricted { return source.fetchCandidates(ids: assetIDs) }
             return source.fetchCandidates(in: albumIDs, excluding: excludedAlbumIDs)
         }.value
 
@@ -282,7 +332,13 @@ final class BackupEngine {
         // the ledger: an iCloud-optimized library must not be re-downloaded
         // every run just to be re-hashed and rejected.
         let ledger = self.ledger
-        remaining = remaining.filter { !ledger.isBackedUp(id: $0.id, signature: $0.fileModifiedAt) }
+        // A restricted run keeps its named assets even when the ledger counts
+        // them as done: the case a retry exists for — the still is on the
+        // server, its Live Photo link warning isn't — is exactly the case the
+        // ledger is wrong about.
+        if !restricted {
+            remaining = remaining.filter { !ledger.isBackedUp(id: $0.id, signature: $0.fileModifiedAt) }
+        }
 
         // Denominator is fixed now: everything that passed the filters is an
         // asset to process, whether it uploads, dedups, or fails.
@@ -295,6 +351,13 @@ final class BackupEngine {
             if isCancelled { return cancelStaging(&batch) }
             let candidate = remaining[index]
             index += 1
+            // Per-asset iCloud reporting belongs to the asset being worked on:
+            // drop the entry of the one the run just left behind, whatever
+            // ended it — `reset()` clears whatever the last asset leaves.
+            if let left = currentAssetID, left != candidate.id {
+                iCloudProgress[left] = nil
+                iCloudRetryAttempts[left] = nil
+            }
             currentFileName = candidate.fileName
             currentAssetID = candidate.id
             statusMessage = nil
@@ -306,6 +369,7 @@ final class BackupEngine {
             guard manual || isUploadAllowedNow(candidate, settings) else {
                 deferredCount += 1
                 deferralReason.insert(.waitingForWiFi)
+                recordDeferral(candidate, reason: .waitingForWiFi)
                 notifyProgress()
                 if isCancelled { return cancelStaging(&batch) }
                 continue
@@ -366,6 +430,7 @@ final class BackupEngine {
                 // picked up on the next run once the download has landed.
                 deferredCount += 1
                 deferralReason.insert(.waitingForICloud)
+                recordDeferral(candidate, reason: .waitingForICloud)
                 statusMessage = nil
                 notifyProgress()
                 if isCancelled { return cancelStaging(&batch) }
@@ -373,7 +438,12 @@ final class BackupEngine {
             } catch {
                 failedCount += 1
                 lastError = error.localizedDescription
-                failures.append(BackupFailure(name: candidate.fileName, reason: error.localizedDescription))
+                failures.append(BackupFailure(
+                    assetID: candidate.id,
+                    name: candidate.fileName,
+                    reason: error.localizedDescription,
+                    fileSize: candidate.fileSize
+                ))
                 notifyProgress()
                 if isCancelled { return cancelStaging(&batch) }
                 continue
@@ -494,7 +564,12 @@ final class BackupEngine {
             failedCount += current.count
             release(current.count)
             for entry in current {
-                failures.append(BackupFailure(name: entry.candidate.fileName, reason: error.localizedDescription))
+                failures.append(BackupFailure(
+                    assetID: entry.candidate.id,
+                    name: entry.candidate.fileName,
+                    reason: error.localizedDescription,
+                    fileSize: Self.stagedFileSize(entry)
+                ))
             }
             lastError = error.localizedDescription
             notifyProgress()
@@ -551,8 +626,10 @@ final class BackupEngine {
                     failedCount += 1
                     lastError = error.localizedDescription
                     failures.append(BackupFailure(
+                        assetID: entry.candidate.id,
                         name: entry.candidate.fileName,
-                        reason: "Live Photo video: \(error.localizedDescription)"
+                        reason: "Live Photo video: \(error.localizedDescription)",
+                        fileSize: Self.stagedFileSize(entry)
                     ))
                     Self.removeStaged([entry])
                     release()
@@ -575,6 +652,7 @@ final class BackupEngine {
                     deviceId: DeviceIdentity.current
                 )
                 uploadedCount += 1
+                if let bytes = Self.stagedFileSize(entry) { uploadedBytes += bytes }
                 ledger.markBackedUp(
                     id: entry.candidate.id,
                     signature: entry.candidate.fileModifiedAt,
@@ -586,7 +664,12 @@ final class BackupEngine {
             } catch {
                 failedCount += 1
                 lastError = error.localizedDescription
-                failures.append(BackupFailure(name: entry.candidate.fileName, reason: error.localizedDescription))
+                failures.append(BackupFailure(
+                    assetID: entry.candidate.id,
+                    name: entry.candidate.fileName,
+                    reason: error.localizedDescription,
+                    fileSize: Self.stagedFileSize(entry)
+                ))
             }
             Self.removeStaged([entry])
             statusMessage = nil
@@ -624,10 +707,12 @@ final class BackupEngine {
             )
         } catch {
             // The still IS on the server, so this is a warning, not a failed
-            // asset: recorded for the failures sheet, retried next run.
+            // asset: recorded for the failures list, retried next run.
             failures.append(BackupFailure(
+                assetID: entry.candidate.id,
                 name: entry.candidate.fileName,
-                reason: "Live Photo link: \(error.localizedDescription)"
+                reason: "Live Photo link: \(error.localizedDescription)",
+                fileSize: Self.stagedFileSize(entry)
             ))
             lastError = error.localizedDescription
         }
@@ -689,15 +774,49 @@ final class BackupEngine {
         await reconcileLedgerIfDue(force: true)
     }
 
-    /// Maps a per-asset export event into the observable `statusMessage`.
+    /// Maps a per-asset export event into the observable `statusMessage` — kept
+    /// as-is for the Backup screen, which owns that line — and into the
+    /// per-asset maps the detail screen reads, so an iCloud download can be
+    /// attributed to the asset it belongs to.
     private func applyExportState(_ state: BackupExportState) {
         switch state {
         case .downloadingFromICloud(let fraction):
-            let pct = Int((min(max(fraction, 0), 1) * 100).rounded())
+            let clamped = min(max(fraction, 0), 1)
+            if let id = currentAssetID { iCloudProgress[id] = clamped }
+            let pct = Int((clamped * 100).rounded())
             statusMessage = String(localized: "Downloading from iCloud… \(pct)%")
         case .retryingICloud(let attempt):
+            if let id = currentAssetID { iCloudRetryAttempts[id] = attempt }
             statusMessage = String(localized: "iCloud not ready yet — retrying (\(attempt))…")
         }
+    }
+
+    /// Records a held-back asset, replacing the entry of the same asset rather
+    /// than appending a second one: the same asset can come back through a run
+    /// more than once (a retry, a source that yields it twice), and "held back"
+    /// is a state, not an event log.
+    private func recordDeferral(_ candidate: BackupCandidate, reason: BackupDeferralReason) {
+        let entry = BackupDeferral(
+            id: candidate.id,
+            name: candidate.fileName,
+            reason: reason,
+            fileSize: candidate.fileSize,
+            kind: candidate.kind
+        )
+        if let index = deferrals.firstIndex(where: { $0.id == candidate.id }) {
+            deferrals[index] = entry
+        } else {
+            deferrals.append(entry)
+        }
+    }
+
+    /// Bytes the run measured on disk for one staged entry — the original plus,
+    /// for a Live Photo, the paired video. `nil` when the temp file is
+    /// unreadable, so a failure line says "Unknown size" instead of "0 B".
+    private static func stagedFileSize(_ entry: StagedAsset) -> Int64? {
+        var bytes = fileSize(entry.fileURL)
+        if let paired = entry.paired { bytes += fileSize(paired.url) }
+        return bytes > 0 ? Int64(bytes) : nil
     }
 
     /// Size of a temp export, for the chunk's disk budget. 0 when unreadable —
@@ -764,6 +883,10 @@ final class BackupEngine {
         currentFileName = nil
         currentAssetID = nil
         failures = []
+        deferrals = []
+        iCloudProgress = [:]
+        iCloudRetryAttempts = [:]
+        uploadedBytes = 0
         startedAt = nil
     }
 }

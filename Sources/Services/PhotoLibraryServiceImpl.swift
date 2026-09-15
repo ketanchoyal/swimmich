@@ -265,6 +265,32 @@ extension PhotoLibraryServiceImpl: BackupAssetSource {
         return candidates
     }
 
+    /// Point lookup for a retry: one `PHAsset.fetchAssets(withLocalIdentifiers:)`
+    /// — the same call the thumbnail loader makes — instead of enumerating the
+    /// whole library, then the same candidate construction as the full scan so
+    /// sizes and Live Photo flags match. Ids Photos no longer holds simply
+    /// aren't in the result; the run then has nothing to do rather than an error.
+    func fetchCandidates(ids: [String]) -> [BackupCandidate] {
+        guard !ids.isEmpty else { return [] }
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        // Same property hint as the full scan: without it every per-asset read
+        // logs "Missing prefetched properties for PHAssetOriginalMetadataProperties".
+        options.predicate = NSPredicate(format: "creationDate != nil AND duration != nil AND isFavorite != nil")
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: options)
+        var candidates: [BackupCandidate] = []
+        candidates.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in
+            autoreleasepool {
+                self.prefetchProperties(of: asset)
+                if let candidate = self.makeCandidate(asset) {
+                    candidates.append(candidate)
+                }
+            }
+        }
+        return candidates
+    }
+
     /// Identifier set of every asset living in an excluded album. Reads only
     /// `localIdentifier` — no property prefetch, so this costs no metadata.
     private static func excludedAssetIDs(_ albumIDs: Set<String>) -> Set<String> {
@@ -415,8 +441,32 @@ extension PhotoLibraryServiceImpl: BackupAssetSource {
             fileModifiedAt: timestamps.modifiedAt,
             duration: kind == .video ? Int(max(0, asset.duration)) : nil,
             isFavorite: asset.isFavorite,
-            isLivePhoto: asset.mediaSubtypes.contains(.photoLive)
+            isLivePhoto: asset.mediaSubtypes.contains(.photoLive),
+            fileSize: Self.originalSize(of: asset)
         )
+    }
+
+    /// Bytes the asset's original(s) occupy on the wire: the still plus, for a
+    /// Live Photo, its paired video — both are uploaded, so both count.
+    ///
+    /// PhotoKit exposes no public byte size on `PHAssetResource`, so this reads
+    /// the `fileSize` key every non-downloading size reader uses, guarded by a
+    /// selector check: on a resource that doesn't answer it (some iCloud-only
+    /// ones) the size stays unknown, which the UI renders as "Unknown size"
+    /// rather than a wrong number. Nothing is downloaded to measure it.
+    private static func originalSize(of asset: PHAsset) -> Int64? {
+        let wanted: Set<PHAssetResourceType> = asset.mediaType == .video
+            ? [.video, .fullSizeVideo]
+            : [.photo, .fullSizePhoto, .pairedVideo, .fullSizePairedVideo]
+        var bytes: Int64 = 0
+        var found = false
+        for resource in PHAssetResource.assetResources(for: asset) where wanted.contains(resource.type) {
+            guard resource.responds(to: NSSelectorFromString("fileSize")),
+                  let size = resource.value(forKey: "fileSize") as? NSNumber else { continue }
+            bytes += size.int64Value
+            found = true
+        }
+        return found ? bytes : nil
     }
 
     private func prefetchProperties(of asset: PHAsset) {

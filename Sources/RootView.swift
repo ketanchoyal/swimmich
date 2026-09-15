@@ -95,6 +95,7 @@ private struct AuthenticatedRoot: View {
     @State private var sharedLinks: SharedLinksViewModel
     @State private var storage: StorageStatsViewModel
     @State private var upload: UploadViewModel
+    @State private var uploadDetail: UploadDetailViewModel
     @State private var people: PeopleViewModel
     @State private var memories: MemoriesViewModel
     @State private var duplicates: DuplicatesViewModel
@@ -123,6 +124,7 @@ private struct AuthenticatedRoot: View {
         _sharedLinks = State(initialValue: container.makeSharedLinksViewModel())
         _storage = State(initialValue: container.makeStorageStatsViewModel())
         _upload = State(initialValue: container.upload)
+        _uploadDetail = State(initialValue: container.makeUploadDetailViewModel(upload: container.upload))
         _people = State(initialValue: container.makePeopleViewModel())
         _memories = State(initialValue: container.makeMemoriesViewModel())
         _duplicates = State(initialValue: container.makeDuplicatesViewModel())
@@ -234,7 +236,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

@@ -220,7 +220,6 @@ final class UploadViewModel {
     }
 
     // History
-    var showFailuresSheet: Bool = false
     var uploadHistory: [UploadHistoryEntry] = []
     var lastBackupResult: (uploaded: Int, total: Int, failed: Int)?
     /// Drives the "Reset backup tracking" confirmation dialog.
@@ -318,7 +317,17 @@ final class UploadViewModel {
     /// Runs the backup. `manual` (Run now / resume / retry) bypasses the
     /// automatic gates and first secures Photos access; the unattended BGTask
     /// path passes `manual: false`.
-    func runBackup(overrideSettings: BackupSettings? = nil, manual: Bool = false) async {
+    ///
+    /// `only` names the assets to run over — the two retry actions below.
+    /// Everything else about the run (background assertion, Live Activity,
+    /// completion notification, history entry) is the *same* code: a retry with
+    /// its own envelope would be a run without an island and without a history
+    /// entry, and the two would drift apart.
+    func runBackup(
+        overrideSettings: BackupSettings? = nil,
+        manual: Bool = false,
+        only assetIDs: [String] = []
+    ) async {
         if manual {
             guard await ensurePhotoAccess() else {
                 engine.reportError("Photo library access is required to back up.")
@@ -338,7 +347,11 @@ final class UploadViewModel {
             self.activityService.update(self.makeActivitySnapshot())
         }
         activityService.start(makeActivitySnapshot())
-        let started = await engine.run(settings: overrideSettings ?? settings.snapshot(), manual: manual)
+        let started = await engine.run(
+            settings: overrideSettings ?? settings.snapshot(),
+            manual: manual,
+            only: assetIDs
+        )
         engine.onProgressUpdate = nil
         guard started else {
             // An automatic gate rejected the run (disabled / no Wi-Fi / not
@@ -390,6 +403,30 @@ final class UploadViewModel {
 
     func cancelBackup() {
         engine.cancel()
+    }
+
+    /// Number of assets the last run couldn't finish — the badge the "Upload
+    /// details" row carries. It counts the failure rows rather than
+    /// `engine.failedCount`: a Live Photo whose still is on the server but whose
+    /// link failed is listed too, and the badge must not promise fewer rows than
+    /// the screen shows.
+    var failedAssetCount: Int { engine.failures.count }
+
+    /// Retries one asset: a run restricted to that Photos identifier, so a
+    /// single failed photo no longer costs a whole-library scan. The asset is
+    /// still hashed and dedup-checked like any other — the restriction is about
+    /// which assets the run looks at, never about skipping the server's answer.
+    func retryAsset(id: String) async {
+        await runBackup(manual: true, only: [id])
+    }
+
+    /// Retries every asset the last run failed, in ONE restricted run.
+    /// Nothing failed ⇒ no run at all: an empty `only` reads as "the whole
+    /// library" to the engine, which is the opposite of a retry.
+    func retryAllFailed() async {
+        let ids = engine.failures.map(\.assetID)
+        guard !ids.isEmpty else { return }
+        await runBackup(manual: true, only: ids)
     }
 
 
@@ -468,6 +505,9 @@ struct BackupSettingsView: View {
     @Environment(AuthViewModel.self) private var auth
 
     @State var vm: UploadViewModel
+    /// The per-asset report of the same run — built from `vm`'s engine, not a
+    /// second one (see `DependencyContainer.upload`).
+    @State var detail: UploadDetailViewModel
 
     var body: some View {
         @Bindable var vm = vm
@@ -493,9 +533,6 @@ struct BackupSettingsView: View {
             }
             .task {
                 vm.loadAlbums()
-            }
-            .sheet(isPresented: $vm.showFailuresSheet) {
-                BackupFailuresSheet(failures: vm.engine.failures)
             }
             .confirmationDialog(
                 "Reset backup tracking?",
@@ -601,6 +638,25 @@ struct BackupSettingsView: View {
                     vm.syncBadgeIndex()
                 }
                 .accessibilityIdentifier("syncBadgeToggle")
+            // What the last run did, asset by asset. A pushed page, not a sheet:
+            // a sheet is handed a copy of the failures array and cannot follow
+            // assets still in flight, and the list needs a stable destination on
+            // a run of several thousand assets.
+            NavigationLink {
+                UploadDetailView(vm: detail)
+            } label: {
+                LabeledContent {
+                    if vm.failedAssetCount > 0 {
+                        Text("\(vm.failedAssetCount)")
+                            .font(.pvNumeric)
+                            .foregroundStyle(Color.immichError)
+                            .contentTransition(.numericText())
+                    }
+                } label: {
+                    Label("Upload details", systemImage: "list.bullet.rectangle")
+                }
+            }
+            .accessibilityIdentifier("uploadDetailRow")
         } header: {
             Text("Auto backup")
         } footer: {
@@ -892,8 +948,8 @@ struct BackupSettingsView: View {
                     .foregroundStyle(Color.immichWarning)
             }
             if engine.failedCount > 0 {
-                Button {
-                    vm.showFailuresSheet = true
+                NavigationLink {
+                    UploadDetailView(vm: detail)
                 } label: {
                     HStack {
                         Text("\(engine.failedCount) couldn't be backed up")
@@ -905,7 +961,7 @@ struct BackupSettingsView: View {
                 }
                 .accessibilityIdentifier("failuresButton")
                 Button {
-                    Task { await vm.runBackup(manual: true) }
+                    Task { await vm.retryAllFailed() }
                 } label: {
                     Label("Retry failed", systemImage: "arrow.clockwise")
                         .foregroundStyle(Color.immichPrimary)
@@ -1052,40 +1108,3 @@ struct BackupThumbnailView: View {
     }
 }
 
-/// Lists the assets that couldn't be backed up this run, with reasons.
-struct BackupFailuresSheet: View {
-    let failures: [BackupFailure]
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if failures.isEmpty {
-                    ContentUnavailableView(
-                        "No failures",
-                        systemImage: "checkmark.circle",
-                        description: Text("Every photo was backed up.")
-                    )
-                } else {
-                    ForEach(failures) { failure in
-                        VStack(alignment: .leading, spacing: PVSpacing.s2) {
-                            Text(failure.name)
-                                .font(.pvBody)
-                                .foregroundStyle(Color.textPrimaryPV)
-                            Text(failure.reason)
-                                .font(.pvCaption)
-                                .foregroundStyle(Color.immichError)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Couldn't back up")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-}

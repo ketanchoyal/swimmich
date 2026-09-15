@@ -238,6 +238,14 @@ final class DependencyContainer {
         LanguageSettingsViewModel(store: language)
     }
 
+    /// Per-asset upload report (upload-detail). Takes the caller's
+    /// `UploadViewModel` rather than choosing one: the screen must project the
+    /// engine the process is actually running, and there is only one
+    /// (`self.upload`, "One VM, one run, one island").
+    func makeUploadDetailViewModel(upload: UploadViewModel) -> UploadDetailViewModel {
+        UploadDetailViewModel(upload: upload)
+    }
+
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,
     /// not `ImmichClient`, so we pass nothing but asset identity.
     /// V1.5 polish (AC-718): wire 0.033s render debounce (≈30fps cap) for production.
