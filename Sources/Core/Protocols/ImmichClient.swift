@@ -169,6 +169,11 @@ protocol ImmichClient: AnyObject, Sendable {
     func reassignFace(faceId: String, toPersonId: String) async throws -> PersonResponseDto
     /// `GET /api/faces?id={assetId}` — all faces detected on an asset (gap #5).
     func getFaces(assetId: String) async throws -> [AssetFaceResponseDto]
+    /// `GET /api/assets/{id}/ocr` — the text boxes the server detected on an
+    /// asset (gap #8, ocr-text). Readable under the normal read permission; the
+    /// array is empty when nothing was detected — an empty answer is NOT an
+    /// error.
+    func getAssetOcr(id: String) async throws -> [AssetOcrResponseDto]
 
     // MARK: - Partners (P0 api-surface-expansion; direction corrected 2026-09-13)
     /// `GET /api/partners?direction=` — `direction` is **required**; without it

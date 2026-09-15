@@ -7,6 +7,10 @@ import Foundation
 /// (city, make, model, ...) is used by Explore tap (AC-404b).
 struct MetadataSearchDto: Codable, Equatable {
     var query: String?
+    /// v3.2.0 field filters — the replacement of the struct's deprecated scalar
+    /// fields (`ocr` among them). Optional so the key disappears from the body
+    /// when no filter is active; see `SearchFilterDto`.
+    var filter: SearchFilterDto?
     var make: String?
     var model: String?
     var lensModel: String?

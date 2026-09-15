@@ -983,6 +983,24 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return facesResponse ?? []
     }
 
+    // MARK: - OCR (gap #8, ocr-text)
+
+    var lastGetAssetOcrId: String?
+    var ocrByAssetId: [String: [AssetOcrResponseDto]] = [:]
+    var ocrError: Error?
+
+    func getAssetOcr(id: String) async throws -> [AssetOcrResponseDto] {
+        bump()
+        lastGetAssetOcrId = id
+        return try errorToThrow(ocrByAssetId[id] ?? [], ocrError ?? globalError)
+    }
+
+    /// Throws the injected error when one is set, else returns `value`.
+    private func errorToThrow<T>(_ value: T, _ error: Error?) throws -> T {
+        if let error { throw error }
+        return value
+    }
+
     // MARK: - Tags (gap #2)
 
     var tagsResponse: [TagResponseDto]?

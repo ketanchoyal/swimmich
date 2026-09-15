@@ -64,6 +64,7 @@ struct SearchView: View {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if vm.viewMode == .results {
                             searchModeMenu
+                            ocrFilterToggle
                             Button {
                                 saveSearchName = vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
                                 showSaveSearch = true
@@ -148,6 +149,25 @@ struct SearchView: View {
                 .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityLabel("Search mode: \(vm.searchMode == .smart ? "Smart" : "Metadata")")
+    }
+
+    /// Restricts the results to photos whose detected text matches the query
+    /// (ocr-text). Sits with the mode menu — it changes how the query is
+    /// interpreted, not which grid is shown. Only the metadata route carries
+    /// `filter.ocr`, hence the mode guard.
+    private var ocrFilterToggle: some View {
+        Button {
+            vm.ocrFilterEnabled.toggle()
+            vm.queryDidChange()
+        } label: {
+            Image(systemName: "text.viewfinder")
+                .font(.pvBody.weight(.semibold))
+                .foregroundStyle(vm.ocrFilterEnabled ? Color.immichPrimary : Color.secondary)
+        }
+        .disabled(vm.searchMode != .metadata)
+        .accessibilityLabel("Search by detected text")
+        .accessibilityValue(vm.ocrFilterEnabled ? "on" : "off")
+        .accessibilityIdentifier("searchOcrFilterToggle")
     }
 
     @ViewBuilder

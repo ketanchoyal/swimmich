@@ -137,6 +137,10 @@ struct PhotoViewer: View {
     @State private var presentShare = false
     @State private var showInfo = false
     @State private var infoVM: AssetDetailViewModel?
+    /// Detected-text mode: the toggle survives page changes (each page loads
+    /// its own boxes); the VM is rebuilt per asset like `infoVM`.
+    @State private var showOcr = false
+    @State private var ocrVM: OcrOverlayViewModel?
     @State private var filmstripPosition = ScrollPosition()
     /// Asset ids currently showing their Live Photo video pair instead of the
     /// still — per-page toggle, reset when paging away (Photos behavior).
@@ -233,6 +237,11 @@ struct PhotoViewer: View {
                 // Info stays open while paging — refetch for the new photo.
                 if showInfo {
                     refreshInfo()
+                }
+                // The OCR mode survives paging: the new page loads its own
+                // boxes, the overlay never re-lights page by page.
+                if showOcr {
+                    refreshOcr()
                 }
             }
             .confirmationDialog(
@@ -331,7 +340,9 @@ struct PhotoViewer: View {
                                 token: token,
                                 onSingleTap: dismissOrToggleChrome,
                                 onZoomChange: { isZoomed = $0 > 1.01 },
-                                localFileURL: offlineIndex?.localURL(for: asset.id)
+                                localFileURL: offlineIndex?.localURL(for: asset.id),
+                                ocrBoxes: ocrVM?.boxes ?? [],
+                                showOcr: showOcr && asset.isImage
                             )
                             if asset.livePhotoVideoId != nil {
                                 livePhotoOverlay(asset)
@@ -352,10 +363,47 @@ struct PhotoViewer: View {
     @ViewBuilder
     private var pagerView: some View {
         if showChrome {
-            pager
+            pager.overlay(alignment: .top) { ocrStatusCapsule }
         } else {
             pager.ignoresSafeArea()
         }
+    }
+
+    /// Detected-text state, told by the chrome — the photo never carries a
+    /// status. Empty `boxes` alone decides: the capsule is gone as soon as the
+    /// overlay has something to draw. A failed fetch lands here as a capsule
+    /// too, never as a blocking alert.
+    @ViewBuilder
+    private var ocrStatusCapsule: some View {
+        if showOcr, let asset = currentAsset, asset.isImage, let vm = ocrVM, vm.boxes.isEmpty {
+            HStack(spacing: PVSpacing.s8) {
+                if vm.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityIdentifier("viewerOcrLoadingIndicator")
+                }
+                Text(ocrStatusText(vm))
+                    .font(.pvSubhead)
+                    .foregroundStyle(Color.textPrimaryPV)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("viewerOcrStatusText")
+            }
+            .padding(.horizontal, PVSpacing.s12)
+            .padding(.vertical, PVSpacing.s4)
+            .background(Color.bgPrimary, in: Capsule())
+            .overlay(Capsule().stroke(Color.separatorPV, lineWidth: 0.5))
+            .padding(.top, PVSpacing.s8)
+            .transition(.opacity)
+        }
+    }
+
+    /// "Analyzing…" → "No text found" → the load error, in that precedence. The
+    /// failure wins over the pending state so a retry that fails again does not
+    /// silently fall back to "nothing found".
+    private func ocrStatusText(_ vm: OcrOverlayViewModel) -> String {
+        if let message = vm.errorMessage { return message }
+        if vm.isLoading || !vm.didLoad { return String(localized: "Analyzing…") }
+        return String(localized: "No text found")
     }
 
     // MARK: - Top bar (back · location+date glass · info)
@@ -408,6 +456,23 @@ struct PhotoViewer: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Slideshow")
                 .disabled(localAssets.count < 2)
+
+                // Detected-text toggle (ocr-text) — same group and weight as
+                // Slideshow/Info; a video has no OCR to show.
+                Button {
+                    toggleOcr()
+                } label: {
+                    Image(systemName: "text.viewfinder")
+                        .font(.pvHeadline)
+                        .foregroundStyle(showOcr ? Color.immichPrimary : Color.white)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular.tint(.black.opacity(0.6)), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Detected text")
+                .accessibilityValue(showOcr ? "on" : "off")
+                .accessibilityIdentifier("viewerOcrToggle")
+                .disabled(!asset.isImage)
 
                 Button {
                     openInfo()
@@ -640,6 +705,32 @@ struct PhotoViewer: View {
         let vm = AssetDetailViewModel(asset: asset, client: client)
         infoVM = vm
         Task { await vm.loadDetail() }
+    }
+
+    // MARK: - Detected text (ocr-text)
+
+    /// Flips the detected-text layer. Switching it ON starts (or retries) the
+    /// fetch for the photo on screen; switching it OFF keeps the cached boxes,
+    /// so flipping back is instant.
+    private func toggleOcr() {
+        withAnimation(PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion)) {
+            showOcr.toggle()
+        }
+        guard showOcr else { return }
+        refreshOcr()
+    }
+
+    /// (Re)creates the OCR VM for the CURRENT asset and kicks off its fetch —
+    /// called by the toggle and by the page change, exactly like `refreshInfo`.
+    /// Idempotent per asset: a new asset gets a new VM, and `load()` is a no-op
+    /// once that VM holds its boxes.
+    private func refreshOcr() {
+        guard let asset = currentAsset, asset.isImage else { return }
+        if ocrVM?.assetId != asset.id {
+            ocrVM = OcrOverlayViewModel(assetId: asset.id, client: client)
+        }
+        guard let vm = ocrVM else { return }
+        Task { await vm.load() }
     }
 
     // MARK: - Actions

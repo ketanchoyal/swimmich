@@ -29,6 +29,14 @@ struct ZoomableImageView: View {
     /// disk, which is what makes a cached photo viewable with no connection.
     var localFileURL: URL? = nil
 
+    /// Detected text boxes of this asset (ocr-text). Empty → nothing is drawn;
+    /// the defaults leave every existing call site unchanged.
+    var ocrBoxes: [AssetOcrResponseDto] = []
+    /// Whether the detected-text layer is on. Drawn here — and only here —
+    /// because `scale`/`offset` live in this view, so the boxes follow the
+    /// photo through pinch, double-tap and pan instead of freezing under it.
+    var showOcr: Bool = false
+
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -77,16 +85,33 @@ struct ZoomableImageView: View {
                     }
             )
 
-            if isZoomed {
-                base
-                    .highPriorityGesture(panGesture(size: proxy.size))
-                    .onTapGesture(count: 2, perform: toggleZoom)
-                    .onTapGesture(perform: onSingleTap)
-            } else {
-                base
-                    .simultaneousGesture(panGesture(size: proxy.size))
-                    .onTapGesture(count: 2, perform: toggleZoom)
-                    .onTapGesture(perform: onSingleTap)
+            Group {
+                if isZoomed {
+                    base
+                        .highPriorityGesture(panGesture(size: proxy.size))
+                        .onTapGesture(count: 2, perform: toggleZoom)
+                        .onTapGesture(perform: onSingleTap)
+                } else {
+                    base
+                        .simultaneousGesture(panGesture(size: proxy.size))
+                        .onTapGesture(count: 2, perform: toggleZoom)
+                        .onTapGesture(perform: onSingleTap)
+                }
+            }
+            // Detected text sits ON TOP of the image but OUTSIDE its
+            // `.scaleEffect`, so labels keep a constant point size — while
+            // still reading `scale`/`offset` to stay glued to the photo.
+            .overlay {
+                if showOcr {
+                    OcrOverlayView(
+                        boxes: ocrBoxes,
+                        imageRect: Self.imageRect(for: asset, in: proxy.size),
+                        scale: scale,
+                        offset: offset,
+                        viewportSize: proxy.size
+                    )
+                    .transition(.opacity)
+                }
             }
         }
         .clipped()
@@ -129,6 +154,25 @@ struct ZoomableImageView: View {
     }
 
     // MARK: - Helpers
+
+    /// Aspect-fit rect of the asset inside the viewport, in viewport points and
+    /// **before** zoom — the same rect `.fit` lays the image into. It is the
+    /// bridge between the normalized (0–1) OCR coordinates and screen points,
+    /// and it is recomputed by the `GeometryReader` on rotation.
+    static func imageRect(for asset: AssetReactItem, in size: CGSize) -> CGRect {
+        guard size.width > 0, size.height > 0 else { return CGRect(origin: .zero, size: size) }
+        let ratio = CGFloat(asset.aspectRatio)
+        let fitted = CGSize(
+            width: min(size.height * ratio, size.width),
+            height: min(size.height, size.width / ratio)
+        )
+        return CGRect(
+            x: (size.width - fitted.width) / 2,
+            y: (size.height - fitted.height) / 2,
+            width: fitted.width,
+            height: fitted.height
+        )
+    }
 
     /// Clamps the pan so the image never detaches from the viewport edge.
     private func clampedOffset(for size: CGSize) -> CGSize {
