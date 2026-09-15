@@ -19,6 +19,8 @@ struct ProfileView: View {
     @State var partners: PartnersViewModel
     @State var admin: AdminViewModel
     @State var offline: OfflineDownloadViewModel
+    @State var recentTaken: RecentAssetsViewModel
+    @State var recentAdded: RecentAssetsViewModel
     @State var syncStatus: SyncStatusViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
@@ -54,6 +56,27 @@ struct ProfileView: View {
                     .accessibilityIdentifier("languageRow")
                 } header: {
                     Text("General")
+                }
+
+                // Consultation, not configuration: two read-only grids over the
+                // library sit above Management, which carries settings. Pushed
+                // without a stack — this view already owns one.
+                Section {
+                    NavigationLink {
+                        RecentAssetsView(vm: recentTaken)
+                    } label: {
+                        Label("Recently Taken", systemImage: "clock.arrow.circlepath")
+                    }
+                    .accessibilityIdentifier("recentTakenRow")
+
+                    NavigationLink {
+                        RecentAssetsView(vm: recentAdded)
+                    } label: {
+                        Label("Recently Added", systemImage: "arrow.up.circle")
+                    }
+                    .accessibilityIdentifier("recentAddedRow")
+                } header: {
+                    Text("Recently")
                 }
 
                 Section {

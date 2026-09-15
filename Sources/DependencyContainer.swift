@@ -168,6 +168,13 @@ final class DependencyContainer {
         TimelineViewModel(client: client as any ImmichClient)
     }
 
+    /// One view model per "recent" sort axis (gap G13). Two instances, not one:
+    /// the two screens keep their own bucket list and their own scroll, so
+    /// nothing but the mode parameter is shared.
+    func makeRecentAssetsViewModel(mode: RecentAssetsMode) -> RecentAssetsViewModel {
+        RecentAssetsViewModel(client: client as any ImmichClient, mode: mode)
+    }
+
     func makeTrashViewModel() -> TrashViewModel {
         TrashViewModel(client: client as any ImmichClient)
     }

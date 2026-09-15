@@ -27,13 +27,20 @@ protocol ImmichClient: AnyObject, Sendable {
 
     // MARK: - Timeline (P0: person/partner/visibility filters)
     /// `GET /api/timeline/buckets` — optional filters; all extra params default nil.
+    ///
+    /// `orderBy` is the sort axis of the buckets themselves: `orderBy: .createdAt`
+    /// asks `GET /api/timeline/buckets?orderBy=createdAt`, so each `timeBucket`
+    /// is a day of **upload** and the grid reads "recently added". `nil` leaves
+    /// the server default (`takenAt`). This is the only route that can sort by
+    /// upload date — `POST /api/search/metadata` has no such order field.
     func getTimeBuckets(
         isFavorite: Bool?,
         isTrashed: Bool?,
         personId: String?,
         withPartners: Bool?,
         visibility: String?,
-        withStacked: Bool?
+        withStacked: Bool?,
+        orderBy: AssetOrderBy?
     ) async throws -> [TimeBucketsResponseDto]
     /// `GET /api/timeline/bucket` — optional filters matching buckets.
     func getTimeBucket(

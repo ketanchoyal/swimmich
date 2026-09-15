@@ -35,7 +35,7 @@ final class TrashViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil, orderBy: nil)
             bucketIndex = 0
             items = []
             loadedIds = []
@@ -51,7 +51,7 @@ final class TrashViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil)
+            buckets = try await client.getTimeBuckets(isFavorite: nil, isTrashed: true, personId: nil, withPartners: nil, visibility: nil, withStacked: nil, orderBy: nil)
             bucketIndex = 0
             items = []
             loadedIds = []

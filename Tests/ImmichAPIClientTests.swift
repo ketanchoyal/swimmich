@@ -853,7 +853,7 @@ final class ImmichAPIClientTests: XCTestCase {
 
         _ = try await client.getTimeBuckets(
             isFavorite: nil, isTrashed: nil,
-            personId: "p1", withPartners: true, visibility: "archive", withStacked: false
+            personId: "p1", withPartners: true, visibility: "archive", withStacked: false, orderBy: nil
         )
 
         guard let captured = CapturingURLProtocol.lastRequest else {
@@ -1043,7 +1043,7 @@ final class ImmichAPIClientTests: XCTestCase {
 
         _ = try await client.getTimeBuckets(
             isFavorite: nil, isTrashed: nil, personId: nil,
-            withPartners: nil, visibility: nil, withStacked: true
+            withPartners: nil, visibility: nil, withStacked: true, orderBy: nil
         )
         let bucketsQuery = CapturingURLProtocol.lastRequest?.url?.query ?? ""
         XCTAssertTrue(bucketsQuery.contains("withStacked=true"))
