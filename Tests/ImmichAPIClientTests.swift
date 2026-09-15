@@ -300,6 +300,54 @@ final class ImmichAPIClientTests: XCTestCase {
         XCTAssertEqual(captured.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
     }
 
+    // G18: the change-password call posts the three DTO fields to the real
+    // route. This is the only place the URL itself is proven.
+    func test_G18_changePassword_postsTheThreeFieldsToTheAuthRoute() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = #"{"id":"me","name":"Me","email":"me@example.com","shouldChangePassword":false}"#.data(using: .utf8)!
+
+        let user = try await client.changePassword(
+            currentPassword: "old-secret",
+            newPassword: "new-secret-1",
+            invalidateSessions: true
+        )
+
+        XCTAssertEqual(user.id, "me")
+        XCTAssertEqual(user.shouldChangePassword, false, "the reply carries the flag the caller clears")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "POST")
+        XCTAssertEqual(captured.url?.path, "/api/auth/change-password")
+        XCTAssertEqual(captured.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
+
+        let body = try decodedBody()
+        XCTAssertEqual(body["password"] as? String, "old-secret")
+        XCTAssertEqual(body["newPassword"] as? String, "new-secret-1")
+        XCTAssertEqual(body["invalidateSessions"] as? Bool, true)
+    }
+
+    // G18: the server-side shouldChangePassword flag is re-read from /users/me.
+    func test_G18_currentUser_readsTheUsersMeEndpoint() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+        CapturingURLProtocol.nextData = #"{"id":"me","name":"Me","email":"me@example.com","shouldChangePassword":true}"#.data(using: .utf8)!
+
+        let user = try await client.currentUser()
+
+        XCTAssertEqual(user.shouldChangePassword, true)
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/users/me")
+    }
+
     // MARK: - Album update (cover) + album users
 
     private static let albumJSON = """

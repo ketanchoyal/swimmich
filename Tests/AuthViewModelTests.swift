@@ -63,6 +63,67 @@ final class AuthViewModelTests: XCTestCase {
         XCTAssertFalse(auth.isAuthenticated)
     }
 
+    // G18: the server's shouldChangePassword flag rides the session — filled at
+    // login from `LoginResponseDto`, cleared only when the password changes, and
+    // never written to UserDefaults.
+    @MainActor
+    func test_G18_loginCarriesShouldChangePasswordFlag() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        mock.loginResponse = LoginResponseDto(
+            accessToken: "jwt", userId: "u1", userEmail: "alice@example.com", name: "Alice",
+            profileImagePath: "", isAdmin: false, shouldChangePassword: true, isOnboarded: true
+        )
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://example.com"
+        _ = auth.baseURL
+
+        await auth.login(email: "alice@example.com", password: "secret")
+
+        XCTAssertTrue(auth.shouldChangePassword, "an administrator reset this password, and the server says so at sign-in")
+
+        auth.notePasswordChanged()
+        XCTAssertFalse(auth.shouldChangePassword)
+
+        // Simulated relaunch: the flag belongs to the server, so a fresh VM must
+        // not read it back out of the preferences (unlike `isAdmin`).
+        let restored = AuthViewModel(client: MockImmichClient(), keychain: MockKeychainStore(), defaults: defaults)
+        XCTAssertFalse(restored.shouldChangePassword)
+    }
+
+    // G18: the flag is re-read from the server, so a reset that happens while the
+    // session is open does not wait for the next sign-in — and an unreachable
+    // server leaves the flag as it was.
+    @MainActor
+    func test_G18_refreshShouldChangePasswordFollowsTheServer() async {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let mock = MockImmichClient()
+        let auth = AuthViewModel(client: mock, keychain: MockKeychainStore(), defaults: defaults)
+        auth.serverURLString = "https://example.com"
+        _ = auth.baseURL
+        mock.currentUserResponse = UserAdminResponseDto(
+            id: "me", name: "Me", email: "me@example.com", profileImagePath: nil,
+            avatarColor: nil, profileChangedAt: nil, shouldChangePassword: true
+        )
+
+        await auth.refreshShouldChangePassword()
+        XCTAssertTrue(auth.shouldChangePassword)
+
+        mock.currentUserError = URLError(.notConnectedToInternet)
+        await auth.refreshShouldChangePassword()
+        XCTAssertTrue(auth.shouldChangePassword, "a failed re-read cannot answer a question only the server can")
+
+        mock.currentUserError = nil
+        mock.currentUserResponse = UserAdminResponseDto(
+            id: "me", name: "Me", email: "me@example.com", profileImagePath: nil,
+            avatarColor: nil, profileChangedAt: nil, shouldChangePassword: false
+        )
+        await auth.refreshShouldChangePassword()
+        XCTAssertFalse(auth.shouldChangePassword)
+    }
+
     // AC-012: unreachable server → status = .unreachable, isAuthenticated = false.
     @MainActor
     func test_AC_012_connectServerUnreachable() async {

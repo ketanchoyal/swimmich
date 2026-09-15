@@ -181,6 +181,13 @@ final class DependencyContainer {
         TimelineViewModel(client: client as any ImmichClient)
     }
 
+    /// Change-password screen (gap G18). Only lends the shared `ImmichClient`:
+    /// the ViewModel is an instance per screen, so the form's fields and its
+    /// in-flight state never reach the global auth tree.
+    func makeChangePasswordViewModel() -> ChangePasswordViewModel {
+        ChangePasswordViewModel(client: client as any ImmichClient)
+    }
+
     /// One view model per "recent" sort axis (gap G13). Two instances, not one:
     /// the two screens keep their own bucket list and their own scroll, so
     /// nothing but the mode parameter is shared.

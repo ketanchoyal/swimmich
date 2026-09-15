@@ -51,6 +51,15 @@ final class AuthViewModel: AuthSessionDelegate {
     var userName: String?
     var userId: String?
     var isAdmin: Bool = false
+    /// Server-side flag: an administrator reset this account's password, so the
+    /// server asks for a new one at the next sign-in (gap G18).
+    ///
+    /// Session state, never a preference: it is filled from the `LoginResponseDto`
+    /// of both login paths, re-read from `GET /api/users/me`, and dropped when
+    /// the password actually changes. Unlike `isAdmin` it is **not** written to
+    /// `UserDefaults` — the server owns it, so a stale copy must not outlive the
+    /// session.
+    var shouldChangePassword: Bool = false
     var isAuthenticated: Bool { accessToken != nil }
 
     /// Saved accounts (server URL + identity) for the multi-server /
@@ -263,7 +272,8 @@ final class AuthViewModel: AuthSessionDelegate {
                 email: response.userEmail,
                 name: response.name,
                 userId: response.userId,
-                isAdmin: response.isAdmin
+                isAdmin: response.isAdmin,
+                shouldChangePassword: response.shouldChangePassword
             )
         } catch let e {
             errorMessage = e.localizedDescription
@@ -318,7 +328,8 @@ final class AuthViewModel: AuthSessionDelegate {
                 email: response.userEmail,
                 name: response.name,
                 userId: response.userId,
-                isAdmin: response.isAdmin
+                isAdmin: response.isAdmin,
+                shouldChangePassword: response.shouldChangePassword
             )
         } catch let e {
             errorMessage = e.localizedDescription
@@ -327,12 +338,13 @@ final class AuthViewModel: AuthSessionDelegate {
 
     /// Applies a successful auth response: state + Keychain + UserDefaults +
     /// client reconfiguration. Shared by password login and OAuth.
-    private func applySession(token: String, email: String?, name: String?, userId: String?, isAdmin: Bool) {
+    private func applySession(token: String, email: String?, name: String?, userId: String?, isAdmin: Bool, shouldChangePassword: Bool) {
         accessToken = token
         userEmail = email
         userName = name
         self.userId = userId
         self.isAdmin = isAdmin
+        self.shouldChangePassword = shouldChangePassword
         keychain.saveToken(token)
         defaults.set(baseURL?.absoluteString ?? serverURLString, forKey: Self.serverURLDefaultsKey)
         if let email { defaults.set(email, forKey: Self.userEmailDefaultsKey) }
@@ -361,6 +373,7 @@ final class AuthViewModel: AuthSessionDelegate {
         userName = nil
         userId = nil
         isAdmin = false
+        shouldChangePassword = false
         keychain.deleteToken()
         widgetSession.clear()
         defaults.removeObject(forKey: Self.userEmailDefaultsKey)
@@ -369,6 +382,27 @@ final class AuthViewModel: AuthSessionDelegate {
         defaults.removeObject(forKey: Self.isAdminDefaultsKey)
         client.configure(baseURL: baseURL, token: nil)
         realtime.disconnect()
+    }
+
+    /// The password was changed: the server cleared its own `shouldChangePassword`
+    /// flag, and this is the only place the local copy falls back (gap G18).
+    ///
+    /// Deliberately no re-login: `invalidateSessions` signs out the *other*
+    /// devices and keeps this session (`auth.service.ts:143-147`), so the app
+    /// stays signed in and the invitation simply stops being shown.
+    func notePasswordChanged() {
+        shouldChangePassword = false
+    }
+
+    /// Re-reads the flag from the server (`GET /api/users/me`) so an
+    /// administrator who resets the password mid-session is noticed without a
+    /// new sign-in. Fills the flag only — the rest of the session is untouched —
+    /// and keeps the current value when the server cannot be reached: a failed
+    /// read must not erase an invitation the user has not answered.
+    func refreshShouldChangePassword() async {
+        if let user = try? await client.currentUser() {
+            shouldChangePassword = user.shouldChangePassword ?? false
+        }
     }
 
     // MARK: - Multi-server / multi-account (P5)

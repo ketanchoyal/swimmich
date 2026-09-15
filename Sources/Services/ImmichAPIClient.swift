@@ -82,6 +82,21 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.POST, path: ImmichAPI.auth.path("/logout"))
     }
 
+    /// `POST /api/auth/change-password` (gap G18). The body is the exact
+    /// three-field `ChangePasswordDto`; the reply is the updated user, whose
+    /// `shouldChangePassword` is the server's own confirmation.
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        invalidateSessions: Bool
+    ) async throws -> UserAdminResponseDto {
+        try await sendAuthed(
+            .POST,
+            path: ImmichAPI.auth.path("/change-password"),
+            body: AnyEncodable(ChangePasswordDto(password: currentPassword, newPassword: newPassword, invalidateSessions: invalidateSessions))
+        )
+    }
+
     func validateToken() async throws -> ValidateAccessTokenResponseDto {
         try await sendAuthed(.POST, path: ImmichAPI.auth.path("/validateToken"))
     }
@@ -674,6 +689,14 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     /// server so `profileImagePath`/`profileChangedAt` are never a stale copy.
     func getMyUser() async throws -> UserAdminResponseDto {
         try await sendAuthed(.GET, path: ImmichAPI.users.path("/me"))
+    }
+
+    /// `GET /api/users/me` read as the auth seam — the same route `getMyUser()`
+    /// serves the profile screen, kept as its own method so `AuthViewModel`
+    /// re-reads the server's `shouldChangePassword` flag without borrowing the
+    /// profile screen's call.
+    func currentUser() async throws -> UserAdminResponseDto {
+        try await getMyUser()
     }
 
     /// `POST /api/users/profile-image` (`CreateProfileImageDto`: one binary

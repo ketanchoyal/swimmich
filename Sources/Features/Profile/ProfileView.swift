@@ -34,6 +34,9 @@ struct ProfileView: View {
     /// lifetime is the Me sheet's (`AuthenticatedRoot` owns it), so re-entering
     /// the row does not reset a folder the user is working in.
     let lockedFolder: LockedFolderViewModel
+    /// Change-password screen (gap G18). Built by the composition root: the
+    /// screen is pushed, so the row and the form must show one instance.
+    @State var changePassword: ChangePasswordViewModel
 
     var body: some View {
         NavigationStack {
@@ -218,6 +221,26 @@ struct ProfileView: View {
                     }
                     .accessibilityIdentifier("lockedFolderRow")
 
+                    // Above the toggle on purpose: this row answers a
+                    // server-side request about the account itself, where the
+                    // toggle below is a setting of this device.
+                    NavigationLink {
+                        ChangePasswordView(vm: changePassword, onPasswordChanged: { auth.notePasswordChanged() })
+                    } label: {
+                        Label("Change Password", systemImage: "key")
+                    }
+                    .accessibilityIdentifier("changePasswordRow")
+
+                    // The server's own signal that an administrator reset this
+                    // account's password: an invitation, not a wall — the row
+                    // above stays the only way in, and nothing is gated on it.
+                    if auth.shouldChangePassword {
+                        Label("This server asks you to change your password.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.pvCaption)
+                            .foregroundStyle(Color.immichWarning)
+                            .accessibilityIdentifier("shouldChangePasswordNotice")
+                    }
+
                     Toggle("Require Face ID", isOn: $appLockEnabled)
                         .onChange(of: appLockEnabled) { _, newValue in
                             appLock.setEnabled(newValue)
@@ -242,6 +265,9 @@ struct ProfileView: View {
             .navigationTitle("Me")
             .navigationBarTitleDisplayMode(.inline)
             .task { await storage.load() }
+            // The flag is a server fact, not a login-only event: re-read it
+            // here so a password reset that happened mid-session still shows.
+            .task { await auth.refreshShouldChangePassword() }
             // The Account row carries the avatar, so the identity has to be
             // known before the screen that publishes the photo is opened.
             .task { await profilePicture.load() }

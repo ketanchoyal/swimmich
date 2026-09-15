@@ -7,6 +7,16 @@ struct LoginCredentialDto: Codable, Equatable {
     let password: String
 }
 
+/// `POST /api/auth/change-password` body (`ChangePasswordDto`): the current
+/// password is required alongside the new one, which the server only bounds at
+/// `minLength: 8`. A wrong current password comes back as a **400**, not a 401 —
+/// a typo must never be read as a lost session.
+struct ChangePasswordDto: Codable, Equatable {
+    let password: String
+    let newPassword: String
+    let invalidateSessions: Bool
+}
+
 struct LoginResponseDto: Codable, Equatable {
     let accessToken: String
     let userId: String
