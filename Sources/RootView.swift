@@ -33,8 +33,7 @@ struct RootView: View {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if auth.isAuthenticated {
-                    AuthenticatedRoot(container: container, session: auth)
-                    AuthenticatedRoot(container: container, accountID: auth.activeAccountID ?? "")
+                    AuthenticatedRoot(container: container, session: auth, accountID: auth.activeAccountID ?? "")
                         .id(auth.activeAccountID)
                 } else {
                     OnboardingFlowView()
@@ -136,8 +135,7 @@ private struct AuthenticatedRoot: View {
     @State private var showProfile = false
     @State private var showDownloadInfo = false
 
-    init(container: DependencyContainer, session: AuthViewModel) {
-    init(container: DependencyContainer, accountID: String) {
+    init(container: DependencyContainer, session: AuthViewModel, accountID: String) {
         self.container = container
         _timeline = State(initialValue: container.makeTimelineViewModel())
         _recentTaken = State(initialValue: container.makeRecentAssetsViewModel(mode: .taken))
@@ -294,10 +292,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, profilePicture: profilePicture)
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

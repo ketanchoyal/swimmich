@@ -380,6 +380,33 @@ protocol ImmichClient: AnyObject, Sendable {
     var requestCount: Int { get }
 }
 
+extension ImmichClient {
+    /// Timeline buckets in the server's default order (`takenAt`).
+    ///
+    /// Swift forbids a default argument on a protocol requirement, and
+    /// `orderBy` arrived with the "recently added" view (G13) after every other
+    /// caller already existed: an overload is how this repository has always
+    /// widened a requirement without breaking its call sites.
+    func getTimeBuckets(
+        isFavorite: Bool?,
+        isTrashed: Bool?,
+        personId: String?,
+        withPartners: Bool?,
+        visibility: String?,
+        withStacked: Bool?
+    ) async throws -> [TimeBucketsResponseDto] {
+        try await getTimeBuckets(
+            isFavorite: isFavorite,
+            isTrashed: isTrashed,
+            personId: personId,
+            withPartners: withPartners,
+            visibility: visibility,
+            withStacked: withStacked,
+            orderBy: nil
+        )
+    }
+}
+
 /// What `POST /api/download/info` answers for a batch download: the archives
 /// the server decided to make, and the volume they add up to.
 struct DownloadInfoResponse: Sendable, Equatable {
