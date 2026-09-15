@@ -892,13 +892,13 @@ rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et sui
 | 25 | Overlay OCR + recherche par texte | `ocr-text` | P3 | AC-5070–5079 | `GET /api/assets/{id}/ocr`, filtre `ocr` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 26 | Casting vers un écran | `chromecast` | P3 | AC-5080–5089 | client (AVRoutePicker/AirPlay ou Google Cast SDK) | ✅ Livré (2026-09-15) — 10/10 AC |
 | 27 | Panneau de téléchargement | `download-panel` | P3 | AC-5090–5099 | `GET /api/assets/{id}/original`, `…/video/playback` | ✅ Livré (2026-09-15) — 10/10 AC |
-| 28 | Vue dossiers | `folder-view` | P4 | AC-5100–5109 | `GET /api/view/folder`, `GET /api/view/folder/unique-paths` | 🔴 Planifié |
-| 29 | Dossier verrouillé + PIN | `locked-folder` | P4 | AC-5110–5119 | `PUT /api/assets` (`visibility: locked`), buckets `visibility=locked` | 🔴 Planifié |
-| 30 | Récemment pris / récemment ajoutés | `recently-taken` | P4 | AC-5120–5129 | `POST /api/search/metadata` (`orderBy`) | 🔴 Planifié |
-| 31 | Filtres de recherche avancés | `search-filters` | P4 | AC-5130–5139 | champs de `MetadataSearchDto` (`rating`, `ocr`, `orderBy`, …) | 🔴 Planifié |
-| 32 | Réglages carte + carte dans le viewer | `map-settings` | P4 | AC-5140–5149 | `GET /api/map/markers`, plage temporelle de recherche | 🔴 Planifié |
-| 33 | Anniversaire d'une personne | `person-birthday` | P4 | AC-5150–5159 | `PUT /api/people/{id}` | 🔴 Planifié |
-| 34 | Photo de profil (upload + crop) | `profile-picture` | P4 | AC-5160–5169 | routes `profile-image` de `/api/users` (multipart) | 🔴 Planifié |
+| 28 | Vue dossiers | `folder-view` | P4 | AC-5100–5109 | `GET /api/view/folder`, `GET /api/view/folder/unique-paths` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 29 | Dossier verrouillé + PIN | `locked-folder` | P4 | AC-5110–5119 | `PUT /api/assets` (`visibility: locked`), buckets `visibility=locked` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 30 | Récemment pris / récemment ajoutés | `recently-taken` | P4 | AC-5120–5129 | `POST /api/search/metadata` (`orderBy`) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 31 | Filtres de recherche avancés | `search-filters` | P4 | AC-5130–5139 | champs de `MetadataSearchDto` (`rating`, `ocr`, `orderBy`, …) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 32 | Réglages carte + carte dans le viewer | `map-settings` | P4 | AC-5140–5149 | `GET /api/map/markers`, plage temporelle de recherche | ✅ Livré (2026-09-15) — 10/10 AC |
+| 33 | Anniversaire d'une personne | `person-birthday` | P4 | AC-5150–5159 | `PUT /api/people/{id}` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 34 | Photo de profil (upload + crop) | `profile-picture` | P4 | AC-5160–5169 | routes `profile-image` de `/api/users` (multipart) | ✅ Livré (2026-09-15) — 10/10 AC |
 | 35 | Mode lecture seule / kid mode | `read-only-mode` | P5 | AC-5170–5179 | client (garde sur les actions destructrices) | 🔴 Planifié |
 | 36 | Changement de mot de passe | `change-password` | P5 | AC-5180–5189 | `POST /api/auth/change-password` | 🔴 Planifié |
 | 37 | Sessions / appareils connectés | `device-sessions` | P5 | AC-5190–5199 | `GET /api/sessions`, `DELETE /api/sessions/{id}`, `POST /api/auth/session/{lock,unlock}` | 🔴 Planifié |
