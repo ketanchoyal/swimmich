@@ -24,10 +24,9 @@ struct MetadataSearchDto: Codable, Equatable {
     /// The flat field is `x-immich-state: Deprecated` since v3.2.0, **but so are
     /// the 33 other flat fields of this schema** (`isFavorite`, `city`, `make`,
     /// `model`, `visibility`, …), i.e. every filter this screen already sends.
-    /// The replacement is `filter: SearchFilter` (whose `rating` is a
-    /// `NumberFilterNullable`) and the migration is cross-cutting — switching
-    /// `rating` alone would put two conventions in one request body and break
-    /// servers older than v3.2.0. Keep it flat until that migration happens.
+    /// Its replacement is `filter.rating`, and the two are mutually exclusive in
+    /// one body: this field is what the *flat* route carries, the structured one
+    /// is built by `structuredShape(cursor:)`.
     var rating: Int?
     var personIds: [String]?
     var albumIds: [String]? // AC-519 — enables album asset fetch (FM-2 mitigation)
@@ -38,23 +37,77 @@ struct MetadataSearchDto: Codable, Equatable {
     var page: Int?
     var size: Int?
     var withExif: Bool?
-    /// Detected-text criterion. The flat field is `x-immich-state: Deprecated`
-    /// since v3.2.0; its replacement is `filter.ocr.matches`
-    /// (`StringSimilarityFilter`), which is the only route this app writes
-    /// (ocr-text). Declared so the DTO mirrors the published schema, never set.
-    var ocr: String?
     /// Taken-date range — ISO-8601 strings, because the schema publishes them
     /// as `string`/`date-time` and the `Date` → `String` step belongs to the
-    /// ViewModel. Deprecated flat fields like `ocr` above (replacement:
-    /// `filter.takenAt`), kept for the same reason as `rating`: the whole
-    /// screen is still on the flat route. Written only while the Filters
-    /// sheet's date toggle is on.
+    /// ViewModel. Deprecated flat fields (replacement: `filter.takenAt`), kept
+    /// for the same reason as `rating`: they are what the flat route carries.
+    /// Written only while the Filters sheet's date toggle is on.
     var takenAfter: String?
     var takenBefore: String?
     /// Sort of the result set — a `SearchOrder` (`field` × `direction`), added
     /// in v3.2.0 and the non-deprecated replacement of `order`, which is
     /// therefore never written (it cannot name a field).
     var orderBy: SearchOrderDto?
+    /// Pagination of the structured route: the opaque cursor the previous
+    /// response handed out (`SearchAssetResponseDto.nextCursor`), added in
+    /// v3.2.0. Never written next to the flat `page` — the server rejects the
+    /// mix — so `flatShape()` drops it.
+    var cursor: String?
+
+    // MARK: - The two shapes of the request
+
+    /// The v3.2.0 shape of this request — `query`, `filter`, `orderBy`,
+    /// `cursor` — with **not one** deprecated flat field.
+    ///
+    /// The flat fields are not merely redundant here: `withShapeExclusivity`
+    /// (`search.dto.ts`) rejects every deprecated field sent next to
+    /// `filter`/`orderBy`/`cursor`, `page` and `rating` included, with a 400.
+    /// The constraints therefore travel as a `SearchFilter`, and pagination as
+    /// a cursor.
+    func structuredShape(cursor: String?) -> MetadataSearchDto {
+        var dto = MetadataSearchDto(query: query, orderBy: orderBy, cursor: cursor)
+        dto.filter = structuredFilter
+        dto.size = size
+        dto.withExif = withExif
+        return dto
+    }
+
+    /// The flat shape — the body this app has always sent, and the only one a
+    /// server older than v3.2.0 understands. No `filter`/`orderBy`/`cursor`:
+    /// one of them next to a flat field is the same 400.
+    func flatShape() -> MetadataSearchDto {
+        var dto = self
+        dto.filter = nil
+        dto.orderBy = nil
+        dto.cursor = nil
+        return dto
+    }
+
+    /// The flat constraints of this request, projected onto `SearchFilter`.
+    ///
+    /// One writer per constraint and one operator each (`nonEmptyPartial`
+    /// server-side): `eq` for the single-valued fields the sheet collects, and
+    /// `gte`/`lte` for the two ends of the date range — the operators the
+    /// server's own legacy builder uses on the very same column.
+    private var structuredFilter: SearchFilterDto? {
+        var structured = SearchFilterDto()
+        structured.ocr = filter?.ocr
+        if let city { structured.city = StringFilterNullableDto(eq: city) }
+        if let state { structured.state = StringFilterNullableDto(eq: state) }
+        if let country { structured.country = StringFilterNullableDto(eq: country) }
+        if let make { structured.make = StringFilterNullableDto(eq: make) }
+        if let model { structured.model = StringFilterNullableDto(eq: model) }
+        if let lensModel { structured.lensModel = StringFilterNullableDto(eq: lensModel) }
+        if let type { structured.type = EnumFilterAssetTypeDto(eq: type) }
+        if let isFavorite { structured.isFavorite = BoolFilterDto(eq: isFavorite) }
+        if let rating { structured.rating = NumberFilterNullableDto(eq: Double(rating)) }
+        if takenAfter != nil || takenBefore != nil {
+            structured.takenAt = DateFilterDto(gte: takenAfter, lte: takenBefore)
+        }
+        // An operator-less `SearchFilter` would make the body say "filtered"
+        // while nothing is filtered; the key simply stays out.
+        return structured == SearchFilterDto() ? nil : structured
+    }
 }
 
 /// `SearchOrder` of the published contract: the `orderBy` body of a metadata
@@ -108,10 +161,19 @@ struct SearchResponseDto: Codable, Equatable {
 struct SearchAssetResponseDto: Codable, Equatable {
     let count: Int
     let items: [AssetResponseDto]
+    /// Flat pagination: the **number** of the next page, `null` on the last one.
+    /// `x-immich-state: Deprecated` since v3.2.0, and `null` on every
+    /// structured response — which is why the cursor below is not optional
+    /// reading: a v3.2.0 server paginates with one and never with the other.
     let nextPage: String?
+    /// Structured pagination (v3.2.0): the opaque cursor of the next page, the
+    /// very string the next request must send back as `cursor`. `var` with an
+    /// implicit `nil` so every existing constructor keeps compiling — the
+    /// synthesized `Codable` still decodes the key when the server sends it.
+    var nextCursor: String?
 
     enum CodingKeys: String, CodingKey {
-        case count, items, nextPage
+        case count, items, nextPage, nextCursor
     }
 }
 

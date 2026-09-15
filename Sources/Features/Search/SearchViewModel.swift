@@ -37,6 +37,10 @@ struct ExplorePlace: Identifiable, Equatable {
 final class SearchViewModel {
     enum SearchMode: Hashable { case metadata, smart }
     enum ViewMode: Hashable { case results, explore, map }
+    /// The two shapes `POST /api/search/metadata` understands. They are
+    /// mutually exclusive in one body: `filter`/`orderBy`/`cursor` (v3.2.0) next
+    /// to any deprecated flat field — `page` included — is a 400.
+    enum SearchShape { case flat, structured }
 
     /// EXIF field a user can drill into from an Explore card. Maps the server's
     /// `fieldName` ("exifInfo.city" …) onto the matching `MetadataSearchDto`
@@ -122,8 +126,14 @@ final class SearchViewModel {
     private(set) var results: [AssetReactItem] = []
     private(set) var loadedIds: Set<String> = []
     private(set) var currentPage: Int = 1
+    /// Flat pagination token: the page number the flat route must send next
+    /// (`nil` on a structured response, which paginates with `nextCursor`).
     private(set) var nextPage: String? = nil
-    var canLoadMore: Bool { nextPage != nil }
+    /// Structured pagination token (v3.2.0): the cursor the next request must
+    /// carry. Exactly one of the two is ever set — the route that answered owns
+    /// the pagination.
+    private(set) var nextCursor: String? = nil
+    var canLoadMore: Bool { nextPage != nil || nextCursor != nil }
     var hasSearched: Bool = false
 
     // Explore (AC-404) — Places list powered by GET /search/cities.
@@ -138,6 +148,33 @@ final class SearchViewModel {
 
     // Saved searches (gap #11, local)
     private(set) var savedSearches: [SavedSearch] = []
+
+    // MARK: - Server search shape (v3.2.0 `filter` / `orderBy` / `cursor`)
+
+    /// Version the server reported, `nil` while unknown (never probed, or a
+    /// probe that failed). Not persisted: signing out builds a new VM, so an
+    /// app re-pointed at another server never keeps the old answer.
+    private var serverVersion: ServerVersionResponseDto?
+
+    /// Whether the server has the v3.2.0 structured search — the generation
+    /// test the whole request shape hangs on. `false` while the version is
+    /// unknown: the flat route works everywhere, so "unknown" must degrade to
+    /// it, never to a body only a new server accepts.
+    var supportsStructuredSearch: Bool {
+        guard let serverVersion else { return false }
+        return serverVersion.major > 3 || (serverVersion.major == 3 && serverVersion.minor >= 2)
+    }
+
+    /// Asks the server for its version once, and remembers the answer.
+    ///
+    /// Lazy on purpose: nothing probes at launch — the first request that
+    /// cannot be expressed flat does, and so does the Filters sheet, which must
+    /// tell the user what the server can search before anything is sent. A
+    /// failed probe stays unknown, so the next request retries it.
+    func probeSearchShape() async {
+        guard serverVersion == nil else { return }
+        serverVersion = try? await client.serverVersion()
+    }
 
     // UI state
     private(set) var isLoading: Bool = false
@@ -224,6 +261,7 @@ final class SearchViewModel {
         loadedIds = []
         currentPage = 1
         nextPage = nil
+        nextCursor = nil
         errorMessage = nil
         hasSearched = true
 
@@ -250,7 +288,7 @@ final class SearchViewModel {
 
     /// AC-406 / AC-406b / AC-406c: load next page when canLoadMore.
     func loadMore() async {
-        guard !isLoading, let _ = nextPage else { return }
+        guard !isLoading, canLoadMore else { return }
         let gen = searchGeneration
         isLoading = true
         defer { isLoading = false }
@@ -378,6 +416,7 @@ final class SearchViewModel {
         loadedIds = []
         currentPage = 1
         nextPage = nil
+        nextCursor = nil
         errorMessage = nil
         hasSearched = false
     }
@@ -412,9 +451,23 @@ final class SearchViewModel {
     /// Builds the right DTO for the current mode + dispatches.
     /// `pendingExploreFilter` overrides `query` for metadata mode, routed to
     /// the matching EXIF field (AC-404b / AC-406c — generalized beyond city).
+    ///
+    /// The body is always written the flat way first — one writer per
+    /// constraint, the ones the cards pin — and then handed to the shape the
+    /// server speaks: `structuredShape(cursor:)` on a v3.2.0 server,
+    /// `flatShape()` anywhere else. A body never carries both languages, the
+    /// server rejects that with a 400.
     private func dispatchSearch(page: Int) async throws -> SearchResponseDto {
         switch searchMode {
         case .metadata:
+            // The toolbar toggle reads the query as a detected-text criterion.
+            // On a server that has no field for one the toggle changes nothing:
+            // emptying the query for a criterion that cannot be sent would turn
+            // a search into an unfiltered one (see `searchShape`).
+            let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let toggleCarriesCriterion = filter.ocrText == nil && ocrFilterEnabled && !typed.isEmpty
+            let shape = await searchShape(toggleCarriesCriterion: toggleCarriesCriterion)
+
             var dto = MetadataSearchDto(query: query, page: page)
             if let (field, value) = pendingExploreFilter {
                 dto.query = nil
@@ -432,20 +485,47 @@ final class SearchViewModel {
             // text. An OCR criterion typed into the sheet is a filter like any
             // other (`filter.apply` already wrote it) and joins the query instead
             // of replacing it.
-            let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            if filter.ocrText == nil, ocrFilterEnabled, !typed.isEmpty {
+            if toggleCarriesCriterion, shape == .structured {
                 dto.query = nil
                 dto.filter = SearchFilterDto(ocr: StringSimilarityFilterDto(matches: typed))
             }
-            return try await client.searchMetadata(dto: dto)
+
+            switch shape {
+            case .structured:
+                return try await client.searchMetadata(
+                    dto: dto.structuredShape(cursor: page > 1 ? nextCursor : nil)
+                )
+            case .flat:
+                return try await client.searchMetadata(dto: dto.flatShape())
+            }
         case .smart:
             let dto = SmartSearchDto(query: query, page: page)
             return try await client.searchSmart(dto: dto)
         }
     }
 
+    /// The shape this request must go out in.
+    ///
+    /// The flat route says everything this screen can ask for *except* three
+    /// things: a detected-text criterion (the deprecated scalar `ocr` is gone
+    /// for good, so the structured filter is its only field), a sort other than
+    /// the server's own default (`order` carries a direction and no field), and
+    /// — in general — any Filters-sheet constraint, because the sheet's
+    /// contract is that the request carries exactly its constraints and one
+    /// body speaks one language. What the flat route does say identically well
+    /// (free text, an Explore drill-down) never pays for the probe.
+    private func searchShape(toggleCarriesCriterion: Bool) async -> SearchShape {
+        // `.newestTaken` *is* the server's default order (fileCreatedAt desc,
+        // both routes), so it needs neither a field nor a probe.
+        let needsStructured = !filter.isEmpty || toggleCarriesCriterion || sort != .newestTaken
+        guard needsStructured else { return .flat }
+        await probeSearchShape()
+        return supportsStructuredSearch ? .structured : .flat
+    }
+
     private func applyResponse(_ resp: SearchResponseDto, append: Bool = false) {
         nextPage = resp.assets.nextPage
+        nextCursor = resp.assets.nextCursor
         let newItems = resp.assets.items.compactMap { item -> AssetReactItem? in
             // Dedup via loadedIds (AC-406).
             guard !loadedIds.contains(item.id) else { return nil }
