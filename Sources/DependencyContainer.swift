@@ -64,6 +64,13 @@ final class DependencyContainer {
     /// every grid cell can answer "is this cached?" without a parameter.
     let offlineIndex: OfflineAssetIndex
 
+    /// Process-wide external-screen state (gap G9). One instance for the whole
+    /// app for the same reason as `upload`: the route detector and its
+    /// notifications are system resources, the viewer can be opened from eight
+    /// surfaces, and a per-viewer service would leave the badge wrong the first
+    /// time the viewer opens.
+    let castService: any CastService = AirPlayCastService()
+
     /// Backup-state mirror (G6), same shape and same reason as `offlineIndex`:
     /// one instance per process, rebuilt from the ledger on every ledger write
     /// and read by every thumbnail cell through the environment.
@@ -140,6 +147,10 @@ final class DependencyContainer {
         self.libraryMonitor.onAssetsInserted = { [weak self] in
             self?.kickOffAutoBackup()
         }
+        // Gap G9: the route is watched for the whole process, with the
+        // container's interest as the permanent one — a cast sheet opening and
+        // closing only adds and releases its own.
+        castService.startObserving()
     }
 
     func makeAuthViewModel() -> AuthViewModel {
@@ -292,6 +303,12 @@ final class DependencyContainer {
     /// hands its selection to. Never a fresh instance: a second queue would
     /// show its own rows and cancel tasks the panel is following.
     func makeDownloadQueueViewModel() -> DownloadQueueViewModel { downloadQueue }
+    /// Cast sheet of the viewer (gap G9). Projection only — the ViewModel stores
+    /// no state, so a fresh instance per presentation is free and always current
+    /// with the process-wide `castService` it projects.
+    func makeCastViewModel() -> CastViewModel {
+        CastViewModel(service: castService)
+    }
 
     /// Sync status screen (AC-5030–5039). Takes both view models explicitly:
     /// the container must not pick which engine of the process is observed, and
