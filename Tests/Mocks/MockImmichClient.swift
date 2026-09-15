@@ -41,6 +41,12 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var pingResSequences: [ServerPingResponse] = []
     private var pingCallIndex = 0
 
+    /// Version `serverVersion()` reports; `nil` keeps the default **1.120.0**,
+    /// i.e. the flat search route. A case that asserts the v3.2.0 shape sets a
+    /// `3.2.0` (or later) version here.
+    var serverVersionResponse: ServerVersionResponseDto?
+    var serverVersionError: Error?
+
     var logoutResponse: LogoutResponseDto?
     var validateResponse: ValidateAccessTokenResponseDto?
     var validateError: Error?
@@ -362,8 +368,8 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     func serverVersion() async throws -> ServerVersionResponseDto {
         bump()
-        if let e = globalError { throw e }
-        return ServerVersionResponseDto(major: 1, minor: 120, patch: 0, prerelease: nil)
+        if let e = globalError ?? serverVersionError { throw e }
+        return serverVersionResponse ?? ServerVersionResponseDto(major: 1, minor: 120, patch: 0, prerelease: nil)
     }
 
     func serverConfig() async throws -> ServerConfigDto {

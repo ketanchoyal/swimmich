@@ -523,6 +523,9 @@ final class SearchViewModelTests: XCTestCase {
     /// never sent.
     func test_ocrFilter_dispatchesSimilarityFilter() async {
         let mock = makeMock(items: [makeAsset(id: "r1")])
+        // `filter.ocr` only exists from v3.2.0 on: an older server has no field
+        // for a text criterion at all (the ViewModel sends the flat route then).
+        mock.serverVersionResponse = ServerVersionResponseDto(major: 3, minor: 2, patch: 0, prerelease: nil)
         let vm = SearchViewModel(client: mock)
         vm.searchMode = .metadata
         vm.query = "receipt"
@@ -538,6 +541,7 @@ final class SearchViewModelTests: XCTestCase {
     /// `matches` to have at least one character.
     func test_ocrFilter_trimsTheQuery() async {
         let mock = makeMock()
+        mock.serverVersionResponse = ServerVersionResponseDto(major: 3, minor: 2, patch: 0, prerelease: nil)
         let vm = SearchViewModel(client: mock)
         vm.searchMode = .metadata
         vm.query = "  receipt  "

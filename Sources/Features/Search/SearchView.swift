@@ -128,6 +128,13 @@ struct SearchView: View {
                 )
                 .onChange(of: vm.query) { _, _ in vm.queryDidChange() }
                 .searchSuggestions { searchSuggestions }
+                .task {
+                    // What the server can express decides whether the detected-
+                    // text toggle and the Filters sheet's OCR section are on
+                    // offer, so the question is asked when the screen appears —
+                    // once per session (the ViewModel caches the answer).
+                    await vm.probeSearchShape()
+                }
         case .explore:
             exploreView
                 .task {
@@ -314,7 +321,9 @@ struct SearchView: View {
     /// Restricts the results to photos whose detected text matches the query
     /// (ocr-text). Sits with the mode menu — it changes how the query is
     /// interpreted, not which grid is shown. Only the metadata route carries
-    /// `filter.ocr`, hence the mode guard.
+    /// the criterion, and only a server with the v3.2.0 structured filter has a
+    /// field for it: on an older one the toggle is off the table rather than
+    /// silently searching something else.
     private var ocrFilterToggle: some View {
         Button {
             vm.ocrFilterEnabled.toggle()
@@ -324,7 +333,7 @@ struct SearchView: View {
                 .font(.pvBody.weight(.semibold))
                 .foregroundStyle(vm.ocrFilterEnabled ? Color.immichPrimary : Color.secondary)
         }
-        .disabled(vm.searchMode != .metadata)
+        .disabled(vm.searchMode != .metadata || !vm.supportsStructuredSearch)
         .accessibilityLabel("Search by detected text")
         .accessibilityValue(vm.ocrFilterEnabled ? "on" : "off")
         .accessibilityIdentifier("searchOcrFilterToggle")

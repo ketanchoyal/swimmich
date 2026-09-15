@@ -27,10 +27,21 @@ struct SearchFilterSheet: View {
                     }
                 }
 
-                Section("OCR text") {
+                Section {
                     TextField("Detected text", text: text($vm.filter.ocrText))
                         .accessibilityIdentifier("searchFilterOCR")
+                } header: {
+                    Text("OCR text")
+                } footer: {
+                    // A criterion the server has no field for is not offered:
+                    // the structured `filter` is the only field for it, and the
+                    // server refuses a body that mixes it with the flat fields
+                    // a pre-v3.2.0 server would need.
+                    if !vm.supportsStructuredSearch {
+                        Text("Detected text search requires Immich 3.2 or later.")
+                    }
                 }
+                .disabled(!vm.supportsStructuredSearch)
 
                 Section("Location") {
                     TextField("City", text: text($vm.filter.city))
@@ -95,8 +106,23 @@ struct SearchFilterSheet: View {
                 } header: {
                     Text("Display")
                 } footer: {
-                    Text("Applies to Metadata search")
+                    VStack(alignment: .leading, spacing: PVSpacing.s4) {
+                        Text("Applies to Metadata search")
+                        // The sort is a server-side `orderBy` (v3.2.0): the flat
+                        // route has no field that names one, so on an older
+                        // server the picker keeps its value but the request
+                        // cannot carry it. Say so instead of quietly returning
+                        // the server's default order.
+                        if vm.sort != .newestTaken, !vm.supportsStructuredSearch {
+                            Text("Sorting requires Immich 3.2 or later.")
+                        }
+                    }
                 }
+            }
+            .task {
+                // The capabilities of the connected server decide what this
+                // sheet can offer (the probe is cached in the ViewModel).
+                await vm.probeSearchShape()
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
