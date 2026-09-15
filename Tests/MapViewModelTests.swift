@@ -473,4 +473,110 @@ final class MapViewModelTests: XCTestCase {
         XCTAssertEqual(item.longitude, 2.3522)
         XCTAssertEqual(item.city, "Paris")
     }
+
+    // MARK: - Marker filter (AC-5140..AC-5146)
+
+    /// Dedicated UserDefaults suite: the real app's store must not leak a
+    /// filter into a filter test (and the reverse).
+    private func makeIsolatedSettings(_ suiteName: String = "MapViewModelTests-\(UUID().uuidString)") -> MapSettingsStore {
+        MapSettingsStore(defaults: UserDefaults(suiteName: suiteName)!)
+    }
+
+    func test_applyFilter_queriesTheRouteWithItAndCachesItUnderItsOwnVariant() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "paris", lat: 48.8566, lon: 2.3522)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache, settings: makeIsolatedSettings())
+        await vm.loadMarkers()
+        XCTAssertEqual(mock.lastMapMarkersFilter, .all)
+
+        let filtered = MapMarkerFilter(onlyFavorites: true, relativeDays: 30)
+        await vm.applyFilter(filtered)
+
+        XCTAssertEqual(vm.filter, filtered)
+        XCTAssertEqual(mock.lastMapMarkersFilter, filtered, "the marker route carries the filter")
+        XCTAssertEqual(mock.requestCount, 2, "one reload — not one request per control")
+        XCTAssertEqual(vm.markers.map(\.id), ["paris"])
+
+        // The filtered payload gets its own file: a filtered response is not a
+        // valid answer for another filter.
+        let files = try? FileManager.default.contentsOfDirectory(
+            atPath: dir.appendingPathComponent("MapMarkers").path
+        )
+        XCTAssertEqual(files?.sorted(), ["markers-f1-a0-p0-r30.json", "markers.json"])
+    }
+
+    func test_applyFilter_usesTheFilteredCacheOnTheNextLoad() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "favorite", lat: 48.85, lon: 2.35)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let settings = makeIsolatedSettings()
+        let vm = MapViewModel(client: mock, cache: cache, settings: settings)
+        await vm.applyFilter(MapMarkerFilter(onlyFavorites: true))
+
+        let reopened = MapViewModel(client: mock, cache: cache, settings: settings)
+        await reopened.loadMarkers()
+
+        XCTAssertEqual(reopened.markers.map(\.id), ["favorite"], "a relaunch serves the filter's own cache")
+        XCTAssertEqual(mock.requestCount, 1, "the filtered cache is fresh — no second fetch")
+    }
+
+    func test_applyFilter_isANoOpForAnIdenticalFilter() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "a1", lat: 48.85, lon: 2.35)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache, settings: makeIsolatedSettings())
+        await vm.loadMarkers()
+
+        await vm.applyFilter(.all)
+
+        XCTAssertEqual(mock.requestCount, 1, "an unchanged filter must not refetch the whole catalogue")
+        XCTAssertEqual(vm.markers.map(\.id), ["a1"])
+    }
+
+    func test_applyFilter_makesTheMarkersOfTheNewFilterTheOnlyVisibleOnes() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "paris", lat: 48.8566, lon: 2.3522)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache, settings: makeIsolatedSettings())
+        vm.debounceInterval = .zero
+        await vm.loadMarkers()
+
+        let center = MKMapPoint(CLLocationCoordinate2D(latitude: 48.8566, longitude: 2.3522))
+        vm.setVisibleRect(MKMapRect(x: center.x - 1_000_000, y: center.y - 1_000_000, width: 2_000_000, height: 2_000_000))
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(vm.visiblePhotos.map(\.id), ["paris"])
+        vm.selectMarker(vm.visibleAnnotations[0].id)
+
+        mock.mapMarkersResponse = [makeMarker(id: "nyc", lat: 40.7128, lon: -74.0060)]
+        await vm.applyFilter(MapMarkerFilter(relativeDays: 7))
+
+        // Nothing of the previous filter survives — a filtered map must never
+        // keep showing photos the filter excluded.
+        XCTAssertEqual(vm.markers.map(\.id), ["nyc"])
+        XCTAssertTrue(vm.visiblePhotos.isEmpty, "the previous filter's region photos are gone")
+        XCTAssertNil(vm.selectedMarkerID)
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    func test_applyFilter_summaryNamesTheActiveFilter() async {
+        let mock = MockImmichClient()
+        mock.mapMarkersResponse = [makeMarker(id: "a1", lat: 48.85, lon: 2.35)]
+        let (cache, dir) = makeIsolatedCache()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = MapViewModel(client: mock, cache: cache, settings: makeIsolatedSettings())
+
+        await vm.applyFilter(MapMarkerFilter(onlyFavorites: true, relativeDays: 30))
+
+        // Both surfaces (badge, photo-sheet banner) render this one string, and
+        // it is resolved through the catalog — never a hard-coded English.
+        XCTAssertEqual(
+            vm.activeFilterSummary,
+            "\(localizedString("30 days")), \(localizedString("Favorites only"))"
+        )
+    }
 }

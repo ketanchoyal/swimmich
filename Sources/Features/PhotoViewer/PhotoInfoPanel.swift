@@ -12,6 +12,9 @@ struct PhotoInfoPanel: View {
     let baseURL: URL
     let token: String?
     var onClose: () -> Void = {}
+    /// Open the photo's place on a full-screen, interactive map (the mini-map
+    /// in the info card is a snapshot).
+    var onOpenLocationMap: ((Double, Double, String?) -> Void)? = nil
     /// Open in Apple Maps at the photo's coordinates (map-extras).
     var onOpenInMaps: ((Double, Double) -> Void)? = nil
 
@@ -118,6 +121,7 @@ struct PhotoInfoPanel: View {
                     fallbackLatitude: asset.latitude,
                     fallbackLongitude: asset.longitude,
                     onOpenInMaps: onOpenInMaps,
+                    onOpenLocationMap: onOpenLocationMap,
                     onAdjustLocation: { presentAdjustLocation = true },
                     onAdjustDate: { presentAdjustDate = true }
                 )
@@ -311,6 +315,8 @@ struct ExifInfoPanel: View {
     let fallbackLongitude: Double?
     /// map-extras: wired at the PhotoViewer root; nil hides the action row.
     var onOpenInMaps: ((Double, Double) -> Void)? = nil
+    /// Wired at the PhotoViewer root; nil keeps the mini-map untappable.
+    var onOpenLocationMap: ((Double, Double, String?) -> Void)? = nil
     var onAdjustLocation: (() -> Void)? = nil
     /// gap #3: wired at the PhotoViewer root; nil hides the action row.
     var onAdjustDate: (() -> Void)? = nil
@@ -410,6 +416,21 @@ struct ExifInfoPanel: View {
                         }
                         MiniMapView(latitude: lat, longitude: lon)
                             .frame(height: 180)
+                            .overlay {
+                                if let onOpenLocationMap {
+                                    // Transparent layer over the 180pt map only
+                                    // — wrapping the UIKit map in a `Button`
+                                    // swallows its taps, and the action row
+                                    // below keeps its own.
+                                    Color.clear
+                                        .contentShape(Rectangle())
+                                        .onTapGesture { onOpenLocationMap(lat, lon, placeName) }
+                                        .accessibilityElement()
+                                        .accessibilityAddTraits(.isButton)
+                                        .accessibilityLabel(String(localized: "Open full screen map"))
+                                        .accessibilityIdentifier("locationMapPreviewButton")
+                                }
+                            }
                         if onOpenInMaps != nil || onAdjustLocation != nil {
                             InfoCardDivider()
                             actionRow(latitude: lat, longitude: lon)

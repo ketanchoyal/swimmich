@@ -70,7 +70,58 @@ struct MapAnnotationMarker: Identifiable, Equatable {
 @MainActor
 final class MapViewModel {
     let client: any ImmichClient
-    private let cache: MapMarkerCache
+    /// Persisted filter + theme, shared process-wide (gap G14b).
+    let settings: MapSettingsStore
+    /// Cache opened on the unconstrained variant; the *active* cache is derived
+    /// from the current filter below so two filters never share a file.
+    private let baseCache: MapMarkerCache
+    private var cache: MapMarkerCache { baseCache.variant(filter.cacheVariant) }
+
+    /// The filter the map is currently showing. Owned by `settings` (it must
+    /// survive relaunches and be shared with the settings sheet), projected
+    /// here so views keep reading the ViewModel.
+    var filter: MapMarkerFilter { settings.filter }
+
+    /// One-line, human-readable projection of the active filter, shown by the
+    /// map's badge and by the photo sheet's banner. The views never compose
+    /// this text: one place formats the presets, so the two surfaces can't
+    /// disagree about what the user is looking at.
+    var activeFilterSummary: String {
+        var parts: [String] = []
+        if let from = filter.from, let to = filter.to {
+            parts.append(String(localized: "\(Self.day(from)) – \(Self.day(to))"))
+        } else if let from = filter.from {
+            parts.append(String(localized: "After \(Self.day(from))"))
+        } else if let to = filter.to {
+            parts.append(String(localized: "Before \(Self.day(to))"))
+        } else if filter.relativeDays > 0 {
+            parts.append(Self.relativeLabel(days: filter.relativeDays))
+        }
+        if filter.onlyFavorites { parts.append(String(localized: "Favorites only")) }
+        if filter.includeArchived { parts.append(String(localized: "Archived included")) }
+        if filter.withPartners { parts.append(String(localized: "Partners included")) }
+        return parts.isEmpty ? String(localized: "Filter active") : parts.joined(separator: ", ")
+    }
+
+    /// Locale-formatted day for the summary (dates are already localized, so
+    /// they need no catalog entry of their own).
+    private static func day(_ date: Date) -> String {
+        date.formatted(.dateTime.year().month().day())
+    }
+
+    /// The preset labels double as the filter summary — the same words the
+    /// sheet's picker shows, so the badge can't name a range the picker
+    /// doesn't offer.
+    private static func relativeLabel(days: Int) -> String {
+        switch days {
+        case 1: String(localized: "1 day")
+        case 7: String(localized: "7 days")
+        case 30: String(localized: "30 days")
+        case 365: String(localized: "1 year")
+        case 1095: String(localized: "3 years")
+        default: String(localized: "Last \(days) days")
+        }
+    }
 
     private(set) var markers: [MapPhoto] = []
     private(set) var visibleAnnotations: [MapAnnotationMarker] = []
@@ -177,9 +228,17 @@ final class MapViewModel {
     /// never churns to empty mid-refresh (keeps the map photo sheet stable).
     private var lastRect: MKMapRect?
 
-    init(client: any ImmichClient, cache: MapMarkerCache = MapMarkerCache()) {
+    init(
+        client: any ImmichClient,
+        cache: MapMarkerCache = MapMarkerCache(),
+        settings: MapSettingsStore? = nil
+    ) {
         self.client = client
-        self.cache = cache
+        self.baseCache = cache
+        // Built in the body, not as a default argument: the store is
+        // MainActor-isolated and default arguments are evaluated outside that
+        // context.
+        self.settings = settings ?? MapSettingsStore()
     }
 
     /// Loads markers once per VM lifetime. Serves the disk cache instantly if
@@ -215,7 +274,7 @@ final class MapViewModel {
 
         print("[MapVM] cache miss — fetching from server…")
         do {
-            let dtos = try await client.getMapMarkers(isFavorite: nil, isArchived: nil)
+            let dtos = try await client.getMapMarkers(filter: filter)
             print("[MapVM] fetched \(dtos.count) markers")
             applyMarkers(dtos)
             loaded = true
@@ -237,7 +296,7 @@ final class MapViewModel {
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let dtos = try await client.getMapMarkers(isFavorite: nil, isArchived: nil)
+            let dtos = try await client.getMapMarkers(filter: filter)
             print("[MapVM] refresh fetched \(dtos.count) markers")
             applyMarkers(dtos)
             // Never overwrite a good cache with an empty response (an empty
@@ -281,6 +340,25 @@ final class MapViewModel {
             Task.detached(priority: .utility) { cache.save(dtos) }
         }
         refilterIfNeeded()
+    }
+
+    /// Applies a new marker filter (settings sheet "Done"/swipe-down): persists
+    /// it, drops the state built under the previous filter and reloads through
+    /// the new filter's own cache variant. An unchanged filter short-circuits —
+    /// the `Equatable` conformance is what keeps "Done without touching
+    /// anything" from firing a full-catalogue refetch.
+    func applyFilter(_ new: MapMarkerFilter) async {
+        guard new != settings.filter else { return }
+        regionTask?.cancel()
+        settings.setFilter(new)
+        loaded = false
+        markers = []
+        visibleAnnotations = []
+        visiblePhotos = []
+        selectedMarkerID = nil
+        selectedMarkerPhotos = []
+        errorMessage = nil
+        await loadMarkers()
     }
 
     /// Full reload (retry path). Clears cache + markers so `.task` re-dispatches.

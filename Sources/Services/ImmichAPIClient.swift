@@ -201,11 +201,8 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
 
     // MARK: - Map (AC-710)
 
-    func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto] {
-        var query: [URLQueryItem] = []
-        if let isFavorite { query.append(URLQueryItem(name: "isFavorite", value: String(isFavorite))) }
-        if let isArchived { query.append(URLQueryItem(name: "isArchived", value: String(isArchived))) }
-        return try await sendAuthed(.GET, path: ImmichAPI.map.path("/markers"), query: query)
+    func getMapMarkers(filter: MapMarkerFilter) async throws -> [MapMarkerResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.map.path("/markers"), query: filter.queryItems())
     }
 
     // MARK: - Albums (AC-500..AC-518)

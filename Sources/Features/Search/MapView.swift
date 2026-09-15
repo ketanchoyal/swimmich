@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import UIKit
 
 /// Map segment for the Search tab — MKMapView with real marker clustering
 /// (MKMarkerAnnotationView.clusteringIdentifier) feeding a native photo sheet
@@ -25,6 +26,12 @@ struct MapSegmentView: View {
     /// first wave of annotations — the spinner covers the annotation-render
     /// cost (thousands of markers), not just the network fetch.
     @State private var isRenderingMarkers = false
+    /// Map settings sheet (gap G14b).
+    @State private var presentSettings = false
+    /// The photo sheet is presented by `RootView` on the same host controller,
+    /// so it has to come down before the settings sheet can go up; this
+    /// remembers to put it back when settings closes.
+    @State private var restorePhotoSheet = false
 
     var body: some View {
         Group {
@@ -68,6 +75,34 @@ struct MapSegmentView: View {
                 }
             }
         }
+        // Map settings (gap G14b). A sheet, not a push — no NavigationStack.
+        .sheet(isPresented: $presentSettings) {
+            MapSettingsSheet(
+                store: vm.settings,
+                onApply: { filter in Task { await vm.applyFilter(filter) } },
+                onClose: { presentSettings = false }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .onDisappear {
+                // Settings and the photo sheet share one host controller, so
+                // only one can be up at a time; restore what `openSettings`
+                // took down.
+                guard restorePhotoSheet else { return }
+                restorePhotoSheet = false
+                guard !vm.visiblePhotos.isEmpty else { return }
+                DispatchQueue.main.async { vm.isPhotoSheetPresented = true }
+            }
+        }
+    }
+
+    /// Opens the settings sheet. The photo sheet is presented by `RootView` on
+    /// the same host controller: presenting over it would be refused, so it is
+    /// taken down first (and restored when settings closes).
+    private func openSettings() {
+        restorePhotoSheet = vm.isPhotoSheetPresented
+        vm.isPhotoSheetPresented = false
+        presentSettings = true
     }
 
     private var mapContent: some View {
@@ -95,7 +130,8 @@ struct MapSegmentView: View {
                 },
                 onMarkerDeselected: {
                     Task { @MainActor in vm.deselectMarker() }
-                }
+                },
+                interfaceStyle: vm.settings.theme.interfaceStyle
             )
             .ignoresSafeArea()
 
@@ -117,7 +153,77 @@ struct MapSegmentView: View {
                 .background(.regularMaterial, in: Capsule())
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
+
+            // Filter + settings: floating glass controls, the only surface that
+            // is legitimately above a full-screen map (same family as the
+            // spinner capsule).
+            HStack(spacing: PVSpacing.s8) {
+                if !vm.filter.isEmpty { activeFilterBadge }
+                settingsButton
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, PVSpacing.s16)
+            .padding(.top, PVSpacing.s8)
+            // Only the badge appears/disappears with the filter — the marker
+            // set itself is never animated (thousands of annotations animating
+            // makes the map jump).
+            .animation(PVMotion.snappy, value: vm.filter.isEmpty)
+
+            // A filter that matches nothing is a state, not a blank map: say
+            // which filter emptied it and offer the way out.
+            if !vm.filter.isEmpty, vm.markers.isEmpty, !isLoadingPhotos, !vm.isLoading {
+                filteredEmptyOverlay
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
+    }
+
+    /// Badge of the active filter — the only alert that the map is filtered,
+    /// and a second way into the sheet (the way back out of a filter).
+    private var activeFilterBadge: some View {
+        Button { openSettings() } label: {
+            Label(vm.activeFilterSummary, systemImage: "line.3.horizontal.decrease.circle.fill")
+                .font(.pvCaption)
+                .lineLimit(1)
+                .foregroundStyle(Color.immichPrimary)
+                .padding(.horizontal, PVSpacing.s12)
+                .padding(.vertical, PVSpacing.s8)
+        }
+        .buttonStyle(.plain)
+        .background(.regularMaterial, in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mapFilterActiveBadge")
+        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+    }
+
+    private var settingsButton: some View {
+        Button { openSettings() } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.pvBody.weight(.semibold))
+                .foregroundStyle(Color.immichPrimary)
+                .padding(PVSpacing.s12)
+        }
+        .buttonStyle(.plain)
+        .background(.regularMaterial, in: Circle())
+        .accessibilityLabel("Map settings")
+        .accessibilityIdentifier("mapSettingsButton")
+    }
+
+    /// Explicit empty state for a filter that returned nothing (an inverted or
+    /// over-narrow range): the map alone would read as "my photos are gone".
+    private var filteredEmptyOverlay: some View {
+        VStack(spacing: PVSpacing.s8) {
+            Text("No photos match this filter")
+                .font(.pvSubhead)
+                .foregroundStyle(Color.textPrimaryPV)
+                .multilineTextAlignment(.center)
+            Button("Clear filter") {
+                Task { await vm.applyFilter(.all) }
+            }
+            .buttonStyle(PVSubtleButtonStyle())
+        }
+        .padding(PVSpacing.s16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: PVRadius.md, style: .continuous))
     }
 
     private func errorView(_ msg: String) -> some View {
@@ -183,6 +289,19 @@ struct MapPhotosSheet: View {
                     }
                 }
                 .padding(.horizontal)
+
+                // "12 photos" next to a filtered map is a lie by omission: the
+                // summary says what the count was computed on (no extra
+                // request — it is the same filter the map queried with).
+                if !vm.filter.isEmpty {
+                    PVStatusBadge(
+                        text: vm.activeFilterSummary,
+                        color: .immichPrimary,
+                        symbol: "line.3.horizontal.decrease.circle.fill"
+                    )
+                    .accessibilityIdentifier("mapFilterSummary")
+                    .padding(.horizontal)
+                }
 
                 if displayedPhotos.isEmpty {
                     ContentUnavailableView(
@@ -329,6 +448,10 @@ struct ClusteredMapView: UIViewRepresentable {
     /// The selected marker was deselected (tap elsewhere) — sheet goes back
     /// to the region's photos.
     let onMarkerDeselected: () -> Void
+    /// Forced appearance of the map. `nil` follows the system; this is the
+    /// only lever that actually repaints MapKit's tiles (a color filter over
+    /// the view would leave the tiles' own rendering untouched).
+    let interfaceStyle: UIUserInterfaceStyle?
 
     private static let photoReuseID = "photoMarker"
     private static let clusterReuseID = "photoCluster"
@@ -340,6 +463,7 @@ struct ClusteredMapView: UIViewRepresentable {
         map.delegate = context.coordinator
         map.mapType = .standard
         map.showsUserLocation = false
+        map.overrideUserInterfaceStyle = interfaceStyle ?? .unspecified
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Self.photoReuseID)
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Self.clusterReuseID)
         return map
@@ -348,6 +472,13 @@ struct ClusteredMapView: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.parent = self
+
+        // Live theme switch while the sheet is open: MapKit repaints on the
+        // style change (tiles included).
+        let style = interfaceStyle ?? .unspecified
+        if map.overrideUserInterfaceStyle != style {
+            map.overrideUserInterfaceStyle = style
+        }
 
         // Fit to all markers once (first load). Then force a region callback
         // so culling kicks in even if the programmatic fit doesn't fire the
@@ -522,6 +653,18 @@ struct ClusteredMapView: UIViewRepresentable {
 
         func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
             parent.onVisibleRectChanged(mapView.visibleMapRect)
+        }
+    }
+}
+
+extension MapTheme {
+    /// MapKit appearance. `nil` means "follow the system"
+    /// (`overrideUserInterfaceStyle = .unspecified`).
+    var interfaceStyle: UIUserInterfaceStyle? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
         }
     }
 }

@@ -218,7 +218,7 @@ final class ImmichAPIClientTests: XCTestCase {
         """#.data(using: .utf8)!
         CapturingURLProtocol.nextStatus = 200
 
-        let markers = try await client.getMapMarkers(isFavorite: true, isArchived: nil)
+        let markers = try await client.getMapMarkers(filter: MapMarkerFilter(onlyFavorites: true))
 
         guard let captured = CapturingURLProtocol.lastRequest else {
             return XCTFail("no request captured")
@@ -243,12 +243,36 @@ final class ImmichAPIClientTests: XCTestCase {
 
         CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
 
-        _ = try await client.getMapMarkers(isFavorite: nil, isArchived: nil)
+        _ = try await client.getMapMarkers(filter: .all)
 
         guard let captured = CapturingURLProtocol.lastRequest else {
             return XCTFail("no request captured")
         }
         XCTAssertEqual(captured.url?.query, nil, "no query params expected")
+    }
+
+    // AC-5141: the marker route is the only carrier of a time range — the
+    // filter's bounds must reach the URL as date-time query items.
+    func test_AC_5141_mapMarkersRequest_carriesTheCustomTimeRange() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+        CapturingURLProtocol.nextStatus = 200
+
+        let calendar = Calendar.current
+        let from = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        let to = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_700_600_000))
+        _ = try await client.getMapMarkers(filter: MapMarkerFilter(from: from, to: to))
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        let query = captured.url?.query ?? ""
+        XCTAssertTrue(query.contains("fileCreatedAfter="), "the range must travel on the marker route: \(query)")
+        XCTAssertTrue(query.contains("fileCreatedBefore="), "the range must travel on the marker route: \(query)")
+        XCTAssertFalse(query.contains("takenAfter"), "the metadata-search parameter is not the marker route's")
     }
 
     // Photo share: GET /api/users returns the instance users.

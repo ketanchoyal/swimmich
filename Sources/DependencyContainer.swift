@@ -82,6 +82,12 @@ final class DependencyContainer {
     /// both — a second instance would disagree with the one on screen.
     let language: AppLanguageStore
 
+    /// Process-wide map settings (gap G14b). Same shape of reasoning as
+    /// `language`: the map, its settings sheet, its filter badge and the photo
+    /// sheet's banner must all project ONE filter, and the choice has to
+    /// outlive the segment view that presents the sheet.
+    let mapSettings: MapSettingsStore
+
     /// Process-wide download queue (gap G10). Same reasoning as `upload`: the
     /// floating panel, the viewer's "Download to Files" and the timeline's
     /// mass action must all drive ONE queue — and it has to outlive the screen
@@ -109,6 +115,7 @@ final class DependencyContainer {
         self.offlineStore = OfflineAssetStore()
         self.offlineIndex = OfflineAssetIndex()
         self.language = AppLanguageStore()
+        self.mapSettings = MapSettingsStore()
         let cloudStatus = CloudBackupStatusIndex()
         self.cloudStatus = cloudStatus
         self.albumSyncStore = AlbumSyncStore()
@@ -177,7 +184,7 @@ final class DependencyContainer {
     }
 
     func makeMapViewModel() -> MapViewModel {
-        MapViewModel(client: client as any ImmichClient)
+        MapViewModel(client: client as any ImmichClient, settings: mapSettings)
     }
 
     func makeAlbumsViewModel() -> AlbumsViewModel {
