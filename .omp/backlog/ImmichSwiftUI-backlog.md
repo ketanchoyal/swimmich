@@ -4,7 +4,7 @@
 >
 > **Architecture cible** : MVVM strict 4 couches — Core/Protocols, Core/Types, Services, Features, DesignSystem.
 >
-> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **805 tests** (mesurée le 2026-09-13, TEST SUCCEEDED). Chaque scénario XCUITest exige *son* stub sur le port 8421 : la régression se compte sur la suite unitaire (`-only-testing:ImmichSwiftUITests`).
+> **Validation** : `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` — baseline **886 tests** (dernier relevé le 2026-09-14, TEST SUCCEEDED ; comptage direct : 886 `func test*` dans `Tests/`). Chaque scénario XCUITest exige *son* stub sur le port 8421 : la régression se compte sur la suite unitaire (`-only-testing:ImmichSwiftUITests`).
 
 ---
 
@@ -754,6 +754,189 @@ Ouvrir un lien partagé **reçu** : vérifier son mot de passe, parcourir ses ph
 - **Vignette publique en plein écran** : `size=fullsize` redirige vers `original` (permission `AssetDownload`) — le serveur force `edited = true` sous auth partagée, ce qui neutralise la redirection. Sans cela, les photos d'un lien en lecture seule auraient été cassées.
 - **`AuthenticatedAsyncImage` met les vignettes en cache disque par URL** : avec des ids d'assets fixes, le 2ᵉ run du scénario trouvait les images en cache et la requête prouvant le credential n'était plus émise. Le stub régénère donc ses ids à chaque `/__reset`.
 - **Les stubs frères servent des JPEG que ImageIO ne décode pas** (`immich_stub_memories.py`, `immich_stub_shared_links.py`, octets 1×1) : leurs captures montrent une grille d'images cassées alors que l'app est correcte. Ce stub-ci génère un vrai PNG 8×8.
+
+---
+
+### 2.17. Registre des écarts vs upstream — audit 2026-09-15 (aucune carte AC ouverte)
+
+Audit du client officiel `immich-app/immich` @ `main` (`e55ac299`, release **v3.2.1** du
+2026-09-14), comparé à l'état du dépôt au 2026-09-15. Sources upstream : `mobile/lib/routing/router.dart`
+(57 routes, 3 guards), `mobile/lib/{pages,presentation/pages,services,domain/services,widgets/settings}`,
+`mobile/pubspec.yaml`, `mobile/ios/**` + `AndroidManifest.xml`, `docs/docs/features/**` (20 docs),
+`web/src/routes/**`. Endpoints relus sur `/tmp/immich-openapi-main.json` (OpenAPI publié `main`).
+
+La référence de parité `docs/mobile-features-vs-flutter.md` a été corrigée par le même audit
+(casting mobile, OCR, note par étoiles, ordonnanceur Android, §23 « Cluster Groups » = feature
+fantôme, table des gaps #1/#2/#5/#12 close).
+
+#### Écarts ouverts, par phase proposée
+
+| # | Feature upstream | État iOS | Preuve upstream | Endpoint / mécanisme |
+|---|------------------|----------|-----------------|----------------------|
+| G1 | **Free Up Space** (nettoyage des originaux déjà sauvegardés) | ❌ absent | `presentation/pages/cleanup_preview.page.dart` (route `CleanupPreviewRoute`), `services/cleanup.service.dart`, `providers/cleanup.provider.dart`, `widgets/settings/free_up_space_settings.dart`, doc `mobile-app.mdx` § Free Up Space | PhotoKit local + `POST /api/assets/bulk-upload-check` ; cutoff date, keep favorites/albums, exclusion albums iCloud partagés, lots 10 000 (iOS) |
+| G2 | **Album Sync** (miroir device → albums serveur + « Reorganize into album ») | ❌ absent | `domain/services/sync_linked_album.service.dart`, `local_sync.service.dart`, `local_album.service.dart` | `POST /api/albums`, `PUT /api/albums/{id}/assets`, `GET /api/albums` |
+| G3 | **Bibliothèque locale « On this device »** (timeline locale, albums locaux, upload d'une sélection) | ❌ absent | routes `LocalTimelineRoute`, `LocalAlbumsRoute`, `LocalMediaSummaryRoute`, `RemoteMediaSummaryRoute` ; `presentation/pages/local_timeline.page.dart`, `local_album.page.dart`, `dev/media_stat.page.dart` | PhotoKit (`photo_manager`) + `POST /api/assets` |
+| G4 | Écran de **statut de synchronisation** (sync beta) | ❌ absent | `pages/settings/sync_status.page.dart` (route `SyncStatusRoute`), `widgets/settings/beta_sync_settings/*` | état local + `GET /api/sync/stream`-free (compteurs locaux) |
+| G5 | **Détail d'upload par asset** | 🟡 barre globale + Live Activity, pas d'écran par asset | `pages/backup/upload_detail.page.dart`, `backup_asset_detail.page.dart` | état local |
+| G6 | **Indicateur de statut cloud** sur les tuiles (syncé vs local-only) | 🟡 badge offline seulement | doc `mobile-app.mdx` § Sync only selected photos, `widgets/settings/asset_list_settings/*` | état local (ledger) |
+| G7 | **Note par étoiles 1–5 éditable** + filtre de recherche | 🟡 lecture seule (`PhotoInfoPanel.swift` affiche `exif.rating`) | `asset_viewer/rating_bar.widget.dart`, `asset_details/rating_details.widget.dart`, `search_filter/star_rating_picker.dart` | `PUT /api/assets` (`AssetBulkUpdateDto.rating`) ; filtre `rating` de `POST /api/search/metadata` |
+| G8 | **Overlay OCR** (texte dans l'image) + recherche OCR | ❌ absent | `asset_viewer/ocr_overlay.widget.dart`, `ocr_toggle_button.widget.dart`, `domain/services/ocr.service.dart` | `GET /api/assets/{id}/ocr` ; filtre `ocr` de `POST /api/search/metadata` |
+| G9 | **Casting Google Cast / Chromecast** | ❌ absent | `presentation/actions/cast.action.dart`, `widgets/asset_viewer/cast_dialog.dart`, `services/gcast.service.dart`, plugin `cast: ^2.1.0`, `NSBonjourServices _googlecast._tcp` | protocole Cast (mDNS + récepteur) |
+| G10 | **Panneau de téléchargement** (originaux, file + progression) | 🟡 offline = épinglage, pas de file | `pages/common/download_panel.dart`, `presentation/pages/download_info.page.dart` (route `DownloadInfoRoute`) | `GET /api/assets/{id}/original` |
+| G11 | **Vue dossiers** (arborescence, bibliothèques externes) | ❌ absent | `pages/library/folder/folder.page.dart` (route `FolderRoute`), `services/folder.service.dart` | `GET /api/view/folder`, `GET /api/view/folder/unique-paths` |
+| G12 | **Dossier verrouillé + PIN** | ❌ absent (`AppLock` = verrou d'app, pas un dossier) | `presentation/pages/locked_folder.page.dart`, `routing/locked_guard.dart`, `pages/library/locked/pin_auth.page.dart`, plugin `pinput` | visibilité `locked` de `AssetVisibility` via `PUT /api/assets` ; **le PIN est serveur** : `POST /api/auth/pin-code` (6 chiffres), `PUT /api/auth/pin-code`, `POST /api/auth/session/unlock` (`isElevated`), `POST /api/auth/session/lock`, `GET /api/auth/status` — vérifié le 2026-09-15 sur l'OpenAPI `main`, aucune de ces 5 routes n'est câblée aujourd'hui |
+| G13 | **Récemment pris / récemment ajoutés** | ❌ absent (`AssetOrderBy` existe, non branché) | routes `RecentlyTakenRoute`, `RecentlyAddedRoute`, `presentation/pages/recently_taken.page.dart`, `recently_added.page.dart` — l'upstream trie sur sa réplique locale Drift (`uploadedAt`), pas sur une route | `GET /api/timeline/buckets?orderBy=` (`takenAt` \| `createdAt`) : c'est la **seule** route capable de produire « récemment ajoutés » — `POST /api/search/metadata` ne le peut pas (`SearchOrderField` = `fileCreatedAt` \| `localDateTime` \| `fileSizeInBytes` \| `rating`, vérifié le 2026-09-15) |
+| G14 | Filtres de recherche avancés (note, OCR, options d'affichage) + réglages carte (plage de temps, feuille carte dans le viewer) | 🟡 | `search_filter/{star_rating_picker,display_option_picker}.dart`, `widgets/map/map_settings/map_custom_time_range.dart`, `widgets/bottom_sheet/map_bottom_sheet.widget.dart` | paramètres de `POST /api/search/metadata` / `GET /api/map/markers` |
+| G15 | Édition de l'**anniversaire** d'une personne | ❌ absent | `widgets/people/person_edit_birthday_modal.widget.dart` | `PUT /api/people/{id}` (`birthDate`) |
+| G16 | **Photo de profil** (upload + crop) | ❌ absent (avatars à initiales) | `presentation/pages/profile/profile_picture_crop.page.dart` (route `ProfilePictureCropRoute`) | `GET /api/users/me/profile-image`, `POST /api/users/profile-image` |
+| G17 | **Mode lecture seule / kid mode** | ❌ absent | `providers/infrastructure/readonly_mode.provider.dart`, doc `mobile-app.mdx` § Read-only/kid Mode | garde client (aucun endpoint) |
+| G18 | **Changement de mot de passe** | ❌ absent (`shouldChangePassword` non consommé) | `pages/login/change_password.page.dart` (route `ChangePasswordRoute`) | `POST /api/auth/change-password` |
+| G19 | **Sessions / appareils connectés** | ❌ absent | `user-settings-page/DeviceCard.svelte` (web) + écrans de compte du client mobile | `GET /api/sessions`, `DELETE /api/sessions/{id}`, `POST /api/auth/session/{lock,unlock}` |
+| G20 | **Clés API utilisateur** (hors admin) + rotation | 🟡 admin seulement (`/api/api-keys`) | `user-settings-page/UserApiKeyGrid.svelte` | `GET /api/api-keys` (liste des clés de l'utilisateur courant, non réservée aux admins), `GET /api/api-keys/me` (**une seule** clé : celle qui porte la requête), `POST /api/api-keys`, `DELETE /api/api-keys/{id}`, **`POST` `/api/api-keys/{id}/rotate`** (pas PUT — coquille corrigée le 2026-09-15 par la spec `user-api-keys`) |
+| G21 | **Extension de partage iOS** (partager une photo *vers* Immich) | ❌ absent (`project.yml` : pas de cible ShareExtension ; AppIntents couvre Siri/Shortcuts, pas la share sheet) | `mobile/ios/ShareExtension/`, plugin `share_handler`, route `ShareIntentRoute` | `POST /api/assets` (upload depuis la share sheet) |
+| G22 | Réglages manquants : photo grid (regroupement/layout), viewer (qualité image, tap-to-navigate, vidéo, slideshow), préférences (thème, couleur primaire, haptique) | 🟡 | `widgets/settings/{asset_list_settings,asset_viewer_settings,preference_settings}/*` | client |
+| G23 | Écrans « Quoi de neuf » + licences open-source | ❌ absent | route `WhatsNewRoute`, `presentation/pages/feature_message/whats_new.page.dart`, `utils/licenses.dart` | client (+ `feature_message` serveur) |
+| G24 | Utilitaires : logs applicatifs, dépannage asset, infos de téléchargement, stats média | ❌ absent (seuls stockage + doublons existent) | routes `AppLogRoute`, `AppLogDetailRoute`, `AssetTroubleshootRoute`, `DownloadInfoRoute` ; `pages/common/app_log{,_detail}.page.dart`, `presentation/pages/asset_troubleshoot.page.dart` | client (+ `POST /api/assets/bulk-upload-check`, `GET /api/assets/{id}/original`) |
+
+Hors périmètre iOS (Android seulement) : VIEW intent (`services/view_intent.service.dart`),
+foreground service de sync, Obtainium, empreintes de certificats de release.
+
+#### Au-delà de la parité (livré, rien à faire)
+
+Live Activity + Dynamic Island (absentes du Flutter), 4 widgets + AppIntents/Spotlight (Flutter : 1 widget
+iOS, 2 Android), viewer public de lien partagé (le Flutter n'a que liste + édition), résolution des
+doublons, panneau d'administration (web-only côté upstream), RoadTrip, multi-comptes/multi-serveurs,
+filtres de timeline `personId`/`withPartners`/`visibility`/`withStacked`.
+
+#### Divergences assumées (pas des écarts)
+
+- **IA d'onglets** : iOS = 5 onglets (Photos, Memories, Albums, Shared, Search) + hub « Me » portant
+  Trash/Backup/People/Tags/Stacks/Partners/Admin/Offline/Notifications/Language ; Flutter = 4 onglets
+  (Timeline, Search, Library, Albums).
+- **Notations** : Flutter = `workmanager` historique remplacé par `worker_manager` ; iOS = `BGTaskScheduler`.
+- **Réglages de sécurité** : iOS applique `AppLock` global (Face ID) ; le PIN n'existe chez Flutter que
+  pour le dossier verrouillé (G12).
+
+#### Limites de l'audit
+
+- `mobile/generated/openapi` n'a pas été énuméré : une fonctionnalité peut exister côté DTO sans UI mobile
+  (elle n'est alors pas dans ce registre).
+- Les vérifications d'absence sont des greps sur l'arbre récursif `mobile/lib` à `e55ac299` ; elles
+  portent sur le code, pas sur le comportement runtime du client Flutter.
+
+---
+
+## Plan des écarts — ce qu'il reste à faire (post-audit 2026-09-15)
+
+16 cartes sont livrées (§2.1–§2.16). Le registre §2.17 a produit **25 features restantes**, chacune
+avec son dossier de specs dans `.omp/<slug>/` :
+
+| Fichier | Contenu |
+|---|---|
+| `<slug>.specs.md` | exigences, hypothèses vérifiées (fichiers/symboles/routes), approches A/B/C avec rationale, étapes numérotées NEW/EDIT, incertitudes à lever |
+| `<slug>.ui.md` | brief UI/UX : philosophie, placement dans la navigation, layout, composants et tokens, interactions, accessibilité, animations, **erreurs à ne pas faire** (mesurées dans ce dépôt) |
+| `<slug>.AC.md` | critères d'acceptance exécutables (grep + `sh -c`, pré-état FAIL justifié / post-état PASS), dernier critère = régression de la suite |
+
+> **Dossiers livrés le 2026-09-15** : les 25 fiches ont leurs trois fichiers — **75 fichiers, 11 588 lignes**
+> (specs ≈ 120–200 lignes, briefs UI ≈ 150–200, cartes AC ≈ 110–180). Les **250 critères d'acceptance**
+> ont tous été exécutés en pré-état sur le dépôt : `FAIL` dans les 25 cartes, sans erreur de syntaxe
+> (9 par carte + 1 régression, bandes `AC-5000` → `AC-5249` disjointes). La colonne « Statut » du tableau
+> ci-dessous décrit l'**implémentation du code**, pas l'écriture des specs.
+
+**Corrections que les specs ont apportées à l'audit** (vérifiées pendant leur rédaction) :
+
+- **Dossier verrouillé** : le PIN est **serveur** (`POST|PUT /api/auth/pin-code`, `POST /api/auth/session/unlock`,
+  `GET /api/auth/status → isElevated`), pas un garde local — corrigé dans §2.17.
+- **Récemment ajoutés** : seule `GET /api/timeline/buckets?orderBy=createdAt` le permet ; `POST /api/search/metadata`
+  n'a aucune date d'ajout triable — corrigé dans §2.17.
+- **Clés API** : la rotation est un **POST**, et la liste vient de `GET /api/api-keys` (non admin) tandis que
+  `GET /api/api-keys/me` ne rend **qu'une** clé — corrigé dans §2.17.
+- **Casting** : Google ne publie pas de paquet SPM officiel du SDK Cast et le dépôt n'a pas de `Podfile` ;
+  l'approche retenue livre **AirPlay** (`AVRoutePickerView` + `AVRouteDetector`) et laisse le Cast conditionné.
+  Conséquence assumée : AirPlay ne transporte pas d'image fixe — **G9 reste partiellement ouvert pour la photo**.
+- **Téléchargement** : il existe un chemin **de lot** en deux temps (`POST /download/info` puis
+  `POST /download/archive`, décrit par le contrat) que l'audit ignorait.
+- **OCR** : le filtre scalaire `ocr` est déprécié depuis v3.2.0 au profit de `filter.ocr` (`StringSimilarityFilter`) ;
+  les tons de dépannage (`ratingsEnabled`, `GET /assets/{id}/ocr`) restent inchangés.
+- **Note par étoiles** : la dénotation exige un `null` **explicite** (les DTOs locaux utilisent `encodeIfPresent`,
+  qui omet la clé) — un DTO dédié est prescrit ; `0` et `-1` sont invalides en écriture depuis la v3.
+- **« Quoi de neuf »** : les notes sont **embarquées** dans l'app (aucun endpoint `featureMessage`), la release
+  vue est le seul état persistant.
+- **Sessions/appareils** : `DELETE /api/sessions` **ne supprime pas** la session courante (le serveur exclut
+  `currentSessionId`), `POST /api/auth/session/lock` est **sans corps** et retire l'accès élevé,
+  `POST /api/auth/session/unlock` ne lit que `pinCode` et pose un **TTL de 15 min côté serveur** ; les deux
+  routes `/auth/session/*` exigent un **token de session** (400 pour un compte par clé API), et l'élévation
+  n'est exposée par **aucun** champ de `SessionResponseDto` — donc état local optimiste côté iOS, tandis que
+  le dossier verrouillé lit bien `AuthStatusResponseDto.isElevated`. Le client Flutter n'a **rien** sur les
+  sessions : l'écran iOS s'aligne sur `DeviceCard.svelte` (web).
+- **Sync/dossier** : les deux features s'appuient sur `POST /api/assets/bulk-upload-check` + le ledger
+  (`BackupLedger.entriesForReconciliation()`), pas sur une base locale.
+
+Convention de livraison inchangée (mêmes règles que les 16 cartes livrées) : une issue GitHub par
+feature dans le projet [#2](https://github.com/users/millianlmx/projects/2) (fermée par
+l'automatisation « Auto-close » quand l'item passe en `Done`), implémentation par la card AC,
+rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et suite complète.
+
+### Tableau de suivi
+
+| # | Feature | Slug (`.omp/`) | Phase | Bande AC | Endpoints / mécanisme | Statut |
+|---|---------|----------------|-------|----------|-----------------------|--------|
+| 17 | Journal applicatif, dépannage asset, infos download, stats média | `app-utilities` | P5 | AC-5240–5249 | `GET /api/assets/{id}`, `POST /api/assets/bulk-upload-check`, `GET /api/server/statistics`, état local du cache | 🔴 Planifié |
+| 18 | Free Up Space | `free-up-space` | P2 | AC-5000–5009 | PhotoKit `PHPhotoLibrary.performChanges` + `POST /api/assets/bulk-upload-check` | 🔴 Planifié |
+| 19 | Album Sync + Reorganize | `album-sync` | P2 | AC-5010–5019 | `GET /api/albums`, `POST /api/albums`, `PUT /api/albums/{id}/assets` | 🔴 Planifié |
+| 20 | Bibliothèque locale « On this device » | `local-library` | P2 | AC-5020–5029 | PhotoKit + `POST /api/assets` | 🔴 Planifié |
+| 21 | Écran de statut de synchronisation | `sync-status` | P2 | AC-5030–5039 | état local (`BackupLedger`, file, index offline) | 🔴 Planifié |
+| 22 | Détail d'upload par asset | `upload-detail` | P2 | AC-5040–5049 | état local du `BackupEngine` | 🔴 Planifié |
+| 23 | Indicateur de statut cloud sur les tuiles | `sync-badge` | P2 | AC-5050–5059 | `POST /api/assets/bulk-upload-check` + ledger | 🔴 Planifié |
+| 24 | Note par étoiles éditable + filtre | `star-ratings` | P3 | AC-5060–5069 | `PUT /api/assets` (`rating`), filtre `rating` de `POST /api/search/metadata` | 🔴 Planifié |
+| 25 | Overlay OCR + recherche par texte | `ocr-text` | P3 | AC-5070–5079 | `GET /api/assets/{id}/ocr`, filtre `ocr` | 🔴 Planifié |
+| 26 | Casting vers un écran | `chromecast` | P3 | AC-5080–5089 | client (AVRoutePicker/AirPlay ou Google Cast SDK) | 🔴 Planifié |
+| 27 | Panneau de téléchargement | `download-panel` | P3 | AC-5090–5099 | `GET /api/assets/{id}/original`, `…/video/playback` | 🔴 Planifié |
+| 28 | Vue dossiers | `folder-view` | P4 | AC-5100–5109 | `GET /api/view/folder`, `GET /api/view/folder/unique-paths` | 🔴 Planifié |
+| 29 | Dossier verrouillé + PIN | `locked-folder` | P4 | AC-5110–5119 | `PUT /api/assets` (`visibility: locked`), buckets `visibility=locked` | 🔴 Planifié |
+| 30 | Récemment pris / récemment ajoutés | `recently-taken` | P4 | AC-5120–5129 | `POST /api/search/metadata` (`orderBy`) | 🔴 Planifié |
+| 31 | Filtres de recherche avancés | `search-filters` | P4 | AC-5130–5139 | champs de `MetadataSearchDto` (`rating`, `ocr`, `orderBy`, …) | 🔴 Planifié |
+| 32 | Réglages carte + carte dans le viewer | `map-settings` | P4 | AC-5140–5149 | `GET /api/map/markers`, plage temporelle de recherche | 🔴 Planifié |
+| 33 | Anniversaire d'une personne | `person-birthday` | P4 | AC-5150–5159 | `PUT /api/people/{id}` | 🔴 Planifié |
+| 34 | Photo de profil (upload + crop) | `profile-picture` | P4 | AC-5160–5169 | routes `profile-image` de `/api/users` (multipart) | 🔴 Planifié |
+| 35 | Mode lecture seule / kid mode | `read-only-mode` | P5 | AC-5170–5179 | client (garde sur les actions destructrices) | 🔴 Planifié |
+| 36 | Changement de mot de passe | `change-password` | P5 | AC-5180–5189 | `POST /api/auth/change-password` | 🔴 Planifié |
+| 37 | Sessions / appareils connectés | `device-sessions` | P5 | AC-5190–5199 | `GET /api/sessions`, `DELETE /api/sessions/{id}`, `POST /api/auth/session/{lock,unlock}` | 🔴 Planifié |
+| 38 | Clés API utilisateur | `user-api-keys` | P5 | AC-5200–5209 | `GET /api/api-keys/me`, `POST /api/api-keys`, `DELETE /api/api-keys/{id}`, rotation | 🔴 Planifié |
+| 39 | Extension de partage iOS | `share-extension` | P5 | AC-5210–5219 | nouvelle cible `ShareExtension` + `POST /api/assets` (Keychain partagé) | 🔴 Planifié |
+| 40 | Réglages grid / viewer / préférences | `settings-parity` | P5 | AC-5220–5229 | client (`@AppStorage`) | 🔴 Planifié |
+| 41 | « Quoi de neuf » + licences | `whats-new` | P5 | AC-5230–5239 | notes embarquées ou serveur (à trancher en lisant l'upstream) | 🔴 Planifié |
+
+### Ordre d'implémentation conseillé
+
+Un seul critère d'ordre : une feature qui **produit un socle réutilisé** passe avant celles qui le
+consomment. Les features d'une même phase restent indépendantes entre elles.
+
+**P2 — cœur de l'app (back-up et espace disque)**
+
+1. `sync-badge` — introduit le prédicat « cet asset est-il sur le serveur ? » (ledger + `bulk-upload-check`).
+2. `upload-detail` — expose l'état par asset du dernier run (le même prédicat, à l'échelle d'un asset).
+3. `sync-status` — agrège ledger + file + index offline ; consomme l'état exposé par l'étape 2.
+4. `free-up-space` — consomme le prédicat de l'étape 1 pour ne supprimer que le sauvegardé (feature destructive : la faire après les surfaces d'inspection).
+5. `album-sync` — ajoute l'énumération des albums et la création/fusion côté serveur.
+6. `local-library` — réutilise l'énumération de l'étape 5 pour la timeline locale et l'upload de sélection.
+
+**P3 — viewer** : `star-ratings` (contrat `PUT /api/assets` + DTO) → `ocr-text` (réutilise le viewer) →
+`download-panel` (réutilise la file offline) → `chromecast` (décision de dépendance à assumer, donc en dernier).
+
+**P4 — découverte** : `search-filters` **après** `star-ratings` et `ocr-text` (il expose leurs filtres) →
+`recently-taken` → `map-settings` → `folder-view` → `person-birthday` → `profile-picture` → `locked-folder`
+(le plus lourd : PIN, visibilité, écran protégé).
+
+**P5 — plateforme** : `change-password` → `device-sessions` → `user-api-keys` (réutilise l'écran Admin) →
+`settings-parity` → `read-only-mode` → `whats-new` → `app-utilities` → `share-extension` (nouvelle cible Xcode).
+
+### Ce qui n'est PAS dans ce plan
+
+- **Features fantômes** : « Cluster Groups » (référence §23) n'existe ni sur mobile ni sur web — ne pas l'implémenter (corrigé dans `docs/mobile-features-vs-flutter.md`).
+- **Web uniquement côté upstream** (pas de parité à atteindre) : workflows d'automatisation, large-files, correction de géolocalisation, assistant de restauration, Immich+, raccourcis clavier, drag-and-drop upload, CLI.
+- **Android uniquement** : VIEW intent, foreground service, Obtainium, empreintes de certificats de release.
+- **Déjà au-delà de la parité** : Live Activity + Dynamic Island, 4 widgets + AppIntents/Spotlight, viewer public de lien partagé, résolution des doublons, panneau d'administration, RoadTrip, multi-comptes.
 
 ---
 

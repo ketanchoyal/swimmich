@@ -147,7 +147,7 @@ On first launch: URL of your Immich instance (or QR code scan), then login. Any 
 xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-- 831 unit tests in `Tests/` (plus committed end-to-end UI scenarios in `UITests/`, each with its Python stub under `UITests/stubs/`); every view model is tested with a `MockImmichClient` injected via `init(client:)`.
+- 886 unit tests in `Tests/` (dernier relevé : 2026-09-14, `-only-testing:ImmichSwiftUITests`) (plus committed end-to-end UI scenarios in `UITests/`, each with its Python stub under `UITests/stubs/`); every view model is tested with a `MockImmichClient` injected via `init(client:)`.
 - **Trap:** the test target sources the entire `Tests/` folder — a new `Tests/*.swift` file is only compiled after `xcodegen generate`. Without regeneration, tests pass "green" by omission.
 
 ## Contributing
@@ -175,4 +175,4 @@ Conventions to follow:
 | `docs/mobile-features-vs-flutter.md` | Upstream Flutter client reference (parity target) |
 | `docs/feature-parity-plan.md` | Flutter parity plan |
 | `.omp/backlog/ImmichSwiftUI-backlog.md` | Backlog: phases, AC cards, missing endpoints |
-| `.omp/<feature>/` | Specs + UI briefs per feature |
+| `.omp/<feature>/` | Specs + UI briefs + acceptance cards per feature |

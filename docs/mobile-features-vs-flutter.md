@@ -1,7 +1,11 @@
 # Features du client mobile Flutter Immich (upstream)
 
 Sources : `docs/docs/features/` + `mobile/lib/routing/router.dart` + GitHub releases v3.2.0
-Date de référence : 2025-09-08
+Date de référence : 2026-09-08
+Révisé le 2026-09-15 contre `main` @ `e55ac299` (release v3.2.1) : cinq erreurs factuelles
+corrigées (§3 ordonnanceur Android, §4 casting + OCR, §6 filtre OCR, §13 note par
+étoiles, §20 réglages proxy/SSL/préférences, §23 feature fantôme « Cluster Groups »).
+Registre des écarts restants : `.omp/backlog/ImmichSwiftUI-backlog.md` §2.17.
 
 ---
 
@@ -33,7 +37,7 @@ Quatre onglets dans `TabShell` :
 - Détection automatique des nouveaux clichés (push / polling)
 - Upload en arrière-plan :
   - iOS : `Background App Refresh` (géré par le système)
-  - Android : `workmanager` avec contrôle fin (seulement en charge, délai min)
+  - Android : `worker_manager` (ordonnanceur natif `BackgroundWorkerService` + `wm_executor.dart`), contrôle fin (seulement en charge, délai min)
 - Conditions réseau configurables : Wi-Fi uniquement par défaut, mobile data possible
 - Seulement en charge (Android)
 - Délai minimum configurable entre prise et upload background (Android)
@@ -56,6 +60,8 @@ Quatre onglets dans `TabShell` :
 - Exif affiché dans les détails
 - Indicateur de statut cloud (cloud icon sur tuile : syncé vs local uniquement)
 - Slideshow (`slideshow.page.dart`)
+- Overlay OCR du texte présent dans l'image (`ocr_overlay.widget.dart`, `ocr_toggle_button.widget.dart`) — présent sur mobile
+- Casting Google Cast / Chromecast (`presentation/actions/cast.action.dart`, `widgets/asset_viewer/cast_dialog.dart`, `services/gcast.service.dart`, `NSBonjourServices _googlecast._tcp`) — présent sur mobile **et** web
 
 ## 5. Édition Photos Mobile
 
@@ -81,6 +87,8 @@ Quatre onglets dans `TabShell` :
 - Recherche par description
 - Recherche par star rating
 - Recherche par make / model / lens model
+- Recherche par texte détecté (OCR) — filtre `ocr` (`domain/services/ocr.service.dart`, `search_filter/`)
+- Filtre d'affichage de résultats (colonnes, tri) — `search_filter/display_option_picker.dart`
 
 ## 7. Albums
 
@@ -153,6 +161,7 @@ Quatre onglets dans `TabShell` :
 - Récents (`RecentlyTakenRoute`)
 - Récemment ajoutés (`RecentlyAddedRoute`)
 - Stacking de photos / vidéos similaires (trié par date de création)
+- Note par étoiles 1–5, éditable depuis le viewer (`rating_bar.widget.dart`) et affichée dans les détails (`asset_details/rating_details.widget.dart`)
 
 ## 14. Dossiers (Folder View)
 
@@ -217,6 +226,9 @@ Quatre onglets dans `TabShell` :
 - Profil (photo, nom, email, crop `ProfilePictureCropRoute`)
 - Configuration HTTP headers (`HeaderSettingsRoute`)
 - Langues
+- En-têtes proxy personnalisés (`custom_proxy_headers_settings/`) et certificat client SSL (`ssl_client_cert_settings.dart`)
+- Préférences : thème, couleur primaire, retour haptique, comportement de partage (`preference_settings/`)
+- Écran « Quoi de neuf » (`presentation/pages/feature_message/whats_new.page.dart`)
 
 ## 21. Système / Intégration
 
@@ -238,12 +250,17 @@ Quatre onglets dans `TabShell` :
 - Affichage du propriétaire dans les détails (v3.2.0+)
 - Résolution des assets possédés par un partenaire identique (v3.2.0+)
 
-## 23. Cluster Groups (v3.2.0+)
+## 23. Cluster Groups — ❌ feature fantôme (vérifié 2026-09-15)
 
-- Groupes de users pour clustering facial croisé
-- Reset facial recognition par groupe
-- Voir les visages déjà identifiés dans les assets partagés
-- Améliore la précision du clustering (pool de visages plus large)
+La version précédente de cette section décrivait des « groupes d'utilisateurs pour
+clustering facial croisé » et un reset de reconnaissance par groupe. Vérification sur
+`main` @ `e55ac299` : aucune occurrence `cluster` dans `mobile/lib`, aucune route, aucun
+écran. Le mot « cluster » n'apparaît dans la documentation upstream que pour l'algorithme
+DBSCAN qui regroupe les visages en personnes
+(`docs/docs/features/facial-recognition.md`) — c'est le comportement normal de la
+reconnaissance faciale, pas une fonctionnalité de groupes d'utilisateurs.
+
+**À ne pas implémenter** : la cible de parité ne contient aucune feature de ce nom.
 
 ## 24. Multi-sélection
 
@@ -265,10 +282,10 @@ Quatre onglets dans `TabShell` :
 ## 26. Fonctions Communes Web & Mobile
 
 - Stacking de photos similaires
-- Duplicates utility (résolution via checksum ML)
-- Workflow automations (tags trigger, actions)
+- Duplicates utility (résolution via checksum ML) — **web uniquement** : 0 occurrence `duplicate` dans `mobile/lib` hors `duplicate_guard.dart` (garde de navigation)
+- Workflow automations (tags trigger, actions) — **web uniquement** : 0 occurrence `workflow` dans `mobile/lib`
 - Tag renaming (renommer les tags, v3.2.0+)
-- XMP sidecar (lecture + écriture metadata)
+- XMP sidecar (lecture + écriture metadata) — **serveur uniquement** : 0 occurrence `xmp` dans `mobile/lib`, aucune UI mobile
 - External library support (scan, exclusion patterns)
 - Reverse geocoding GeoNames
 - Support XMP sidecars : Lightroom, Darktable, digiKam
@@ -279,7 +296,6 @@ Quatre onglets dans `TabShell` :
 
 | Fonction | Détail |
 |----------|--------|
-| Casting Chromecast | Google Cast protocol |
 | Duplicates utility desktop | Page de résolution complète |
 | Admin panel | Users, libraries, settings |
 | CLI | Command line interface |
@@ -293,7 +309,7 @@ Les endpoints listés comme "gap" dans le code :
 
 | Gap | Endpoint | État |
 |-----|----------|------|
-| gap #1 | Stacks | ? |
-| gap #2 | Tags (admin) | ? |
-| gap #5 | Faces API | ? |
-| gap #12 | Admin API | ? |
+| gap #1 | Stacks | ✅ couvert — `searchStacks/createStack/getStack/updateStack/deleteStack/removeAssetFromStack` (`ImmichClient.swift`), UI Stacks livrée 2026-09-13 |
+| gap #2 | Tags (admin) | ✅ couvert — `getAllTags/createTag/updateTag/deleteTag/tagAssets/untagAssets`, UI Tags |
+| gap #5 | Faces API | ✅ couvert — `getFaces/reassignFace/mergePeople/updatePerson/getPersonStatistics`, UI People |
+| gap #12 | Admin API | ✅ couvert — `getAdminUsers/createAdminUser/updateAdminUser/deleteAdminUser/restoreAdminUser/getJobsStatus/sendJobCommand/getLibraries/scanLibrary/deleteLibrary` + `getAPIKeys/createAPIKey/deleteAPIKey`, UI Admin |

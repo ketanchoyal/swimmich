@@ -10,7 +10,7 @@ Le point d'entrée est le [README](../README.md) à la racine : présentation du
 | [`mobile-features-vs-flutter.md`](mobile-features-vs-flutter.md) | Référence du client Flutter upstream — objectif de parité |
 | [`feature-parity-plan.md`](feature-parity-plan.md) | Plan de parité Flutter |
 | [`../.omp/backlog/ImmichSwiftUI-backlog.md`](../.omp/backlog/ImmichSwiftUI-backlog.md) | Backlog : phases P0–P5, cartes AC, endpoints manquants |
-| [`../.omp/<feature>/`](../.omp/) | Specs (`*.specs.md`) et briefs UI (`*.ui.md`) par feature |
+| [`../.omp/<feature>/`](../.omp/) | Specs (`*.specs.md`), briefs UI (`*.ui.md`) et cartes d'acceptance (`*.AC.md`) par feature |
 
 ## Code map (résumé)
 
