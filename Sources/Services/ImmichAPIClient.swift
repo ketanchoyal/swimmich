@@ -663,6 +663,23 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.apiKeys.path("/\(id)"), body: nil)
     }
 
+    // MARK: - Sessions (gap G19)
+
+    func getSessions() async throws -> [SessionResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.sessions.path(""))
+    }
+
+    /// 204 only: there is no body to decode and nothing to return.
+    func deleteSession(id: String) async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sessions.path("/\(id)"), body: nil)
+    }
+
+    /// 204 as well — the server drops every session but the calling one, so
+    /// there is no count to read back.
+    func deleteAllSessions() async throws {
+        _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.sessions.path(""), body: nil)
+    }
+
     // MARK: - Server statistics (P0 api-surface-expansion)
 
     func getServerStatistics() async throws -> ServerStatsResponseDto {

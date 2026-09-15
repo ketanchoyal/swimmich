@@ -24,6 +24,9 @@ struct ProfileView: View {
     @State var syncStatus: SyncStatusViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
+    /// Connected devices (gap G19). Built by the composition root and owned by
+    /// `RootView`, so the pushed screen and its row share one instance.
+    @State var deviceSessions: DeviceSessionsViewModel
     @State var localLibrary: LocalLibraryViewModel
     @State var freeUpSpace: FreeUpSpaceViewModel
     @State var folders: FolderViewModel
@@ -246,6 +249,17 @@ struct ProfileView: View {
                             appLock.setEnabled(newValue)
                         }
                         .accessibilityIdentifier("appLockToggle")
+
+                    // After the app lock, before the logout button: sessions are
+                    // a security object, not a library screen — and this row
+                    // signs other devices out, which is what "Log Out" below
+                    // deliberately cannot do.
+                    NavigationLink {
+                        DeviceSessionsView(vm: deviceSessions)
+                    } label: {
+                        Label("Connected Devices", systemImage: "laptopcomputer.and.iphone")
+                    }
+                    .accessibilityIdentifier("deviceSessionsRow")
                 } header: {
                     Text("Security")
                 } footer: {
