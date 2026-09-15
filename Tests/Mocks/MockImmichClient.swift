@@ -111,6 +111,14 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var exploreError: Error?
     var citiesResponse: [AssetResponseDto]?
     var citiesError: Error?
+    // Folder view capture (gap G11)
+    var folderPathsResponse: [String]?
+    var folderPathsError: Error?
+    var folderAssetsResponse: [AssetResponseDto]?
+    var folderAssetsError: Error?
+    /// Every `path` handed to `getFolderAssets`, in order — the only way a test
+    /// can pin the wire contract (the server only returns direct children).
+    private(set) var requestedFolderPaths: [String] = []
     var lastStatisticsDto: SearchStatisticsDto?
     var statisticsResponse: SearchStatisticsResponseDto?
     /// Per-city count overrides (keyed by city name). If set, the mock returns
@@ -473,6 +481,21 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         if let e = globalError ?? citiesError { throw e }
         return citiesResponse ?? []
+    }
+
+    // MARK: - Folder view (gap G11)
+
+    func getFolderAssets(path: String) async throws -> [AssetResponseDto] {
+        bump()
+        requestedFolderPaths.append(path)
+        if let e = globalError ?? folderAssetsError { throw e }
+        return folderAssetsResponse ?? []
+    }
+
+    func getUniqueFolderPaths() async throws -> [String] {
+        bump()
+        if let e = globalError ?? folderPathsError { throw e }
+        return folderPathsResponse ?? []
     }
 
     func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto {

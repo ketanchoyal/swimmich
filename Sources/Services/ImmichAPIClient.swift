@@ -197,6 +197,16 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.GET, path: ImmichAPI.search.path("/cities"))
     }
 
+    // MARK: - Folder view (gap G11)
+
+    func getFolderAssets(path: String) async throws -> [AssetResponseDto] {
+        try await sendAuthed(.GET, path: ImmichAPI.view.path("/folder"), query: [URLQueryItem(name: "path", value: path)])
+    }
+
+    func getUniqueFolderPaths() async throws -> [String] {
+        try await sendAuthed(.GET, path: ImmichAPI.view.path("/folder/unique-paths"))
+    }
+
     func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto {
         try await sendAuthed(.POST, path: ImmichAPI.search.path("/statistics"), body: AnyEncodable(dto))
     }

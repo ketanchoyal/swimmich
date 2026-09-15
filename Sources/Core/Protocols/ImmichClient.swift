@@ -72,6 +72,19 @@ protocol ImmichClient: AnyObject, Sendable {
     /// `GET /api/search/cities` — one representative asset per distinct city
     /// (no 12-cap, no ≥5-photo floor). Powers the Explore Places list.
     func getAssetsByCity() async throws -> [AssetResponseDto]
+    /// `GET /api/view/folder?path=` — the assets laid **directly** in that folder:
+    /// the server filters `originalPath LIKE '%<path>/%' AND NOT LIKE '%<path>/%/%'`,
+    /// so there is no recursion and no pagination. The path may carry or omit its
+    /// leading slash (the pattern is wrapped in `%`); trailing slashes are stripped
+    /// server-side, and `""` or `"/"` both mean "files sitting at the filesystem
+    /// root". Archived and locked assets never come back: the server filters on
+    /// `visibility = timeline` and no parameter opens that.
+    func getFolderAssets(path: String) async throws -> [AssetResponseDto]
+    /// `GET /api/view/folder/unique-paths` — every distinct directory holding a
+    /// timeline asset: absolute, without a trailing slash, and `""` for assets
+    /// sitting at the filesystem root. No parameter, no pagination: the whole
+    /// directory comes back in one response (the tree is built client-side).
+    func getUniqueFolderPaths() async throws -> [String]
     /// `POST /api/search/statistics` — total asset count for a metadata filter.
     func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto
 

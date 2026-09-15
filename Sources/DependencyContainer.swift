@@ -301,6 +301,13 @@ final class DependencyContainer {
         DuplicatesViewModel(client: client as any ImmichClient)
     }
 
+    /// Folder view (gap G11). Read-only and stateless outside the VM: the tree
+    /// and the per-folder asset cache live in the instance and nothing is
+    /// persisted, so there is no store to share here — one VM per screen tree.
+    func makeFolderViewModel() -> FolderViewModel {
+        FolderViewModel(client: client as any ImmichClient)
+    }
+
     /// Offline storage screen (issue #18). Shares the process-wide store and
     /// mirror so a download made in the viewer shows up on the timeline badge
     /// and on this screen without a relaunch.

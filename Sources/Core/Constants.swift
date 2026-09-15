@@ -13,6 +13,7 @@ enum ImmichAPI {
     static let timeline = SubPath(root: "/timeline")
     static let trash = SubPath(root: "/trash") // AC-311
     static let search = SubPath(root: "/search") // AC-400
+    static let view = SubPath(root: "/view") // gap G11 (folder view)
     static let map = SubPath(root: "/map") // AC-710 (MapKit markers)
     static let people = SubPath(root: "/people") // AC-400 (deferred People feature)
     static let faces = SubPath(root: "/faces") // gap #5 (face reassignment)

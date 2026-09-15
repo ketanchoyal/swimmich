@@ -112,6 +112,7 @@ private struct AuthenticatedRoot: View {
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
+    @State private var folders: FolderViewModel
     /// Process-wide download queue (gap G10). Held here so the panel, the
     /// info screen and the viewer's "Download to Files" all project ONE queue
     /// — the container's instance, never a per-view one.
@@ -154,6 +155,7 @@ private struct AuthenticatedRoot: View {
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
+        _folders = State(initialValue: container.makeFolderViewModel())
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
     }
 
@@ -277,6 +279,7 @@ private struct AuthenticatedRoot: View {
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
