@@ -21,6 +21,11 @@ struct AssetThumbnailCell: View {
     /// parameter would eventually be forgotten at one of them.
     @Environment(OfflineAssetIndex.self) private var offline: OfflineAssetIndex?
 
+    /// Backup-state mirror (G6). Read from the environment for the same reason
+    /// as `offline` above: seven grids instantiate this cell, and a parameter
+    /// would eventually be forgotten at one of them.
+    @Environment(CloudBackupStatusIndex.self) private var cloudStatus: CloudBackupStatusIndex?
+
     var selectionMode: Bool = false
     var isSelected: Bool = false
     var onTap: () -> Void = {}
@@ -157,6 +162,7 @@ struct AssetThumbnailCell: View {
             if isCachedOffline {
                 offlineBadge
             }
+            cloudBadge
             if asset.isStacked {
                 badge {
                     HStack(spacing: 3) {
@@ -180,6 +186,28 @@ struct AssetThumbnailCell: View {
     /// True when this asset's original is cached for offline viewing.
     private var isCachedOffline: Bool {
         offline?.isCached(asset.id) ?? false
+    }
+
+    /// Backup pill (G6) — top-leading, between the offline pill and the stack
+    /// badge; draws nothing when the ledger has no answer for this asset.
+    /// `asset.id` is a **server** UUID here, and an unknown one is not "not
+    /// backed up": the tile may show a photo another device uploaded, so the
+    /// absence of an answer stays an absence of a badge.
+    @ViewBuilder
+    private var cloudBadge: some View {
+        if cloudStatus?.isEnabled == true,
+           let status = cloudStatus?.status(forServerAssetID: asset.id) {
+            badge {
+                Image(systemName: status.systemImage).font(.system(size: 10)) // DS-exempt: badge micro-glyph §8.6
+            }
+            // One element, one sentence: the glyph is the whole badge, and its
+            // meaning has to reach VoiceOver through the label rather than the
+            // SF Symbol's name. The identifier goes on the badge itself — on
+            // the enclosing `VStack` it would replace the children's own.
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier(status == .uploaded ? "cloudBackedUpBadge" : "cloudLocalOnlyBadge")
+            .accessibilityLabel(status.localizedLabel)
+        }
     }
 
     /// Offline pill (issue #18) — top-leading, above the stack badge. Icon+text

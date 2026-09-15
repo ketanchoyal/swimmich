@@ -28,6 +28,10 @@ struct BackupSettings: Equatable, Sendable {
     /// `!contains("WhatsApp")` filtered nothing).
     var excludedAlbumIDs: Set<String> = []
     var selectedAlbumIDs: Set<String> = []
+    /// "Show backup status on thumbnails" (G6). Not an upload condition — the
+    /// engine never reads it; it rides the snapshot so the badge gate is part
+    /// of the same persisted preference set as everything the screen shows.
+    var showSyncBadge = false
 }
 
 /// A single asset the backup couldn't process, kept for the failures list.
@@ -139,6 +143,20 @@ final class BackupEngine {
     /// Live Activity mirrors the in-app `processedCount / total` bar exactly.
     var onProgressUpdate: ((_ processed: Int, _ total: Int) -> Void)?
 
+    /// Fired after every ledger write this engine commits — once per chunk, at
+    /// run end, after a reconciliation pass, and on a full reset. The ledger is
+    /// what the thumbnail badge reads, so this is the wake-up call that puts a
+    /// freshly uploaded asset's badge on screen while the app is open.
+    var onLedgerChange: (() -> Void)?
+
+    /// Persists the ledger and tells the UI it changed. The two belong together:
+    /// `save()` is the boundary where the engine's work becomes durable, so it is
+    /// also the only point worth mirroring.
+    private func commitLedger() {
+        ledger.save()
+        onLedgerChange?()
+    }
+
     /// Fires the progress callback with the current processed count.
     private func notifyProgress() { onProgressUpdate?(processedCount, total) }
 
@@ -184,7 +202,10 @@ final class BackupEngine {
     var trackedAssetCount: Int { ledger.trackedCount() }
 
     /// Clears the backup ledger — the next run re-backs-up everything.
-    func forgetAllBackedUp() { ledger.removeAll() }
+    func forgetAllBackedUp() {
+        ledger.removeAll()
+        onLedgerChange?()
+    }
 
     /// Async-cancellation — no preconditions, engine decides at the next item
     /// boundary. Call from a BG expiration handler.
@@ -360,7 +381,7 @@ final class BackupEngine {
             if batch.count >= Self.checkChunkSize || batchBytes >= Self.maxBatchBytes {
                 await processBatch(&batch)
                 batchBytes = 0
-                ledger.save()
+                commitLedger()
                 if isCancelled {
                     phase = .cancelled
                     notifyProgress()
@@ -379,7 +400,7 @@ final class BackupEngine {
         currentFileName = nil
         currentAssetID = nil
         statusMessage = nil
-        ledger.save()
+        commitLedger()
         phase = isCancelled ? .cancelled : .done
         return true
     }
@@ -451,7 +472,14 @@ final class BackupEngine {
                         ledger.markBackedUp(
                             id: result.id,
                             signature: entry.candidate.fileModifiedAt,
-                            checksum: entry.checksum
+                            checksum: entry.checksum,
+                            // A reject means the server already has this
+                            // checksum, and it answers with the UUID it holds
+                            // it under — the id the timeline renders. The DTO
+                            // only requires `action` and `id`, so it can be
+                            // absent; that is not a reason to forget an id
+                            // learned by an earlier run.
+                            serverAssetId: result.assetId
                         )
                         await repairLivePhotoIfNeeded(
                             entry,
@@ -533,7 +561,7 @@ final class BackupEngine {
                 }
             }
             do {
-                _ = try await client.uploadAsset(
+                let uploaded = try await client.uploadAsset(
                     fileURL: entry.fileURL,
                     fileCreatedAt: entry.candidate.fileCreatedAt,
                     fileModifiedAt: entry.candidate.fileModifiedAt,
@@ -550,7 +578,10 @@ final class BackupEngine {
                 ledger.markBackedUp(
                     id: entry.candidate.id,
                     signature: entry.candidate.fileModifiedAt,
-                    checksum: entry.checksum
+                    checksum: entry.checksum,
+                    // The UUID the timeline will render for this asset — the
+                    // only moment the client is told it.
+                    serverAssetId: uploaded.id
                 )
             } catch {
                 failedCount += 1
@@ -645,7 +676,7 @@ final class BackupEngine {
         }
         ledger.forget(ids: forgotten)
         ledger.recordReconciliation(at: Date())
-        ledger.save()
+        commitLedger()
         statusMessage = nil
     }
 

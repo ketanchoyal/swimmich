@@ -47,6 +47,11 @@ final class DependencyContainer {
     /// every grid cell can answer "is this cached?" without a parameter.
     let offlineIndex: OfflineAssetIndex
 
+    /// Backup-state mirror (G6), same shape and same reason as `offlineIndex`:
+    /// one instance per process, rebuilt from the ledger on every ledger write
+    /// and read by every thumbnail cell through the environment.
+    let cloudStatus: CloudBackupStatusIndex
+
     /// Process-wide language choice (issue #21). `RootView` injects its locale
     /// into the view tree and every `String(localized:)` call resolves through
     /// `AppleLanguages` at launch, so the store must be the single writer of
@@ -68,11 +73,20 @@ final class DependencyContainer {
         self.offlineStore = OfflineAssetStore()
         self.offlineIndex = OfflineAssetIndex()
         self.language = AppLanguageStore()
+        let cloudStatus = CloudBackupStatusIndex()
+        self.cloudStatus = cloudStatus
         self.upload = UploadViewModel(
             client: client as any ImmichClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
-            activityService: backupLiveActivity
+            activityService: backupLiveActivity, cloudStatus: cloudStatus
         )
+        // Seed the badge index before anything can draw a tile, then re-read it
+        // on every ledger write — the engine's runs are the only thing that adds
+        // or removes a "proven on the server" fact.
+        let ledger = backupLedger
+        cloudStatus.refresh(ledger: ledger)
+        upload.engine.onLedgerChange = { cloudStatus.refresh(ledger: ledger) }
+        upload.syncBadgeIndex()
         self.libraryMonitor.onAssetsInserted = { [weak self] in
             self?.kickOffAutoBackup()
         }

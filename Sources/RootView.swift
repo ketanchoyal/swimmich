@@ -171,6 +171,9 @@ private struct AuthenticatedRoot: View {
         // reaches the viewer's share sheet. Injected here because the whole
         // authenticated tree must share one cache.
         .environment(container.offlineIndex)
+        // Backup-state mirror (G6): same injection, same reason — every tile in
+        // every grid reads the one index the ledger feeds.
+        .environment(container.cloudStatus)
         .environment(offline)
         .onReceive(NotificationCenter.default.publisher(for: .immichAssetsChanged)) { _ in
             Task {
