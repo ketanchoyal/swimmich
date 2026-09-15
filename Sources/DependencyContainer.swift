@@ -284,6 +284,17 @@ final class DependencyContainer {
     /// (`self.upload`, "One VM, one run, one island").
     func makeUploadDetailViewModel(upload: UploadViewModel) -> UploadDetailViewModel {
         UploadDetailViewModel(upload: upload)
+    /// "On this device" (local library). Reads the same Photos instance the
+    /// backup engine reads (`PhotoLibraryServiceImpl` is both the library
+    /// service and the backup asset source) and the same client for the remote
+    /// aggregate, so the screen and a backup run can never disagree about what
+    /// the device holds.
+    func makeLocalLibraryViewModel() -> LocalLibraryViewModel {
+        LocalLibraryViewModel(
+            photoLibrary: photos,
+            albumSource: (photos as? BackupAssetSource) ?? PhotoLibraryServiceImpl(),
+            client: client as any ImmichClient
+        )
     }
 
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,

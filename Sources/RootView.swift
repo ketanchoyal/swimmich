@@ -105,6 +105,7 @@ private struct AuthenticatedRoot: View {
     @State private var admin: AdminViewModel
     @State private var offline: OfflineDownloadViewModel
     @State private var syncStatus: SyncStatusViewModel
+    @State private var localLibrary: LocalLibraryViewModel
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
     @State private var selection: RootTab = .photos
@@ -138,6 +139,7 @@ private struct AuthenticatedRoot: View {
             upload: container.upload,
             offline: container.makeOfflineDownloadViewModel()
         ))
+        _localLibrary = State(initialValue: container.makeLocalLibraryViewModel())
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
     }
@@ -243,6 +245,7 @@ private struct AuthenticatedRoot: View {
         .sheet(isPresented: $showProfile) {
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language)
             ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language, localLibrary: localLibrary)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
