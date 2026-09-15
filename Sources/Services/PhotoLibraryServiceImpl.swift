@@ -26,6 +26,20 @@ final class PhotoLibraryServiceImpl: PhotoLibraryService, @unchecked Sendable {
         return assets
     }
 
+    func fetchAssets(inAlbumID albumID: String) -> [PHAsset] {
+        guard let collection = Self.collection(forAlbumID: albumID) else { return [] }
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        // Property hint, same as `fetchAssets()`: the predicate filters nothing,
+        // it only forces Photos to pre-fetch what the caller will read.
+        options.predicate = NSPredicate(format: "creationDate != nil AND duration != nil AND isFavorite != nil")
+        let result = PHAsset.fetchAssets(in: collection, options: options)
+        var assets: [PHAsset] = []
+        assets.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in assets.append(asset) }
+        return assets
+    }
+
     func loadData(for asset: PHAsset) async throws -> Data {
         try await timeoutLoadData(for: asset)
     }
@@ -95,6 +109,47 @@ final class PhotoLibraryServiceImpl: PhotoLibraryService, @unchecked Sendable {
         options.deliveryMode = .highQualityFormat
         options.version = .current
         return options
+    }
+
+    func loadThumbnail(for asset: PHAsset, targetSize: CGSize, scale: CGFloat) async -> UIImage? {
+        // The process-wide image manager, reused rather than rebuilt per tile:
+        // Photos coalesces identical in-flight requests and keeps its own
+        // decoded-image cache behind this one instance.
+        let manager = PHImageManager.default()
+        let options = PHImageRequestOptions()
+        // The screen inventories the *device*: an iCloud-evicted original stays a
+        // placeholder instead of starting a download behind the grid.
+        options.isNetworkAccessAllowed = false
+        options.deliveryMode = .opportunistic
+        options.isSynchronous = false
+        options.resizeMode = .fast
+        let pixelSize = CGSize(width: targetSize.width * scale, height: targetSize.height * scale)
+
+        // A cancelled or resource-less tile answers `nil` through the same gate
+        // as a delivered one — the caller never has to catch anything.
+        let gate = ContinuationGate<UIImage?>()
+        let handle = ImageRequestHandle()
+        return await withTaskCancellationHandler {
+            handle.store(manager.requestImage(for: asset, targetSize: pixelSize, contentMode: .aspectFill, options: options) { image, info in
+                if (info?[PHImageCancelledKey] as? Bool) == true {
+                    gate.finish(with: .success(nil))
+                } else if let image, (info?[PHImageResultIsDegradedKey] as? Bool) != true {
+                    // `.opportunistic` hands over a fast low-quality frame first;
+                    // only the final one settles the tile.
+                    gate.finish(with: .success(image))
+                } else if image == nil, info?[PHImageErrorKey] != nil {
+                    gate.finish(with: .success(nil))
+                }
+            })
+            if Task.isCancelled {
+                handle.cancel(manager)
+                gate.finish(with: .success(nil))
+            }
+            return (try? await gate.value) ?? nil
+        } onCancel: {
+            handle.cancel(manager)
+            gate.finish(with: .success(nil))
+        }
     }
 
     func checksum(for asset: PHAsset) async throws -> String {
@@ -511,5 +566,28 @@ private final class StallWatchdog: @unchecked Sendable {
             self.item?.cancel()
             self.item = nil
         }
+    }
+}
+
+/// Carries an in-flight `PHImageRequestID` across the cancellation boundary.
+/// The id only exists once `requestImage` returns, while the `onCancel` handler
+/// can fire at any moment — so the hand-off is lock-guarded instead of captured
+/// by value. An id that never landed cancels nothing (Photos never started).
+private final class ImageRequestHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var id: PHImageRequestID = PHInvalidImageRequestID
+
+    func store(_ requestID: PHImageRequestID) {
+        lock.lock()
+        id = requestID
+        lock.unlock()
+    }
+
+    func cancel(_ manager: PHImageManager) {
+        lock.lock()
+        let requestID = id
+        lock.unlock()
+        guard requestID != PHInvalidImageRequestID else { return }
+        manager.cancelImageRequest(requestID)
     }
 }

@@ -103,6 +103,7 @@ private struct AuthenticatedRoot: View {
     @State private var partners: PartnersViewModel
     @State private var admin: AdminViewModel
     @State private var offline: OfflineDownloadViewModel
+    @State private var localLibrary: LocalLibraryViewModel
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
     @State private var selection: RootTab = .photos
@@ -131,6 +132,7 @@ private struct AuthenticatedRoot: View {
         _partners = State(initialValue: container.makePartnersViewModel())
         _admin = State(initialValue: container.makeAdminViewModel())
         _offline = State(initialValue: container.makeOfflineDownloadViewModel())
+        _localLibrary = State(initialValue: container.makeLocalLibraryViewModel())
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
     }
@@ -231,7 +233,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language)
+            ProfileView(trash: trash, storage: storage, upload: upload, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, notifications: notifications, language: language, localLibrary: localLibrary)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

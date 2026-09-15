@@ -20,6 +20,7 @@ struct ProfileView: View {
     @State var offline: OfflineDownloadViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
+    @State var localLibrary: LocalLibraryViewModel
 
     var body: some View {
         NavigationStack {
@@ -110,6 +111,15 @@ struct ProfileView: View {
                         Label("Offline Storage", systemImage: "arrow.down.circle")
                     }
                     .accessibilityIdentifier("offlineStorageRow")
+
+                    // Next to Offline Storage on purpose: both lines read the
+                    // device, not the server.
+                    NavigationLink {
+                        LocalLibraryView(vm: localLibrary)
+                    } label: {
+                        Label("On this device", systemImage: "iphone")
+                    }
+                    .accessibilityIdentifier("localLibraryRow")
                 } header: {
                     Text("Management")
                 }

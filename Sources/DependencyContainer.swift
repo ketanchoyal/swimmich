@@ -224,6 +224,19 @@ final class DependencyContainer {
         LanguageSettingsViewModel(store: language)
     }
 
+    /// "On this device" (local library). Reads the same Photos instance the
+    /// backup engine reads (`PhotoLibraryServiceImpl` is both the library
+    /// service and the backup asset source) and the same client for the remote
+    /// aggregate, so the screen and a backup run can never disagree about what
+    /// the device holds.
+    func makeLocalLibraryViewModel() -> LocalLibraryViewModel {
+        LocalLibraryViewModel(
+            photoLibrary: photos,
+            albumSource: (photos as? BackupAssetSource) ?? PhotoLibraryServiceImpl(),
+            client: client as any ImmichClient
+        )
+    }
+
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,
     /// not `ImmichClient`, so we pass nothing but asset identity.
     /// V1.5 polish (AC-718): wire 0.033s render debounce (≈30fps cap) for production.
