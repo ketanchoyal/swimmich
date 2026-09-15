@@ -114,7 +114,8 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         personId: String?,
         withPartners: Bool?,
         visibility: String?,
-        withStacked: Bool?
+        withStacked: Bool?,
+        orderBy: AssetOrderBy?
     ) async throws -> [TimeBucketsResponseDto] {
         var query: [URLQueryItem] = []
         if let isFavorite { query.append(URLQueryItem(name: "isFavorite", value: String(isFavorite))) }
@@ -123,6 +124,7 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         if let withPartners { query.append(URLQueryItem(name: "withPartners", value: String(withPartners))) }
         if let visibility { query.append(URLQueryItem(name: "visibility", value: visibility)) }
         if let withStacked { query.append(URLQueryItem(name: "withStacked", value: String(withStacked))) }
+        if let orderBy { query.append(URLQueryItem(name: "orderBy", value: orderBy.rawValue)) }
         return try await sendAuthed(.GET, path: ImmichAPI.timeline.path("/buckets"), query: query)
     }
 

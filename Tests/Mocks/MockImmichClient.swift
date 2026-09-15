@@ -84,6 +84,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastTimeBucketsVisibility: String?
     var lastTimeBucketsWithPartners: Bool?
     var lastTimeBucketsWithStacked: Bool?
+    /// Sort axis asked of `GET /api/timeline/buckets` — the only witness of the
+    /// `orderBy` wire parameter without a server.
+    var lastTimeBucketsOrderBy: AssetOrderBy?
     var lastTimeBucketWithPartners: Bool?
     var lastTimeBucketVisibility: String?
     var lastTimeBucketWithStacked: Bool?
@@ -332,7 +335,8 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         personId: String?,
         withPartners: Bool?,
         visibility: String?,
-        withStacked: Bool?
+        withStacked: Bool?,
+        orderBy: AssetOrderBy?
     ) async throws -> [TimeBucketsResponseDto] {
         bump()
         lastTimeBucketsIsTrashed = isTrashed
@@ -340,6 +344,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastTimeBucketsVisibility = visibility
         lastTimeBucketsWithPartners = withPartners
         lastTimeBucketsWithStacked = withStacked
+        lastTimeBucketsOrderBy = orderBy
         if let e = globalError { throw e }
         return bucketsResponse
     }

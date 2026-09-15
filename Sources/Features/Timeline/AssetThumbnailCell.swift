@@ -46,6 +46,12 @@ struct AssetThumbnailCell: View {
     /// not attached at all.
     var sharedLink: SharedLinkCredential? = nil
 
+    /// Read-only galleries (the two "recent" consult screens, gap G13) turn the
+    /// context menu off entirely: they leave the action closures at their empty
+    /// defaults, so the menu they would otherwise get is a dead "Favorite /
+    /// Delete". Additive with a default — the six existing grids are untouched.
+    var contextMenuEnabled: Bool = true
+
     var body: some View {
         let url = asset.thumbnailURL(base: baseURL, sharedLink: sharedLink)
 
@@ -89,8 +95,9 @@ struct AssetThumbnailCell: View {
         // Context menu suppressed in selection mode: it would compete with the
         // long-press toggle gesture and its actions (delete/restore) make no
         // sense mid-selection (audit fix). Same for a public shared link — the
-        // actions belong to the owner, not to the visitor.
-        if selectionMode || sharedLink != nil {
+        // actions belong to the owner, not to the visitor — and for a grid that
+        // asked for `contextMenuEnabled: false` (read-only galleries).
+        if selectionMode || sharedLink != nil || !contextMenuEnabled {
             cell
         } else {
             cell.contextMenu {

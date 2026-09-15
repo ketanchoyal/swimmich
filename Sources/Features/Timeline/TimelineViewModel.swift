@@ -158,7 +158,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked, orderBy: nil)
             bucketIndex = 0
             upperBucketIndex = -1
             items = []
@@ -175,7 +175,7 @@ final class TimelineViewModel {
         isLoading = true
         errorMessage = nil
         do {
-            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
+            buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked, orderBy: nil)
             bucketIndex = 0
             upperBucketIndex = -1
             items = []
@@ -201,7 +201,7 @@ final class TimelineViewModel {
         guard !day.isEmpty else { return }
         if buckets.isEmpty {
             do {
-                buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked)
+                buckets = try await client.getTimeBuckets(isFavorite: filterIsFavorite, isTrashed: filterIsTrashed, personId: nil, withPartners: filterWithPartners, visibility: filterVisibility, withStacked: withStacked, orderBy: nil)
             } catch let e {
                 errorMessage = e.localizedDescription
                 return

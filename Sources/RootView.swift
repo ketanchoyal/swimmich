@@ -89,6 +89,8 @@ private struct AuthenticatedRoot: View {
     private let container: DependencyContainer
 
     @State private var timeline: TimelineViewModel
+    @State private var recentTaken: RecentAssetsViewModel
+    @State private var recentAdded: RecentAssetsViewModel
     @State private var trash: TrashViewModel
     @State private var search: SearchViewModel
     @State private var map: MapViewModel
@@ -126,6 +128,8 @@ private struct AuthenticatedRoot: View {
     init(container: DependencyContainer) {
         self.container = container
         _timeline = State(initialValue: container.makeTimelineViewModel())
+        _recentTaken = State(initialValue: container.makeRecentAssetsViewModel(mode: .taken))
+        _recentAdded = State(initialValue: container.makeRecentAssetsViewModel(mode: .added))
         _trash = State(initialValue: container.makeTrashViewModel())
         _search = State(initialValue: container.makeSearchViewModel())
         _map = State(initialValue: container.makeMapViewModel())
@@ -272,7 +276,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
