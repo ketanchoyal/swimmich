@@ -882,12 +882,12 @@ rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et sui
 | # | Feature | Slug (`.omp/`) | Phase | Bande AC | Endpoints / mécanisme | Statut |
 |---|---------|----------------|-------|----------|-----------------------|--------|
 | 17 | Journal applicatif, dépannage asset, infos download, stats média | `app-utilities` | P5 | AC-5240–5249 | `GET /api/assets/{id}`, `POST /api/assets/bulk-upload-check`, `GET /api/server/statistics`, état local du cache | 🔴 Planifié |
-| 18 | Free Up Space | `free-up-space` | P2 | AC-5000–5009 | PhotoKit `PHPhotoLibrary.performChanges` + `POST /api/assets/bulk-upload-check` | 🔴 Planifié |
-| 19 | Album Sync + Reorganize | `album-sync` | P2 | AC-5010–5019 | `GET /api/albums`, `POST /api/albums`, `PUT /api/albums/{id}/assets` | 🔴 Planifié |
-| 20 | Bibliothèque locale « On this device » | `local-library` | P2 | AC-5020–5029 | PhotoKit + `POST /api/assets` | 🔴 Planifié |
-| 21 | Écran de statut de synchronisation | `sync-status` | P2 | AC-5030–5039 | état local (`BackupLedger`, file, index offline) | 🔴 Planifié |
-| 22 | Détail d'upload par asset | `upload-detail` | P2 | AC-5040–5049 | état local du `BackupEngine` | 🔴 Planifié |
-| 23 | Indicateur de statut cloud sur les tuiles | `sync-badge` | P2 | AC-5050–5059 | `POST /api/assets/bulk-upload-check` + ledger | 🔴 Planifié |
+| 18 | Free Up Space | `free-up-space` | P2 | AC-5000–5009 | PhotoKit `PHPhotoLibrary.performChanges` + `POST /api/assets/bulk-upload-check` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 19 | Album Sync + Reorganize | `album-sync` | P2 | AC-5010–5019 | `GET /api/albums`, `POST /api/albums`, `PUT /api/albums/{id}/assets` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 20 | Bibliothèque locale « On this device » | `local-library` | P2 | AC-5020–5029 | PhotoKit + `POST /api/assets` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 21 | Écran de statut de synchronisation | `sync-status` | P2 | AC-5030–5039 | état local (`BackupLedger`, file, index offline) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 22 | Détail d'upload par asset | `upload-detail` | P2 | AC-5040–5049 | état local du `BackupEngine` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 23 | Indicateur de statut cloud sur les tuiles | `sync-badge` | P2 | AC-5050–5059 | `POST /api/assets/bulk-upload-check` + ledger | ✅ Livré (2026-09-15) — 10/10 AC |
 | 24 | Note par étoiles éditable + filtre | `star-ratings` | P3 | AC-5060–5069 | `PUT /api/assets` (`rating`), filtre `rating` de `POST /api/search/metadata` | 🔴 Planifié |
 | 25 | Overlay OCR + recherche par texte | `ocr-text` | P3 | AC-5070–5079 | `GET /api/assets/{id}/ocr`, filtre `ocr` | 🔴 Planifié |
 | 26 | Casting vers un écran | `chromecast` | P3 | AC-5080–5089 | client (AVRoutePicker/AirPlay ou Google Cast SDK) | 🔴 Planifié |
