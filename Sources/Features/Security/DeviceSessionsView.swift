@@ -189,6 +189,10 @@ struct DeviceSessionsView: View {
                     .contentTransition(.symbolEffect(.replace))
             }
             .accessibilityLabel(Text(vm.isElevated ? "Lock session" : "Unlock"))
+            // A failed probe leaves the elevation unconfirmed: the control keeps
+            // the last value the server did report and says so, rather than
+            // passing it off as current.
+            .accessibilityValue(vm.isElevationStale ? Text("Unknown") : Text(verbatim: ""))
             .accessibilityIdentifier("deviceSessionsLockButton")
             .animation(
                 PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion),

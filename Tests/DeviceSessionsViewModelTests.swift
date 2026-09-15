@@ -11,6 +11,19 @@ import XCTest
 final class DeviceSessionsViewModelTests: XCTestCase {
 
     private struct BoomError: Error {}
+    private struct ProbeError: Error {}
+
+    /// `GET /api/auth/status` as the mock answers it — the elevation the screen
+    /// is allowed to believe.
+    private func status(isElevated: Bool) -> AuthStatusResponseDto {
+        AuthStatusResponseDto(
+            expiresAt: nil,
+            isElevated: isElevated,
+            password: true,
+            pinCode: true,
+            pinExpiresAt: nil
+        )
+    }
 
     private func session(
         id: String,
@@ -87,7 +100,9 @@ final class DeviceSessionsViewModelTests: XCTestCase {
         XCTAssertEqual(mock.deletedSessionIDs, ["laptop"])
         // load + delete + reload: the row must not outlive the server call.
         XCTAssertEqual(vm.sessions.map(\.id), ["phone"])
-        XCTAssertEqual(mock.requestCount, 3)
+        // + the elevation probe: four round trips, one of them the answer.
+        XCTAssertEqual(mock.requestCount, 4)
+        XCTAssertEqual(mock.authStatusCallCount, 1)
     }
 
     @MainActor
@@ -103,6 +118,8 @@ final class DeviceSessionsViewModelTests: XCTestCase {
 
         XCTAssertTrue(mock.deletedSessionIDs.isEmpty)
         XCTAssertEqual(mock.requestCount, requestsBefore)
+        // Nothing reached the server, so there is nothing to re-read.
+        XCTAssertEqual(mock.authStatusCallCount, 0)
         // The surface cannot even arm the confirmation for it.
         vm.requestRevoke(phone)
         XCTAssertNil(vm.pendingRevocation)
@@ -128,21 +145,68 @@ final class DeviceSessionsViewModelTests: XCTestCase {
         // alone, and it is not a loop over `deleteSession`.
         XCTAssertTrue(mock.deletedSessionIDs.isEmpty)
         XCTAssertEqual(vm.sessions.map(\.id), ["phone"])
+        XCTAssertEqual(mock.authStatusCallCount, 1)
     }
 
     // MARK: - Elevation
 
+    /// The elevation goes down because the server says so, not because this
+    /// screen asked for it — the two are only the same when the answer arrives.
     @MainActor
     func test_lock_clearsElevation() async {
         let mock = MockImmichClient()
+        mock.authStatus = status(isElevated: true)
         let vm = DeviceSessionsViewModel(client: mock)
         await vm.unlock(pinCode: "123456")
         XCTAssertTrue(vm.isElevated)
 
+        mock.authStatus = status(isElevated: false)
         await vm.lockCurrentSession()
 
         XCTAssertEqual(mock.lockSessionCallCount, 1)
+        XCTAssertEqual(mock.authStatusCallCount, 2)
         XCTAssertFalse(vm.isElevated)
+    }
+
+    /// Every mutation ends on the probe — there is no path that writes
+    /// `isElevated` from the action it just performed.
+    @MainActor
+    func test_everyAction_probesTheServerForElevation() async {
+        let mock = MockImmichClient()
+        mock.sessionsResponse = [session(id: "phone", current: true), session(id: "laptop")]
+        let vm = DeviceSessionsViewModel(client: mock)
+        await vm.load()
+        XCTAssertEqual(mock.authStatusCallCount, 0)
+
+        await vm.revoke(vm.otherSessions[0])
+        XCTAssertEqual(mock.authStatusCallCount, 1)
+
+        await vm.revokeAllOthers()
+        XCTAssertEqual(mock.authStatusCallCount, 2)
+
+        await vm.lockCurrentSession()
+        XCTAssertEqual(mock.authStatusCallCount, 3)
+
+        await vm.unlock(pinCode: "123456")
+        XCTAssertEqual(mock.authStatusCallCount, 4)
+    }
+
+    /// The unlock route answered, so "the session is elevated" is exactly what a
+    /// local mirror would have written. The probe says otherwise, and the server
+    /// wins.
+    @MainActor
+    func test_elevationIsTheServersAnswerNotTheActions() async {
+        let mock = MockImmichClient()
+        mock.authStatus = status(isElevated: false)
+        let vm = DeviceSessionsViewModel(client: mock)
+
+        await vm.unlock(pinCode: "123456")
+
+        XCTAssertEqual(mock.unlockedPINs, ["123456"])
+        XCTAssertEqual(mock.authStatusCallCount, 1)
+        XCTAssertFalse(vm.isElevated)
+        XCTAssertFalse(vm.isElevationStale)
+        XCTAssertNil(vm.errorMessage)
     }
 
     @MainActor
@@ -154,6 +218,7 @@ final class DeviceSessionsViewModelTests: XCTestCase {
 
         XCTAssertTrue(mock.unlockedPINs.isEmpty)
         XCTAssertEqual(mock.requestCount, 0)
+        XCTAssertEqual(mock.authStatusCallCount, 0)
         XCTAssertNotNil(vm.errorMessage)
         XCTAssertFalse(vm.isElevated)
     }
@@ -161,27 +226,91 @@ final class DeviceSessionsViewModelTests: XCTestCase {
     @MainActor
     func test_unlock_withSixDigitPin_raisesElevation() async {
         let mock = MockImmichClient()
+        mock.authStatus = status(isElevated: true)
         let vm = DeviceSessionsViewModel(client: mock)
 
         await vm.unlock(pinCode: "123456")
 
         XCTAssertEqual(mock.unlockedPINs, ["123456"])
+        XCTAssertEqual(mock.authStatusCallCount, 1)
         XCTAssertTrue(vm.isElevated)
+        XCTAssertFalse(vm.isElevationStale)
         XCTAssertNil(vm.errorMessage)
     }
 
+    /// The API-key account: the elevation route answers 400, a call that can
+    /// only fail. That message is what the screen shows — the probe that follows
+    /// does not replace it with a verdict of its own.
     @MainActor
     func test_unlock_serverRefusal_surfacesMessageAndLeavesElevationOff() async {
         let mock = MockImmichClient()
-        // The API-key account: the route answers 400, and the screen must show
-        // that instead of claiming an elevation it never got.
         mock.unlockAuthSessionError = BoomError()
         let vm = DeviceSessionsViewModel(client: mock)
 
         await vm.unlock(pinCode: "123456")
 
         XCTAssertEqual(mock.unlockedPINs, ["123456"])
-        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertEqual(mock.authStatusCallCount, 1)
+        XCTAssertEqual(vm.errorMessage, BoomError().localizedDescription)
         XCTAssertFalse(vm.isElevated)
+    }
+
+    // MARK: - A probe that fails
+
+    /// The unlock went through, but nothing came back to confirm it: the screen
+    /// must not claim an elevation it was never told about.
+    @MainActor
+    func test_probeFailure_afterUnlock_doesNotClaimElevation() async {
+        let mock = MockImmichClient()
+        mock.authStatus = status(isElevated: true)
+        mock.authStatusError = ProbeError()
+        let vm = DeviceSessionsViewModel(client: mock)
+
+        await vm.unlock(pinCode: "123456")
+
+        XCTAssertEqual(mock.unlockedPINs, ["123456"])
+        XCTAssertEqual(mock.authStatusCallCount, 1)
+        XCTAssertFalse(vm.isElevated)
+        XCTAssertTrue(vm.isElevationStale)
+        XCTAssertEqual(vm.errorMessage, ProbeError().localizedDescription)
+    }
+
+    /// The mirror image: the last confirmed state was elevated, the lock call
+    /// went through, and the probe failed. The screen keeps what the server did
+    /// say and flags it, instead of reading a new state off a request.
+    @MainActor
+    func test_probeFailure_afterLock_keepsTheLastConfirmedElevation() async {
+        let mock = MockImmichClient()
+        mock.authStatus = status(isElevated: true)
+        let vm = DeviceSessionsViewModel(client: mock)
+        await vm.unlock(pinCode: "123456")
+        XCTAssertTrue(vm.isElevated)
+
+        mock.authStatusError = ProbeError()
+        await vm.lockCurrentSession()
+
+        XCTAssertEqual(mock.lockSessionCallCount, 1)
+        XCTAssertEqual(mock.authStatusCallCount, 2)
+        XCTAssertTrue(vm.isElevated)
+        XCTAssertTrue(vm.isElevationStale)
+    }
+
+    /// Two failures in one action: the mutation's is the one the user can act
+    /// on, so the probe's must not overwrite it — it only marks the elevation
+    /// stale.
+    @MainActor
+    func test_probeFailure_keepsTheMutationError() async {
+        let mock = MockImmichClient()
+        mock.sessionsResponse = [session(id: "phone", current: true), session(id: "laptop")]
+        let vm = DeviceSessionsViewModel(client: mock)
+        await vm.load()
+
+        mock.deleteSessionError = BoomError()
+        mock.authStatusError = ProbeError()
+        await vm.revoke(vm.otherSessions[0])
+
+        XCTAssertEqual(mock.authStatusCallCount, 1)
+        XCTAssertTrue(vm.isElevationStale)
+        XCTAssertEqual(vm.errorMessage, BoomError().localizedDescription)
     }
 }

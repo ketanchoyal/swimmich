@@ -56,6 +56,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     /// session (the door the folder shows after the first setup).
     var authStatus: AuthStatusResponseDto?
     var authStatusError: Error?
+    /// How many times `GET /api/auth/status` was asked, in order — the proof a
+    /// screen re-reads the elevation instead of assuming it.
+    private(set) var authStatusCallCount = 0
     /// Every PIN the elevation route was called with, in order — the folder's
     /// tests assert on what actually reached the server.
     var unlockedPINs: [String] = []
@@ -69,6 +72,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
 
     func getAuthStatus() async throws -> AuthStatusResponseDto {
         bump()
+        authStatusCallCount += 1
         if let e = globalError ?? authStatusError { throw e }
         return authStatus ?? AuthStatusResponseDto(
             expiresAt: nil, isElevated: false, password: true, pinCode: true, pinExpiresAt: nil

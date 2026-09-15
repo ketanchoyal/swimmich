@@ -5,16 +5,26 @@ import Observation
 /// you can do to them: read the list, sign one other device out, sign every
 /// other device out, and lock or unlock the current session.
 ///
-/// Three server facts shape this type:
+/// What is the server's here, and what is this screen's — the two are easy to
+/// confuse on a screen that both reads and writes:
 ///
+/// * **The list is the server's.** `getSessions()` is the only source of
+///   `sessions`, and therefore of `currentSession` / `otherSessions`.
+/// * **The elevation is the server's too, but it travels on another route.**
+///   No field of `SessionResponseDto` carries it (no `pinExpiresAt`, no
+///   boolean), so `isElevated` is read from `GET /api/auth/status`
+///   (`AuthStatusResponseDto.isElevated`) and from nowhere else. Every mutation
+///   — `revoke(_:)`, `revokeAllOthers()`, `lockCurrentSession()`,
+///   `unlock(pinCode:)` — ends on that probe rather than on a guess about what
+///   the call must have done. A probe that fails leaves the last value the
+///   server did confirm in place and raises `isElevationStale`: a request that
+///   failed never becomes a state the screen asserts.
+/// * **Nothing local is the truth.** `errorMessage` and `pendingRevocation` are
+///   the screen's own; they never stand in for a server answer.
 /// * `DELETE /api/sessions` never touches the session that calls it, and
 ///   `DELETE /api/sessions/{id}` does not either when the id is your own — the
 ///   screen therefore says "other devices" everywhere and shows no destructive
 ///   affordance on the current one. Nothing here promises a self-logout.
-/// * The elevation is **not** exposed by `SessionResponseDto` (no `pinExpiresAt`,
-///   no boolean). `isElevated` is a local, optimistic mirror of what this screen
-///   just did: it starts `false` on every launch and only this screen's own
-///   actions move it.
 /// * Both `/auth/session/*` routes require a **session token**; an account
 ///   configured with an API key is answered 400. That message is surfaced as it
 ///   arrives instead of being swallowed, so the screen never spins on a call
@@ -30,9 +40,14 @@ final class DeviceSessionsViewModel {
     var sessions: [SessionResponseDto] = []
     var isLoading = false
     var errorMessage: String?
-    /// Optimistic by construction — see the type comment. Flipped by
-    /// `lockCurrentSession()` / `unlock(pinCode:)`, never read from the server.
+    /// The elevation the server last reported for this session. Written by
+    /// `probeElevation()` alone — no action of this screen moves it on its own —
+    /// and left at its last confirmed value when a probe fails.
     var isElevated = false
+    /// `true` when the last probe failed, i.e. `isElevated` is a value the
+    /// server confirmed earlier and not necessarily the current one. The lock
+    /// control reads it so it never presents an unverified state as a fact.
+    var isElevationStale = false
     /// The device whose logout a swipe asked for: the confirmation's subject.
     /// Never an implicit target, and never the current session.
     var pendingRevocation: SessionResponseDto?
@@ -84,61 +99,80 @@ final class DeviceSessionsViewModel {
     func revoke(_ session: SessionResponseDto) async {
         guard !session.current else { return }
         pendingRevocation = nil
-        clearError()
-        do {
-            try await client.deleteSession(id: session.id)
-            await load()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await mutate({ try await client.deleteSession(id: session.id) }, reloadingList: true)
     }
 
     /// "Log out other devices": the current session survives, because the
     /// server excludes it from the bulk delete.
     func revokeAllOthers() async {
-        clearError()
-        do {
-            try await client.deleteAllSessions()
-            await load()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await mutate({ try await client.deleteAllSessions() }, reloadingList: true)
     }
 
     /// Drops the session's elevated access. Bodyless on the wire — the route
     /// names no resource, it just clears the elevation of the caller.
     func lockCurrentSession() async {
-        clearError()
-        do {
-            try await client.lockAuthSession()
-            isElevated = false
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await mutate { try await client.lockAuthSession() }
     }
 
     /// Elevates the session with the account PIN. The server reads only a
     /// six-digit `pinCode` (its `pattern` is `^\d{6}$` whatever the field's
     /// description says), and a shorter entry is refused **here** so it never
-    /// reaches the network.
+    /// reaches the network — and, nothing having changed server-side, it is
+    /// not worth a probe either.
     func unlock(pinCode: String) async {
         clearError()
         guard pinCode.count == 6 else {
             errorMessage = String(localized: "Enter 6 digits")
             return
         }
-        do {
-            try await client.unlockAuthSession(pinCode: pinCode)
-            isElevated = true
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await mutate { try await client.unlockAuthSession(pinCode: pinCode) }
     }
 
     /// Clears the previous failure before a new attempt, so an error never
     /// outlives the state that produced it.
     func clearError() {
         errorMessage = nil
+    }
+
+    // MARK: - Server reads
+
+    /// Runs one mutation, then re-reads the elevation from the server — the
+    /// answer, not the action, is what `isElevated` ends up holding.
+    ///
+    /// `errorMessage` ends up holding the most actionable failure: the
+    /// mutation's (or the list reload's) when there is one, the probe's
+    /// otherwise. A failed probe never erases a mutation's failure — it raises
+    /// `isElevationStale` instead — and it never touches `isElevated`, so a
+    /// request that failed can never be read as "unlocked".
+    private func mutate(_ mutation: () async throws -> Void, reloadingList: Bool = false) async {
+        clearError()
+        var failure: String?
+        do {
+            try await mutation()
+            if reloadingList {
+                await load()
+                failure = errorMessage
+            }
+        } catch {
+            failure = error.localizedDescription
+        }
+        if let probeFailure = await probeElevation() {
+            failure = failure ?? probeFailure
+        }
+        errorMessage = failure
+    }
+
+    /// `GET /api/auth/status` — the elevation's only source. Returns the failure
+    /// to report when the probe itself failed, `nil` when the answer was read.
+    private func probeElevation() async -> String? {
+        do {
+            isElevated = try await client.getAuthStatus().isElevated
+            isElevationStale = false
+            return nil
+        } catch {
+            isElevationStale = true
+            return error.localizedDescription
+        }
     }
 
     // MARK: - Presentation
