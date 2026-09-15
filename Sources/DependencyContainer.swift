@@ -231,6 +231,16 @@ final class DependencyContainer {
         )
     }
 
+    /// Sync status screen (AC-5030–5039). Takes both view models explicitly:
+    /// the container must not pick which engine of the process is observed, and
+    /// `RootView` already holds the process-wide `upload`.
+    func makeSyncStatusViewModel(
+        upload: UploadViewModel,
+        offline: OfflineDownloadViewModel
+    ) -> SyncStatusViewModel {
+        SyncStatusViewModel(upload: upload, offline: offline)
+    }
+
     /// Interface-language picker (issue #21). Shares the process-wide store, so
     /// the choice made here is the one `RootView`'s locale and the next launch
     /// read.
