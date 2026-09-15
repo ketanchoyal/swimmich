@@ -922,9 +922,13 @@ struct BackupSettingsView: View {
         } header: {
             Text("Progress")
         } footer: {
-            Text("Photos kept only in iCloud are downloaded before they can be uploaded. A slow or not-yet-ready download retries automatically, and anything still pending is picked up on the next backup.")
-            if readOnly.isEnabled {
-                Text("Read-only mode is on. Turn it off in Me to change your library.")
+            // One view only (see the hub's Security footer): a sibling `Text` is
+            // silently dropped by the List footer.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Photos kept only in iCloud are downloaded before they can be uploaded. A slow or not-yet-ready download retries automatically, and anything still pending is picked up on the next backup.")
+                if readOnly.isEnabled {
+                    Text("Read-only mode is on. Turn it off in Me to change your library.")
+                }
             }
         }
     }
