@@ -55,6 +55,13 @@ struct ProfileView: View {
     /// automatic sheet.
     @State var whatsNew: WhatsNewViewModel
 
+    /// The Advanced section's three instruments (gap G24). Owned by `RootView`
+    /// like the rest of the hub's state, so a row and the screen it pushes
+    /// project one instance.
+    @State var appLog: AppLogViewModel
+    @State var mediaStats: MediaStatsViewModel
+    @State var downloadInfo: DownloadInfoViewModel
+
     var body: some View {
         NavigationStack {
             Form {
@@ -258,6 +265,34 @@ struct ProfileView: View {
                     .accessibilityIdentifier("aboutRow")
                 } header: {
                     Text("About")
+                // Instruments, not settings: these three screens only report
+                // what the app believes. One header keeps them apart from the
+                // preferences above, and the fourth diagnostic — the asset
+                // troubleshoot — lives on the photo it describes, never here:
+                // its page is parameterized by an asset.
+                Section {
+                    NavigationLink {
+                        AppLogView(vm: appLog)
+                    } label: {
+                        Label("App Logs", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .accessibilityIdentifier("appLogsRow")
+
+                    NavigationLink {
+                        MediaStatsView(vm: mediaStats)
+                    } label: {
+                        Label("Media Stats", systemImage: "chart.bar.xaxis")
+                    }
+                    .accessibilityIdentifier("mediaStatsRow")
+
+                    NavigationLink {
+                        DownloadInventoryView(vm: downloadInfo)
+                    } label: {
+                        Label("Download Info", systemImage: "arrow.down.doc")
+                    }
+                    .accessibilityIdentifier("downloadInfoRow")
+                } header: {
+                    Text("Advanced")
                 }
 
                 // App lock lives here rather than on the Backup screen: it

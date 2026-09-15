@@ -168,6 +168,12 @@ private struct AuthenticatedRoot: View {
     /// hub ViewModels, so re-entering the screen does not re-create the secret
     /// the user is still reading.
     @State private var apiKeys: UserApiKeysViewModel
+    /// The Me hub's Advanced section (gap G24): the transport log, the media
+    /// stats and the offline inventory. Session-scoped here like every other
+    /// view model of the hub, so a row and the screen it pushes agree.
+    @State private var appLog: AppLogViewModel
+    @State private var mediaStats: MediaStatsViewModel
+    @State private var downloadInfo: DownloadInfoViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -219,6 +225,11 @@ private struct AuthenticatedRoot: View {
         _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
         _changePassword = State(initialValue: container.makeChangePasswordViewModel())
         _apiKeys = State(initialValue: container.makeUserApiKeysViewModel())
+        // Same offline view model the offline screens and the sync-status screen
+        // project: the inventory must describe the cache the viewer writes to.
+        _appLog = State(initialValue: container.makeAppLogViewModel())
+        _mediaStats = State(initialValue: container.makeMediaStatsViewModel(offline: container.makeOfflineDownloadViewModel()))
+        _downloadInfo = State(initialValue: container.makeDownloadInfoViewModel(offline: container.makeOfflineDownloadViewModel()))
     }
 
     var body: some View {
@@ -367,6 +378,7 @@ private struct AuthenticatedRoot: View {
         // `shouldPresentAutomatically()` answers false for the rest of the run.
         .task(id: auth.userId) {
             showWhatsNew = whatsNew.shouldPresentAutomatically()
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, appLog: appLog, mediaStats: mediaStats, downloadInfo: downloadInfo)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

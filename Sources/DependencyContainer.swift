@@ -6,6 +6,12 @@ import ImmichSharedKit
 final class DependencyContainer {
     static let shared = DependencyContainer()
 
+    /// The transport's own log (gap G24). Declared before `client` on purpose:
+    /// the transport takes its sink at construction, so a client built first
+    /// could not be given one afterwards. One store per process — a second
+    /// instance would show a log the client never wrote to.
+    let appLog = AppLogStore()
+
     let client: ImmichAPIClient
     let keychain: KeychainStore
     let photos: PhotoLibraryService
@@ -139,6 +145,7 @@ final class DependencyContainer {
         // client.
         self.readOnly = ReadOnlyModeStore()
         self.libraryClient = ReadOnlyGuardClient(inner: client as any ImmichClient, isEnabled: { ReadOnlyModeStore.isEnabledIn(.standard) })
+        self.client = ImmichAPIClient(trustStore: trustStore, log: appLog)
         // One PhotosKit service for the whole app: the album list, the export
         // path and the deletion path all have to describe the same library.
         let photoLibrary = PhotoLibraryServiceImpl()
@@ -277,6 +284,36 @@ final class DependencyContainer {
 
     func makeStorageStatsViewModel() -> StorageStatsViewModel {
         StorageStatsViewModel(client: libraryClient)
+    }
+
+    /// App Logs screen (gap G24). Shares the process-wide store the transport
+    /// writes into — a fresh store would show an empty log.
+    func makeAppLogViewModel() -> AppLogViewModel {
+        AppLogViewModel(store: appLog)
+    }
+
+    /// Inventory of the offline cache (gap G24). Takes the caller's offline
+    /// view model rather than choosing one, like `makeSyncStatusViewModel`: the
+    /// container must not decide which instance of the process is observed.
+    func makeDownloadInfoViewModel(offline: OfflineDownloadViewModel) -> DownloadInfoViewModel {
+        DownloadInfoViewModel(offline: offline)
+    }
+
+    /// Media stats (gap G24): the storage card's call, plus the ledger and the
+    /// offline cache the device already holds.
+    func makeMediaStatsViewModel(offline: OfflineDownloadViewModel) -> MediaStatsViewModel {
+        MediaStatsViewModel(client: client as any ImmichClient, ledger: backupLedger, offline: offline)
+    }
+
+    /// Asset troubleshoot (gap G24). Reads the same ledger the backup engine
+    /// writes and the same offline mirror every grid cell reads, so the page
+    /// cannot contradict the screen the user came from.
+    func makeAssetTroubleshootViewModel() -> AssetTroubleshootViewModel {
+        AssetTroubleshootViewModel(
+            client: client as any ImmichClient,
+            ledger: backupLedger,
+            offlineIndex: offlineIndex
+        )
     }
     /// Reads the persisted auto-backup toggle directly — no live VM needed
     /// (the scene-phase code runs outside the tab tree's VMs).

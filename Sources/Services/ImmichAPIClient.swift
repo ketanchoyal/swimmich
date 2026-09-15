@@ -29,11 +29,21 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     /// ignored and answered with `"Password required"`.
     private var _sharedLinkCookie: String?
 
+    /// Where every dispatch line goes (gap G24). Defaulted to the sink that
+    /// keeps nothing, so the transport stays usable — and silent — with no log
+    /// attached: tests, previews, and any extension that builds a client.
+    private let log: any AppLogSink
+
     var requestCount: Int { lock.lock(); defer { lock.unlock() }; return _requestCount }
 
     weak var authDelegate: AuthSessionDelegate?
 
-    init(session: URLSession = .shared, trustStore: TrustedServerStore? = nil) {
+    init(
+        session: URLSession = .shared,
+        trustStore: TrustedServerStore? = nil,
+        log: any AppLogSink = NoopAppLogSink()
+    ) {
+        self.log = log
         if let trustStore {
             let delegate = TrustEvaluatingURLSessionDelegate(trustStore: trustStore)
             let config = URLSessionConfiguration.ephemeral
@@ -1045,12 +1055,17 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     }
 
     private func dispatch(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let start = Date()
         bumpRequestCount()
         do {
-            return try await session.data(for: request)
+            let result = try await session.data(for: request)
+            log.record(entry(for: request, category: "HTTP", status: (result.1 as? HTTPURLResponse)?.statusCode, since: start))
+            return result
         } catch let urlError as URLError {
+            log.record(entry(for: request, category: "HTTP", since: start, error: urlError))
             throw APIError.network(urlError)
         } catch {
+            log.record(entry(for: request, category: "HTTP", since: start, error: error))
             throw APIError.from(error)
         }
     }
@@ -1059,14 +1074,52 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
     /// (`URLSession.upload(fromFile:)`) so large asset uploads never load the
     /// body into memory.
     private func dispatchUpload(_ request: URLRequest, fromFile fileURL: URL) async throws -> (Data, URLResponse) {
+        let start = Date()
         bumpRequestCount()
         do {
-            return try await session.upload(for: request, fromFile: fileURL)
+            let result = try await session.upload(for: request, fromFile: fileURL)
+            log.record(entry(for: request, category: "Upload", status: (result.1 as? HTTPURLResponse)?.statusCode, since: start))
+            return result
         } catch let urlError as URLError {
+            log.record(entry(for: request, category: "Upload", since: start, error: urlError))
             throw APIError.network(urlError)
         } catch {
+            log.record(entry(for: request, category: "Upload", since: start, error: error))
             throw APIError.from(error)
         }
+    }
+
+    /// Builds the one line a dispatch leaves behind.
+    ///
+    /// Only what the operator needs: the method, the **path**, the status and
+    /// how long it took. The level follows the outcome — `info` below 400,
+    /// `warning` for a 4xx (a 401 included: the entry records that the server
+    /// refused, and `authDelegate` remains the only thing that decides what a
+    /// refusal means), `severe` for a 5xx or for anything thrown.
+    private func entry(for request: URLRequest, category: String, status: Int? = nil, since start: Date, error: Error? = nil) -> AppLogEntry {
+        let method = request.httpMethod ?? "GET"
+        let level: AppLogLevel
+        if error != nil || (status ?? 0) >= 500 {
+            level = .severe
+        } else if (status ?? 0) >= 400 {
+            level = .warning
+        } else {
+            level = .info
+        }
+        let outcome = error?.localizedDescription ?? status.map(String.init) ?? "no response"
+        return AppLogEntry(
+            level: level,
+            method: method,
+            path: request.url?.path ?? "",
+            status: status,
+            durationMS: Int(Date().timeIntervalSince(start) * 1000),
+            category: category,
+            message: "\(method) \(request.url?.path ?? "") → \(outcome)",
+            details: error?.localizedDescription,
+            // Only a thrown failure pays for symbols; a status code is a fact,
+            // not an incident.
+            stack: error == nil ? nil : Thread.callStackSymbols.joined(separator: "\n")
+        )
     }
 
     private func validate(response: URLResponse, data: Data) throws {
