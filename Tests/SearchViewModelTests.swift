@@ -717,15 +717,18 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertNil(mock.lastMetadataSearchDto?.rating, "the filter must leave the request body")
     }
 
-    func test_clearSearch_clearsRatingFilter() async {
+    /// search-filters (AC-5132) changed this contract: a rating is a *filter*,
+    /// and emptying the query no longer erases filters — `clearFilters()` is the
+    /// only way out (see `SearchFilterTests.test_clearSearch_doesNotClearFilters`).
+    func test_clearSearch_keepsRatingFilter() async {
         let mock = makeMock()
         let vm = SearchViewModel(client: mock)
         await vm.setRatingFilter(3)
 
         vm.clearSearch()
 
-        XCTAssertNil(vm.ratingFilter)
+        XCTAssertEqual(vm.ratingFilter, 3, "clearing the query is not clearing the filters")
         await vm.search()
-        XCTAssertNil(mock.lastMetadataSearchDto?.rating, "a cleared search must not keep filtering by rating")
+        XCTAssertEqual(mock.lastMetadataSearchDto?.rating, 3, "and the filter still runs")
     }
 }

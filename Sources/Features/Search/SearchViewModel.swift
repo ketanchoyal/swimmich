@@ -70,6 +70,7 @@ final class SearchViewModel {
     let client: any ImmichClient
     private let recentsStore: RecentSearchesStore
     private let savedStore: SavedSearchesStore
+    private let displayStore: SearchDisplayOptionsStore
 
     // Inputs
     var query: String = ""
@@ -84,10 +85,32 @@ final class SearchViewModel {
     /// by this field instead. Public for `recordRecentSearch` / view wiring.
     var pendingExploreFilter: (ExploreField, String)? = nil
 
+    /// The Filters sheet's state (search-filters): every constraint the sheet
+    /// edits lives here, and `apply(to:)` is the only reader that touches a DTO.
+    var filter = SearchFilter()
+    /// Display options from the sheet's Display section, persisted by
+    /// `displayStore`. Not filters: they stay out of `activeFilterCount`, out
+    /// of the chips bar and out of `clearFilters()`.
+    private(set) var sort: SearchSortOrder
+    private(set) var density: SearchGridDensity
+    /// Active constraints — the number the toolbar button badges.
+    var activeFilterCount: Int { filter.activeCount }
+    var isFilterActive: Bool { !filter.isEmpty }
+
     /// Star-rating filter (star-ratings) — `nil` = no rating constraint.
     /// Sticky by design: it survives text edits and Explore drill-downs; only
-    /// "Any rating" in the filter menu and `clearSearch()` clear it.
-    var ratingFilter: Int?
+    /// "Any rating" in the filter menu, the sheet's Clear, or `clearFilters()`
+    /// clear it.
+    ///
+    /// A view onto `filter.rating`: the toolbar menu and the Filters sheet edit
+    /// one value, and a rating outside the server's `1...5` scale (including
+    /// `0`, invalid since v3) means "no constraint" rather than a request the
+    /// server would reject.
+    var ratingFilter: Int? {
+        get { filter.rating }
+        set { filter.rating = newValue.flatMap { (1...5).contains($0) ? $0 : nil } }
+    }
+
     /// Convenience: the city value when the active filter is a city (legacy
     /// accessor + tests). Nil for non-city filters or when no filter is set.
     var selectedCity: String? {
@@ -134,10 +157,18 @@ final class SearchViewModel {
     /// from overwriting the idle state after clear/reset.
     private var searchGeneration = 0
 
-    init(client: any ImmichClient, recents: RecentSearchesStore = RecentSearchesStore(), saved: SavedSearchesStore = SavedSearchesStore()) {
+    init(
+        client: any ImmichClient,
+        recents: RecentSearchesStore = RecentSearchesStore(),
+        saved: SavedSearchesStore = SavedSearchesStore(),
+        display: SearchDisplayOptionsStore = SearchDisplayOptionsStore()
+    ) {
         self.client = client
         self.recentsStore = recents
         self.savedStore = saved
+        self.displayStore = display
+        self.sort = display.loadSort()
+        self.density = display.loadDensity()
         self.recentSearches = recents.load()
         self.savedSearches = saved.load()
     }
@@ -238,10 +269,11 @@ final class SearchViewModel {
         }
     }
 
-    /// Clears results back to the idle state (empty query path).
+    /// Clears results back to the idle state (empty query path). The filters —
+    /// and with them the rating — are **not** touched: emptying the query is not
+    /// erasing the filters, `clearFilters()` is the only way out.
     func clearSearch() {
         query = ""
-        ratingFilter = nil
         searchTask?.cancel()
         searchGeneration += 1
         resetToIdle()
@@ -254,11 +286,55 @@ final class SearchViewModel {
     /// filter field, so a rating filter under Smart search would be dropped
     /// silently. Values outside the server's `1...5` scale (including `0`, which
     /// is invalid since v3) mean "no filter" rather than a request the server
-    /// would reject.
+    /// would reject — the `ratingFilter` setter does that normalization.
     func setRatingFilter(_ value: Int?) async {
-        let valid = value.flatMap { (1...5).contains($0) ? $0 : nil }
-        ratingFilter = valid
-        if valid != nil { searchMode = .metadata }
+        ratingFilter = value
+        if ratingFilter != nil { searchMode = .metadata }
+        await search()
+    }
+
+    /// Display option: the sort is applied by the **server** (`orderBy`), so a
+    /// change re-runs the current search; the density below does not.
+    func setSort(_ order: SearchSortOrder) async {
+        guard order != sort else { return }
+        sort = order
+        displayStore.saveSort(order)
+        await search()
+    }
+
+    /// Display option: density is client-only. Write it, persist it, and let the
+    /// grid re-flow from `density.columnCount` — no refetch.
+    func setDensity(_ density: SearchGridDensity) {
+        guard density != self.density else { return }
+        self.density = density
+        displayStore.saveDensity(density)
+    }
+
+    /// Done in the Filters sheet: run the filter as it now stands.
+    ///
+    /// Metadata mode is forced when the mode is CLIP (`SmartSearchDto` has no
+    /// filter field, so the filter would be dropped silently), an Explore
+    /// drill-down is cancelled — a filter typed into the sheet is the more
+    /// specific intent — and the search is dispatched directly: the 400 ms
+    /// debounce of `queryDidChange()` would only delay what the user just
+    /// confirmed.
+    func applyFilters() async {
+        if searchMode == .smart { searchMode = .metadata }
+        pendingExploreFilter = nil
+        await search()
+    }
+
+    /// Reset, from the sheet or the chips bar: back to `SearchFilter()`, then
+    /// the same dispatch path. The display options are **not** touched — sort
+    /// and density are not filters — and neither is the query: only the
+    /// constraints go.
+    ///
+    /// An Explore drill-down goes with them: it is a constraint the chips bar
+    /// cannot show, so leaving it behind would contradict a bar that just
+    /// emptied.
+    func clearFilters() async {
+        filter = SearchFilter()
+        pendingExploreFilter = nil
         await search()
     }
 
@@ -344,17 +420,22 @@ final class SearchViewModel {
                 dto.query = nil
                 field.apply(value, to: &dto)
             }
-            dto.rating = ratingFilter
+            // The sheet's filter, the sort and the date range: the only writes
+            // of the whole feature into a request body.
+            filter.apply(to: &dto)
+            dto.orderBy = sort.serverValue
+            if let after = filter.takenAfter { dto.takenAfter = ISO8601.immichFormatter.string(from: after) }
+            if let before = filter.takenBefore { dto.takenBefore = ISO8601.immichFormatter.string(from: before) }
 
-            let matches = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            if ocrFilterEnabled, !matches.isEmpty {
-                // Detected text goes through the v3.2.0 replacement of the
-                // deprecated scalar `ocr` field: `filter.ocr.matches`, a
-                // similarity filter (not an equality). Free text is dropped —
-                // on this route the query and a filter are alternatives, the
-                // same rule the Explore field filter above follows.
+            // The toolbar's "search by detected text" toggle keeps its meaning:
+            // *the typed query is* the criterion, so that route replaces free
+            // text. An OCR criterion typed into the sheet is a filter like any
+            // other (`filter.apply` already wrote it) and joins the query instead
+            // of replacing it.
+            let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if filter.ocrText == nil, ocrFilterEnabled, !typed.isEmpty {
                 dto.query = nil
-                dto.filter = SearchFilterDto(ocr: StringSimilarityFilterDto(matches: matches))
+                dto.filter = SearchFilterDto(ocr: StringSimilarityFilterDto(matches: typed))
             }
             return try await client.searchMetadata(dto: dto)
         case .smart:

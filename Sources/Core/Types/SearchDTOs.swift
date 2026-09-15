@@ -31,10 +31,38 @@ struct MetadataSearchDto: Codable, Equatable {
     var rating: Int?
     var personIds: [String]?
     var albumIds: [String]? // AC-519 — enables album asset fetch (FM-2 mitigation)
+    /// Direction-only sort, deprecated since v3.2.0 — **never written**: the
+    /// sheet's Sort option goes through `orderBy` (which names a field; `order`
+    /// cannot). Kept declared because the DTO mirrors the published schema.
     var order: String?
     var page: Int?
     var size: Int?
     var withExif: Bool?
+    /// Detected-text criterion. The flat field is `x-immich-state: Deprecated`
+    /// since v3.2.0; its replacement is `filter.ocr.matches`
+    /// (`StringSimilarityFilter`), which is the only route this app writes
+    /// (ocr-text). Declared so the DTO mirrors the published schema, never set.
+    var ocr: String?
+    /// Taken-date range — ISO-8601 strings, because the schema publishes them
+    /// as `string`/`date-time` and the `Date` → `String` step belongs to the
+    /// ViewModel. Deprecated flat fields like `ocr` above (replacement:
+    /// `filter.takenAt`), kept for the same reason as `rating`: the whole
+    /// screen is still on the flat route. Written only while the Filters
+    /// sheet's date toggle is on.
+    var takenAfter: String?
+    var takenBefore: String?
+    /// Sort of the result set — a `SearchOrder` (`field` × `direction`), added
+    /// in v3.2.0 and the non-deprecated replacement of `order`, which is
+    /// therefore never written (it cannot name a field).
+    var orderBy: SearchOrderDto?
+}
+
+/// `SearchOrder` of the published contract: the `orderBy` body of a metadata
+/// search. Both members are enums server-side (`SearchOrderField`,
+/// `AssetOrder`); kept as strings here so the DTO stays a plain mirror.
+struct SearchOrderDto: Codable, Equatable {
+    var field: String
+    var direction: String
 }
 
 /// Body for `POST /api/search/smart` — CLIP semantic search.

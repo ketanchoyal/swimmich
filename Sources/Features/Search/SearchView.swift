@@ -22,8 +22,13 @@ struct SearchView: View {
     @State private var viewerItem: PhotoViewerItem? // Full-screen photo viewer
     @State private var showSaveSearch = false
     @State private var saveSearchName = ""
+    @State private var showFilters = false
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: 3)
+    /// Result columns follow the display option (search-filters). The search
+    /// grid is the only grid the option drives — the map sheet keeps its own.
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: PVSpacing.s2), count: vm.density.columnCount)
+    }
 
     var body: some View {
         NavigationStack {
@@ -37,6 +42,12 @@ struct SearchView: View {
                         mapVM.isPhotoSheetPresented = false
                         mapVM.deselectMarker()
                     }
+                }
+                // The Filters sheet hangs off the mode content (inside this
+                // NavigationStack, never on the stack itself) — it edits the
+                // constraints of the grid it is shown over.
+                .sheet(isPresented: $showFilters) {
+                    SearchFilterSheet(vm: vm)
                 }
                 // Floating Liquid-Glass segmented control over all three modes.
                 // The map ignores the safe area and extends *under* this pill
@@ -64,6 +75,7 @@ struct SearchView: View {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         if vm.viewMode == .results {
                             ratingFilterMenu
+                            filtersButton
                             searchModeMenu
                             ocrFilterToggle
                             Button {
@@ -134,6 +146,117 @@ struct SearchView: View {
     }
 
     // MARK: - Shared chrome
+
+    /// Opens the Filters sheet (search-filters). It sits with the mode menu —
+    /// the filter applies to whatever the mode shows — and only in results mode,
+    /// where there is a grid to filter. The active count rides a circular
+    /// overlay: `.badge(_:)` exists only inside a `List` or a tab bar.
+    private var filtersButton: some View {
+        Button {
+            showFilters = true
+        } label: {
+            Image(systemName: vm.isFilterActive
+                ? "line.3.horizontal.decrease.circle.fill"
+                : "line.3.horizontal.decrease.circle")
+                .font(.pvBody.weight(.semibold))
+                .foregroundStyle(Color.immichPrimary)
+                .frame(minWidth: 44, minHeight: 44)
+                .overlay(alignment: .topTrailing) {
+                    if vm.activeFilterCount > 0 {
+                        Text("\(vm.activeFilterCount)")
+                            .font(.pvCaption)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, PVSpacing.s4)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(Color.immichPrimary, in: Capsule())
+                            .contentTransition(.numericText())
+                            .accessibilityHidden(true)
+                    }
+                }
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .accessibilityIdentifier("searchFilterButton")
+        .accessibilityLabel("Filters")
+        .accessibilityValue(vm.activeFilterCount > 0
+            ? Text("\(vm.activeFilterCount) active")
+            : Text("No active filters"))
+    }
+
+    /// Chip row of the active constraints (search-filters), shown only while
+    /// `vm.isFilterActive`. It is the first thing inside the results
+    /// `ScrollView`: it scrolls away with the thumbnails and, being content
+    /// rather than floating chrome, borrows no glass surface.
+    ///
+    /// `searchActiveFiltersBar` sits on the `Text("Filters")` label, never on
+    /// the horizontal `ScrollView`: an identifier on a container propagates to
+    /// its children and erases theirs (`languageRelaunchToast`, measured).
+    private var activeFiltersBar: some View {
+        VStack(alignment: .leading, spacing: PVSpacing.s8) {
+            HStack(spacing: PVSpacing.s8) {
+                Text("Filters")
+                    .font(.pvSubhead.weight(.semibold))
+                    .foregroundStyle(Color.textSecondaryPV)
+                    .accessibilityIdentifier("searchActiveFiltersBar")
+                Spacer(minLength: PVSpacing.s8)
+                Button("Clear") {
+                    Task { await vm.clearFilters() }
+                }
+                .font(.pvSubhead)
+                .accessibilityIdentifier("searchActiveFiltersClear")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: PVSpacing.s8) {
+                    ForEach(vm.filter.constraints) { constraint in
+                        filterChip(constraint)
+                    }
+                }
+                .padding(.vertical, PVSpacing.s2)
+            }
+        }
+    }
+
+    /// One constraint: the label removes it, and so does its cross — the two
+    /// targets are separate buttons so each keeps its own identifier (a nested
+    /// button would swallow the inner one's taps).
+    private func filterChip(_ constraint: SearchFilter.Constraint) -> some View {
+        HStack(spacing: PVSpacing.s4) {
+            Button {
+                removeFilter(constraint.field)
+            } label: {
+                Text(verbatim: constraint.label)
+                    .font(.pvSubhead)
+                    .foregroundStyle(Color.textPrimaryPV)
+                    .padding(.vertical, PVSpacing.s8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("searchFilterChip_\(constraint.field.rawValue)")
+            .accessibilityHint("Removes this filter")
+
+            Button {
+                removeFilter(constraint.field)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.pvCaption)
+                    .foregroundStyle(Color.textSecondaryPV)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("searchFilterChipRemove_\(constraint.field.rawValue)")
+            .accessibilityLabel("Remove filter")
+        }
+        .padding(.horizontal, PVSpacing.s12)
+        .frame(minHeight: PVSpacing.s32)
+        .background(Color.bgSecondary, in: Capsule())
+        .overlay(Capsule().stroke(Color.separatorPV, lineWidth: 1))
+    }
+
+    /// Drops exactly one constraint and re-runs the search: the chip's whole
+    /// gesture, and the only removal that does not go through the sheet.
+    private func removeFilter(_ field: SearchFilter.Field) {
+        vm.filter.clear(field)
+        Task { await vm.applyFilters() }
+    }
 
     /// Smart (CLIP semantic) vs Metadata (EXIF fields) search — folded into a
     /// compact menu so the Results area stays uncluttered.
@@ -252,11 +375,20 @@ struct SearchView: View {
             errorView(msg)
         } else if vm.results.isEmpty {
             if vm.hasSearched {
-                ContentUnavailableView(
-                    "No results",
-                    systemImage: "magnifyingglass",
-                    description: Text("Try a different search term.")
-                )
+                ContentUnavailableView {
+                    Label("No results", systemImage: "magnifyingglass")
+                } description: {
+                    Text("Try a different search term.")
+                } actions: {
+                    // A filtered grid that came back empty must offer the way
+                    // out without opening the sheet again.
+                    if vm.isFilterActive {
+                        Button("Reset filters") {
+                            Task { await vm.clearFilters() }
+                        }
+                        .accessibilityIdentifier("searchNoResultsReset")
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
@@ -276,6 +408,11 @@ struct SearchView: View {
             // Mirrors the Photos timeline grid: LazyVStack + LazyVGrid with 2pt
             // seams and a 4pt horizontal inset — no count header above the grid.
             LazyVStack(alignment: .leading, spacing: PVSpacing.s2) {
+                if vm.isFilterActive {
+                    activeFiltersBar
+                        .padding(.horizontal, PVSpacing.s4)
+                        .padding(.bottom, PVSpacing.s8)
+                }
                 LazyVGrid(columns: columns, spacing: PVSpacing.s2) {
                     ForEach(vm.results) { item in
                         AssetThumbnailCell(
