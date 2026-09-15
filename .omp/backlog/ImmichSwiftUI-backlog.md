@@ -888,10 +888,10 @@ rapport AC pass/fail, entrée mémoire datée, régénération `xcodegen` et sui
 | 21 | Écran de statut de synchronisation | `sync-status` | P2 | AC-5030–5039 | état local (`BackupLedger`, file, index offline) | ✅ Livré (2026-09-15) — 10/10 AC |
 | 22 | Détail d'upload par asset | `upload-detail` | P2 | AC-5040–5049 | état local du `BackupEngine` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 23 | Indicateur de statut cloud sur les tuiles | `sync-badge` | P2 | AC-5050–5059 | `POST /api/assets/bulk-upload-check` + ledger | ✅ Livré (2026-09-15) — 10/10 AC |
-| 24 | Note par étoiles éditable + filtre | `star-ratings` | P3 | AC-5060–5069 | `PUT /api/assets` (`rating`), filtre `rating` de `POST /api/search/metadata` | 🔴 Planifié |
-| 25 | Overlay OCR + recherche par texte | `ocr-text` | P3 | AC-5070–5079 | `GET /api/assets/{id}/ocr`, filtre `ocr` | 🔴 Planifié |
-| 26 | Casting vers un écran | `chromecast` | P3 | AC-5080–5089 | client (AVRoutePicker/AirPlay ou Google Cast SDK) | 🔴 Planifié |
-| 27 | Panneau de téléchargement | `download-panel` | P3 | AC-5090–5099 | `GET /api/assets/{id}/original`, `…/video/playback` | 🔴 Planifié |
+| 24 | Note par étoiles éditable + filtre | `star-ratings` | P3 | AC-5060–5069 | `PUT /api/assets` (`rating`), filtre `rating` de `POST /api/search/metadata` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 25 | Overlay OCR + recherche par texte | `ocr-text` | P3 | AC-5070–5079 | `GET /api/assets/{id}/ocr`, filtre `ocr` | ✅ Livré (2026-09-15) — 10/10 AC |
+| 26 | Casting vers un écran | `chromecast` | P3 | AC-5080–5089 | client (AVRoutePicker/AirPlay ou Google Cast SDK) | ✅ Livré (2026-09-15) — 10/10 AC |
+| 27 | Panneau de téléchargement | `download-panel` | P3 | AC-5090–5099 | `GET /api/assets/{id}/original`, `…/video/playback` | ✅ Livré (2026-09-15) — 10/10 AC |
 | 28 | Vue dossiers | `folder-view` | P4 | AC-5100–5109 | `GET /api/view/folder`, `GET /api/view/folder/unique-paths` | 🔴 Planifié |
 | 29 | Dossier verrouillé + PIN | `locked-folder` | P4 | AC-5110–5119 | `PUT /api/assets` (`visibility: locked`), buckets `visibility=locked` | 🔴 Planifié |
 | 30 | Récemment pris / récemment ajoutés | `recently-taken` | P4 | AC-5120–5129 | `POST /api/search/metadata` (`orderBy`) | 🔴 Planifié |
