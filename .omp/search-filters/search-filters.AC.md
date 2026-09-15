@@ -52,14 +52,19 @@ Post-state attendu: PASS
 
 ```
 ### AC-5131 [type: new - aucun filtre proposé à l'écran absent du contrat serveur]
-Assertion: les cinq champs ajoutés à `MetadataSearchDto` (`rating`, `ocr`, `takenAfter`, `takenBefore`,
+Assertion: les champs ajoutés à `MetadataSearchDto` (`rating`, `takenAfter`, `takenBefore`,
 `orderBy`) sont déclarés, chacun existe dans les propriétés publiées de `MetadataSearchDto`
 (`components.schemas.MetadataSearchDto.properties` : `rating` integer nullable « Filter by rating [1-5], or null
-for unrated », `ocr` string « Filter by OCR text content », `takenAfter`/`takenBefore` string date-time,
-`orderBy` → `#/components/schemas/SearchOrder`), la feuille ne propose QUE des noms de champs du DTO — pas un
-champ inventé, pas `originalPath`/`originalFileName`/`description`/`tagIds`/`personIds`, hors périmètre — et
-`rating`/`ocr` portent un doc-comment disant la dépréciation du contrat plat et le remplacement `filter`.
-Check post-impl: sh -c 's=/tmp/immich-openapi-main.json; d=Sources/Core/Types/SearchDTOs.swift; sh=Sources/Features/Search/SearchFilterSheet.swift; ok=0; if test -f "$sh"; then ok=1; for k in rating ocr takenAfter takenBefore orderBy city state country make model lensModel type isFavorite; do grep -qE "var $k:" "$d" || ok=0; done; if command -v jq >/dev/null 2>&1 && test -f "$s"; then keys=$(jq -r ".components.schemas.MetadataSearchDto.properties|keys_unsorted[]" "$s" | tr "\n" " "); for k in rating ocr takenAfter takenBefore orderBy city state country make model lensModel type isFavorite; do case " $keys " in *" $k "*) ;; *) ok=0;; esac; done; fi; for k in ocrText rating city state country make model lensModel type isFavorite takenAfter takenBefore; do grep -qE "filter\.$k" "$sh" || grep -qF "\.$k" "$sh" || ok=0; done; grep -qiE "deprecated" "$d" || ok=0; fi; test "$ok" = 1 && echo PASS || echo FAIL'
+for unrated », `takenAfter`/`takenBefore` string date-time, `orderBy` → `#/components/schemas/SearchOrder`), la
+feuille ne propose QUE des noms de champs du DTO — pas un champ inventé, pas
+`originalPath`/`originalFileName`/`description`/`tagIds`/`personIds`, hors périmètre — et `rating` porte un
+doc-comment disant la dépréciation du contrat plat et le remplacement `filter`.
+Note (arbitrage du 2026-09-15) : `ocr` a été retiré de cette liste parce que la carte `ocr-text` (AC-5077)
+**interdit** la déclaration du scalaire plat dans `SearchDTOs.swift`, et que le critère texte passe par
+`filter.ocr.matches` — sous un serveur antérieur à v3.2.0 il n'est pas exprimable du tout, la feuille de
+filtres le dit alors à l'utilisateur. Les deux cartes se contredisaient sur ce point ; la matrice AC l'a
+montré (AC-5077 rouge après la fusion de `search-filters`).
+Check post-impl: sh -c 's=/tmp/immich-openapi-main.json; d=Sources/Core/Types/SearchDTOs.swift; sh=Sources/Features/Search/SearchFilterSheet.swift; ok=0; if test -f "$sh"; then ok=1; for k in rating takenAfter takenBefore orderBy city state country make model lensModel type isFavorite; do grep -qE "var $k:" "$d" || ok=0; done; if command -v jq >/dev/null 2>&1 && test -f "$s"; then keys=$(jq -r ".components.schemas.MetadataSearchDto.properties|keys_unsorted[]" "$s" | tr "\n" " "); for k in rating takenAfter takenBefore orderBy city state country make model lensModel type isFavorite; do case " $keys " in *" $k "*) ;; *) ok=0;; esac; done; fi; for k in ocrText rating city state country make model lensModel type isFavorite takenAfter takenBefore; do grep -qE "filter\.$k" "$sh" || grep -qF "\.$k" "$sh" || ok=0; done; grep -qiE "deprecated" "$d" || ok=0; fi; test "$ok" = 1 && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (aucun de `rating`/`ocr`/`takenAfter`/`takenBefore`/`orderBy` n'apparaît dans `Sources/Core/Types/SearchDTOs.swift` — `grep -nE "rating|ocr|orderBy" Sources/Core/Types/SearchDTOs.swift` ne renvoie rien, vérifié le 2026-09-15)
 Post-state attendu: PASS
 Note: le contrôle cite nommément les champs du schéma et les confronte aux propriétés publiées ; la partie schéma est gardée par `command -v jq` + `test -f` (l'artefact `/tmp/immich-openapi-main.json` peut ne pas survivre à la session), les boucles DTO et feuille, elles, discriminent toujours. `order` (déprécié, `never written` par la fiche) reste déclaré : il n'est pas retiré, seulement jamais alimenté.

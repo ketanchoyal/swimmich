@@ -106,11 +106,11 @@ Note: un nouveau `Tests/*.swift` n'est compilé qu'après `xcodegen generate` �
 
 ```
 ### AC-5128 [type: new — la route de recherche est structurellement inapte]
-Assertion: la feature ne passe QUE par `/timeline/buckets` : `POST /api/search/metadata` ne peut pas produire « récemment ajoutés », car `SearchOrderField.enum` vaut `["fileCreatedAt","localDateTime","fileSizeInBytes","rating"]` (aucune date de mise en ligne), son `order`/`page` sont `deprecated` au profit d'un `cursor`, et `MetadataSearchDto` ne modélise ni `orderBy` ni `cursor`.
-Check post-impl: sh -c 'd=Sources/Features/Recent; test -d "$d" && ! grep -qE "search/metadata|MetadataSearchDto|SearchOrder" "$d"/*.swift && grep -qE "getTimeBuckets" "$d/RecentAssetsViewModel.swift" && ! grep -qE "orderBy|cursor|SearchOrder" Sources/Core/Types/SearchDTOs.swift && echo PASS || echo FAIL'
+Assertion: la feature ne passe QUE par `/timeline/buckets` : `POST /api/search/metadata` ne peut pas produire « récemment ajoutés », car `SearchOrderField.enum` vaut `["fileCreatedAt","localDateTime","fileSizeInBytes","rating"]` (aucune date de mise en ligne), et son `order`/`page` sont `deprecated` au profit d'un `cursor`.
+Check post-impl: sh -c 'd=Sources/Features/Recent; test -d "$d" && ! grep -qE "search/metadata|MetadataSearchDto|SearchOrder" "$d"/*.swift && grep -qE "getTimeBuckets" "$d/RecentAssetsViewModel.swift" && grep -qE "orderBy: mode\.orderBy" "$d/RecentAssetsViewModel.swift" && ! grep -qE "SearchOrderDto|MetadataSearchDto|searchMetadata" "$d"/*.swift && echo PASS || echo FAIL'
 Pre-state attendu: FAIL (dossier `Sources/Features/Recent` absent — l'écran « Recently Added » n'existe sous aucune forme)
 Post-state attendu: PASS
-Note: le grep sur `Sources/Core/Types/SearchDTOs.swift` documente la preuve par le code (aucun champ de tri par date d'ajout modélisé) ; la preuve upstream est l'enum de `components.schemas.SearchOrderField` relevé dans `/tmp/immich-openapi-main.json` le 2026-09-15. Seule `/timeline/buckets` accepte `orderBy` → `AssetOrderBy`.
+Note: le contrôle est borné aux fichiers de la feature (`Sources/Features/Recent/`) : sa version d'origine grepait aussi `Sources/Core/Types/SearchDTOs.swift` pour « aucun `orderBy`/`cursor`/`SearchOrder` », ce qui est devenu faux quand `search-filters` a légitimement ajouté ces champs au DTO partagé — deux cartes se contredisaient sur le contenu global d'un fichier partagé, et la matrice AC l'a montré le 2026-09-15. Ce qui compte reste vrai et est vérifié : **aucune** vue « récemment pris/ajouté » ne passe par la route de recherche. La preuve upstream est l'enum de `components.schemas.SearchOrderField` relevé dans `/tmp/immich-openapi-main.json` le 2026-09-15 ; seule `/timeline/buckets` accepte `orderBy` → `AssetOrderBy`.
 ```
 
 ```
