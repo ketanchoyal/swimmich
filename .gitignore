@@ -16,6 +16,12 @@ xcuserdata/
 # Pods (not used)
 Pods/
 
+# Python bytecode from the committed UITests stubs: a feature stub IMPORTS
+# `immich_stub_base`, so every run drops a __pycache__ inside a tracked directory
+# (a script run as __main__ caches nothing, which is why the self-contained stubs
+# never produced one).
+__pycache__/
+
 # Agent tooling artifacts + backups
 .zcode/
 *.pbxproj.bak
