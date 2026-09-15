@@ -18,11 +18,18 @@ struct PhotoInfoPanel: View {
     /// Open in Apple Maps at the photo's coordinates (map-extras).
     var onOpenInMaps: ((Double, Double) -> Void)? = nil
 
+    /// The asset troubleshoot page (gap G24). Built by the composition root's
+    /// factory unless a host lends its own instance: the page is parameterized
+    /// by the asset and reloads through `AssetTroubleshootView`'s `task(id:)`,
+    /// so a presentation owns exactly the state it shows.
+    var troubleshoot: AssetTroubleshootViewModel = DependencyContainer.shared.makeAssetTroubleshootViewModel()
+
     @State private var presentAdjustLocation = false
     @State private var presentAdjustDate = false
     @State private var selectedFace: AssetFaceResponseDto?
     @State private var presentTags = false
     @State private var presentStack = false
+    @State private var presentTroubleshoot = false
 
     var body: some View {
         VStack(spacing: PVSpacing.s0) {
@@ -70,6 +77,14 @@ struct PhotoInfoPanel: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
+        // The panel is a sheet itself and inherits no navigation container, so
+        // the troubleshoot page brings its own — local to this sheet, the same
+        // shape as the two above.
+        .sheet(isPresented: $presentTroubleshoot) {
+            NavigationStack {
+                AssetTroubleshootView(vm: troubleshoot, assetID: asset.id)
+            }
+        }
     }
 
     private var header: some View {
@@ -113,6 +128,9 @@ struct PhotoInfoPanel: View {
                     .padding(.horizontal, PVSpacing.s16)
                     .padding(.top, PVSpacing.s8)
                 stackCard(stack: detail.stack)
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.top, PVSpacing.s8)
+                troubleshootCard
                     .padding(.horizontal, PVSpacing.s16)
                     .padding(.top, PVSpacing.s8)
                 ExifInfoPanel(
@@ -249,6 +267,26 @@ struct PhotoInfoPanel: View {
                 .padding(.vertical, PVSpacing.s4)
             }
             .padding(PVSpacing.s16)
+        }
+    }
+
+    /// Troubleshoot card (gap G24): the entry point of the per-asset diagnostic
+    /// page. It sits with the other action cards on purpose — the page is
+    /// parameterized by the asset, so it can never be a row of the settings hub.
+    @ViewBuilder
+    private var troubleshootCard: some View {
+        InfoCard {
+            Button {
+                presentTroubleshoot = true
+            } label: {
+                Label("Troubleshoot", systemImage: "ladybug")
+                    .frame(maxWidth: .infinity)
+            }
+            .font(.pvBody.weight(.medium))
+            .foregroundStyle(Color.textPrimaryPV)
+            .buttonStyle(.plain)
+            .padding(PVSpacing.s16)
+            .accessibilityIdentifier("assetTroubleshootRow")
         }
     }
 

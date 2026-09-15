@@ -126,6 +126,12 @@ private struct AuthenticatedRoot: View {
     /// by the closure would throw the user back to the PIN door. Keyed by the
     /// active account through `.id(auth.activeAccountID)` above.
     @State private var lockedFolder: LockedFolderViewModel
+    /// The Me hub's Advanced section (gap G24): the transport log, the media
+    /// stats and the offline inventory. Session-scoped here like every other
+    /// view model of the hub, so a row and the screen it pushes agree.
+    @State private var appLog: AppLogViewModel
+    @State private var mediaStats: MediaStatsViewModel
+    @State private var downloadInfo: DownloadInfoViewModel
     @State private var selection: RootTab = .photos
     @State private var lastContentTab: RootTab = .photos
     @State private var pendingTimelineScrollID: String?
@@ -171,6 +177,11 @@ private struct AuthenticatedRoot: View {
         ))
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
         _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
+        // Same offline view model the offline screens and the sync-status screen
+        // project: the inventory must describe the cache the viewer writes to.
+        _appLog = State(initialValue: container.makeAppLogViewModel())
+        _mediaStats = State(initialValue: container.makeMediaStatsViewModel(offline: container.makeOfflineDownloadViewModel()))
+        _downloadInfo = State(initialValue: container.makeDownloadInfoViewModel(offline: container.makeOfflineDownloadViewModel()))
     }
 
     var body: some View {
@@ -292,7 +303,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, appLog: appLog, mediaStats: mediaStats, downloadInfo: downloadInfo)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
