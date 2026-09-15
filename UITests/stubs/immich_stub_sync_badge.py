@@ -18,10 +18,17 @@ WHAT THIS ADDS, AND WHY IT IS NOT DECORATION
 WHY THE UPLOAD ANSWERS WITH THE SHELL'S FIRST TIMELINE UUID
     The badge is drawn on a TIMELINE tile, and a tile is only known by its
     SERVER uuid — the same uuid the shell already serves for the first photo of
-    its day. So the upload answers `UPSTREAM`, and the ledger's proof lands on
+    its day. So every upload answers `UPSTREAM`, and the ledger's proof lands on
     exactly one of the six tiles. That is the whole point of the scenario: the
     assertion is "this tile, and no other", which a stub answering a fresh
     random uuid could not support (nothing on screen would carry it).
+
+    EVERY upload, not just the first: an erased simulator already carries six
+    sample photos, so a run stages several assets and the stub would otherwise
+    have to guess which one the scenario's badge is about. Answering them all
+    with `UPSTREAM` keeps the claim observable — one server uuid, one badged
+    tile — and the scenario's wire assertions compare the SETS (every uploaded
+    asset was asked about first, with the same checksum), never a count.
 
     python3 UITests/stubs/immich_stub_sync_badge.py 8421
 
@@ -88,12 +95,14 @@ def bulk_upload_check(req):
         else:
             results.append({"id": item.get("id"), "action": "accept"})
     # Noted flat (not as the JSON body) so the scenario's decoder stays a plain
-    # `[String: String]`-shaped struct: what it asserts is one id and one
-    # checksum, not the shape of a DTO.
+    # `[String: String]`-shaped struct: what it asserts is which assets were
+    # asked about and with which checksum, not the shape of a DTO. Every id,
+    # not just the first: an erased device already carries sample photos, so a
+    # run stages several assets and the scenario has to compare SETS.
     req.note(
         checked=len(items),
-        firstID=items[0].get("id", "") if items else "",
-        firstChecksum=items[0].get("checksum", "") if items else "",
+        ids=",".join(item.get("id", "") for item in items),
+        checksums=",".join(item.get("checksum", "") for item in items),
     )
     return Response({"results": results})
 

@@ -60,10 +60,48 @@ final class SyncBadgeUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        // The Photos prompt belongs to SpringBoard, and XCUITest's DEFAULT
+        // interruption handler answers it by tapping its `default-button` —
+        // measured: "Ajout uniquement" / "Keep Add Only", which is exactly the
+        // access a backup cannot read. This monitor answers with FULL access
+        // instead, and returns false for every other alert so the default
+        // handler keeps dealing with the sign-in and notification prompts.
+        //
+        // The prompt is real here — `uitest.sh --erase` wipes the device BEFORE
+        // the app is installed, so its `simctl privacy grant photos` lands on a
+        // device that has no such app and grants nothing (TCC holds no row for
+        // the bundle), and the app's own request is what decides.
+        addUIInterruptionMonitor(withDescription: "Photos access") { alert in
+            guard let button = Self.fullAccessButton(in: alert) else {
+                print("PHOTOS ACCESS: alert offered \(alert.buttons.allElementsBoundByIndex.map(\.label))")
+                return false
+            }
+            button.tap()
+            return true
+        }
         // Skip-vs-run only, so a full-scheme run without a stub stays green.
         // `uitest.sh` starts the stub first and treats a skip as a failure, so
         // this never masks anything under the launcher.
         try XCTSkipUnless(stubIsReachable(), "Local Immich stub not running on \(stub)")
+    }
+
+    /// The "give this app the whole library" button of a Photos alert, matched
+    /// by SUBSTRING and case-insensitively.
+    ///
+    /// Not by exact label, and the difference is not cosmetic: the French
+    /// wording carries a typographic apostrophe — the alert offers "Autoriser
+    /// l’accès complet" (U+2019), so a literal "l'accès" matches nothing, the
+    /// monitor falls through to XCUITest's default handler, and that one taps
+    /// "Ajout uniquement" (measured: the backup then refuses to run with
+    /// `ensurePhotoAccess() == false`).
+    private static func fullAccessButton(in alert: XCUIElement) -> XCUIElement? {
+        for needle in ["accès complet", "Full Access", "access to all", "Voller Zugriff", "acceso completo"] {
+            let button = alert.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", needle)
+            ).firstMatch
+            if button.exists { return button }
+        }
+        return nil
     }
 
     private func stubIsReachable() -> Bool {
@@ -287,6 +325,11 @@ final class SyncBadgeUITests: XCTestCase {
         shot("sb03-me-hub")
         row.tap()
         sleep(2)
+        // The pushed screen reads the Photos albums on appear, which is what
+        // raises the access prompt on an erased slot. Answered before anything
+        // else, so the run below is not the thing that discovers a denied
+        // library.
+        allowFullPhotoAccessIfAsked(wait: 6)
         // The push can miss without erroring (a tap that lands on the row's
         // padding does nothing): prove the screen is really the Backup one, or
         // "no badge" assertions below would read the hub and pass vacuously.
@@ -297,76 +340,111 @@ final class SyncBadgeUITests: XCTestCase {
         }
         XCTAssertTrue(probe.waitForExistence(timeout: 10),
                       "the Backup screen did not open after tapping backupRow:\n\(app.debugDescription)")
+        XCTAssertTrue(meSheetIsUp(), "the Me sheet was dismissed while opening the Backup screen")
     }
 
-    /// Is the Me sheet still up? Probed on a row only the hub publishes.
-    private func meHubIsUp() -> Bool {
-        app.buttons.matching(identifier: "backupRow").firstMatch.exists
+    /// Is the Me sheet — or a screen it pushed — frontmost? True for the sheet
+    /// and for whatever it presents, which is what every step of this scenario
+    /// needs to know: the covered timeline stays in the accessibility tree (its
+    /// tiles still exist, and a badge count taken through the sheet would read
+    /// them and "prove" the wrong thing), so "the tile exists" decides nothing.
+    /// The tab bar sits BEHIND the sheet and stops being hittable — the one
+    /// element that tells the truth at every depth.
+    private func meSheetIsUp() -> Bool {
+        !app.tabBars.buttons["Photos"].isHittable
     }
 
-    /// The Me hub is a SHEET over the tab tree, and the covered timeline stays in
-    /// the accessibility tree: its tiles still exist, and a badge count taken
-    /// through the sheet would read them and "prove" the wrong thing. The tab
-    /// bar is the element that tells the truth — it sits behind the sheet, so it
-    /// is not hittable while the sheet is up.
-    private func meSheetIsDown() -> Bool {
-        !meHubIsUp() && app.tabBars.buttons["Photos"].isHittable
-    }
-
-    /// Backup screen → back to the timeline: pop the pushed screen, then drag
-    /// the sheet down. The drag is retried because a Form that is not scrolled
-    /// to its top eats the first one.
+    /// Backup screen → back to the timeline: drag the Me sheet down.
+    ///
+    /// No back tap first, and no shallow start point. Both were measured
+    /// wrong: `app.navigationBars.firstMatch` is the COVERED timeline's bar
+    /// (so the "back" tap hit its "Select" button while the sheet was up), and
+    /// a drag starting at `dy = 0.06` begins in the status-bar strip, where the
+    /// system takes the gesture (Control Center / notifications) and the sheet
+    /// never moves. The drag therefore starts inside the sheet's own bar, moves
+    /// slowly and holds at the end — the shape the committed scenarios use for
+    /// the gestures SwiftUI has to recognise.
     private func backToTimeline() {
         dismissNotificationsAlertIfPresent(wait: 2)
-        let back = app.navigationBars.firstMatch.buttons.firstMatch
-        if back.exists { back.tap(); sleep(2) }
-        for _ in 0..<5 where !meSheetIsDown() {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06))
-                .press(forDuration: 0.15,
-                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
-                       withVelocity: .fast,
-                       thenHoldForDuration: 0.2)
+        for _ in 0..<5 where meSheetIsUp() {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
+                .press(forDuration: 0.3,
+                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)),
+                       withVelocity: .slow,
+                       thenHoldForDuration: 0.5)
             sleep(2)
         }
-        XCTAssertTrue(meSheetIsDown(),
-                      "the Me sheet never came down — every badge assertion would then read the COVERED "
-                      + "timeline, which stays in the accessibility tree and would pass for the wrong reason")
+        if meSheetIsUp() {
+            shot("sb08b-sheet-would-not-close")
+            XCTFail("the Me sheet never came down — every badge assertion would then read the COVERED "
+                    + "timeline, which stays in the accessibility tree and would pass for the wrong reason")
+        }
         XCTAssertTrue(tile(provenTile).waitForExistence(timeout: 20),
                       "the timeline is not back after leaving the Me sheet")
         sleep(2)
     }
 
-    /// The sync-badge toggle, scrolled into view (it sits below the four other
-    /// toggles of the "Auto backup" section).
-    private func syncBadgeToggle() -> XCUIElement {
-        let toggle = matches("syncBadgeToggle").firstMatch
-        for _ in 0..<8 where !toggle.exists {
+    /// The sync-badge switch control, scrolled into view (it sits below the
+    /// four other toggles of the "Auto backup" section).
+    private func syncBadgeControl() -> XCUIElement {
+        let byType = app.switches.matching(identifier: "syncBadgeToggle").firstMatch
+        if byType.exists { return byType }
+        let any = matches("syncBadgeToggle").firstMatch
+        for _ in 0..<8 where !any.exists {
             app.swipeUp()
             sleep(1)
         }
-        return toggle
+        return any
     }
 
-    private func isOn(_ element: XCUIElement) -> Bool {
-        let value = (element.value as? String)?.lowercased() ?? ""
-        return value == "1" || value == "true"
+    /// The switch's state, or nil when the element publishes no value (then
+    /// nothing is asserted on it — the timeline is the real gate).
+    private func syncBadgeState() -> Bool? {
+        let control = syncBadgeControl()
+        guard control.exists, let value = control.value as? String else { return nil }
+        return value == "1" || value.lowercased() == "true"
     }
 
-    /// Flips "Show backup status on thumbnails" and verifies the flip: a tap
-    /// that missed would leave every later badge assertion meaningless.
+    /// Taps the switch, NOT the element's centre.
+    ///
+    /// A `Toggle` in a `Form` is a row: its label takes the leading half and the
+    /// control sits at the trailing edge (the Backup screen's five toggles all
+    /// draw it there). A centre tap therefore lands on the label and flips
+    /// nothing while reporting success — measured: "the toggle did not turn on"
+    /// after a tap that had gone through. Aiming at `dx = 0.9` hits the control
+    /// whether the query resolved the row or the switch itself.
+    private func tapSyncBadgeControl() {
+        let control = syncBadgeControl()
+        control.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+    }
+
+    /// Flips "Show backup status on thumbnails" and verifies the flip, so a tap
+    /// that missed cannot leave every later badge assertion meaningless.
     private func setSyncBadge(on: Bool) {
-        let toggle = syncBadgeToggle()
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10),
+        let control = syncBadgeControl()
+        XCTAssertTrue(control.waitForExistence(timeout: 10),
                       "the sync-badge toggle is not on the Backup screen:\n\(app.debugDescription)")
-        if isOn(toggle) != on { toggle.tap(); sleep(1) }
-        XCTAssertEqual(isOn(toggle), on,
-                       "the toggle did not turn \(on ? "on" : "off") — a stale preference makes every badge assertion meaningless")
+        guard let initial = syncBadgeState() else {
+            print("SYNC BADGE: the toggle publishes no value — tapping once; the timeline assertion below is the gate")
+            tapSyncBadgeControl()
+            sleep(1)
+            return
+        }
+        for _ in 0..<3 where syncBadgeState() != on {
+            tapSyncBadgeControl()
+            sleep(1)
+        }
+        XCTAssertEqual(syncBadgeState(), on,
+                       "the toggle did not turn \(on ? "on" : "off") (it was \(initial)) — "
+                       + "a stale preference makes every badge assertion meaningless")
     }
 
     /// Taps "Run now" and waits for the run's outcome. The completion summary is
     /// drawn after the engine's last ledger commit, so it is the point where the
     /// badge index has already been refreshed.
     private func runBackupAndWait() {
+        XCTAssertTrue(meSheetIsUp(),
+                      "the Me sheet is gone before the run — something dismissed the screen this scenario means to drive")
         let run = app.buttons.matching(identifier: "runBackupButton").firstMatch
         for _ in 0..<10 where !run.exists {
             app.swipeUp()
@@ -375,6 +453,9 @@ final class SyncBadgeUITests: XCTestCase {
         XCTAssertTrue(run.waitForExistence(timeout: 10),
                       "Run now missing on the Backup screen:\n\(app.debugDescription)")
         run.tap()
+        // Whatever the screen did not ask for earlier, `runBackup(manual:)`
+        // asks for now — and a denied library is a run that never starts.
+        allowFullPhotoAccessIfAsked(wait: 3)
         // A manual run asks for the notification permission (the run's outcome
         // is posted as a local alert): the system alert belongs to SpringBoard
         // and would swallow every later tap.
@@ -400,9 +481,33 @@ final class SyncBadgeUITests: XCTestCase {
         }
     }
 
+    /// Answers the Photos prompt deterministically instead of hoping the
+    /// interruption monitor wins the race: opening the Backup screen runs
+    /// `vm.loadAlbums()`, whose first Photos read is what raises the alert.
+    ///
+    /// When no full-access button is offered, NOTHING is tapped. Tapping a
+    /// fallback was a real defect of an earlier version of this scenario: the
+    /// alert also offers "Limiter l’accès…", the fallback hit it, and the
+    /// limited-library picker it opened swallowed every later swipe until the
+    /// whole Me sheet went away — the run then failed three steps later, on a
+    /// missing button, with the app back on the timeline.
+    private func allowFullPhotoAccessIfAsked(wait: TimeInterval) {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let alert = springboard.alerts.firstMatch
+        guard alert.waitForExistence(timeout: wait) else { return }
+        let labels = alert.buttons.allElementsBoundByIndex.map(\.label)
+        guard let button = Self.fullAccessButton(in: alert) else {
+            print("PHOTOS ACCESS: no full-access button offered — alert buttons were \(labels)")
+            return
+        }
+        print("PHOTOS ACCESS: tapping \(button.label) (alert offered \(labels))")
+        button.tap()
+        sleep(1)
+    }
+
     // MARK: - Wire helpers
 
-    /// One entry of the stub's request log. The `checked…`, `deviceAssetId…`
+    /// One entry of the stub's request log. The `ids…`, `deviceAssetId…`
     /// fields are the ones the stub itself noted: it parses the multipart body
     /// and the checksum header, so what is asserted here is what the app SENT,
     /// not what a DTO would have looked like.
@@ -410,8 +515,8 @@ final class SyncBadgeUITests: XCTestCase {
         let method: String
         let path: String
         let checked: Int?
-        let firstID: String?
-        let firstChecksum: String?
+        let ids: String?
+        let checksums: String?
         let deviceAssetId: String?
         let visibility: String?
         let filename: String?
@@ -440,6 +545,24 @@ final class SyncBadgeUITests: XCTestCase {
     /// `POST /api/assets/bulk-upload-check` — the dedup question.
     private func checks() -> [StubRequest] {
         wire().filter { $0.method == "POST" && $0.path == "/api/assets/bulk-upload-check" }
+    }
+
+    /// `localIdentifier -> checksum` over every dedup check the run made.
+    ///
+    /// A SET, not a count: an erased simulator already carries six sample photos
+    /// next to the one this scenario seeds, and their number is not promised by
+    /// anything. What is promised is the pairing — the checksum the server is
+    /// shown for an asset is the checksum that asset's upload carries.
+    private func checkedChecksums(_ requests: [StubRequest]) -> [String: String] {
+        var pairs: [String: String] = [:]
+        for request in requests {
+            let ids = (request.ids ?? "").split(separator: ",").map(String.init)
+            let checksums = (request.checksums ?? "").split(separator: ",").map(String.init)
+            for (id, checksum) in zip(ids, checksums) where !id.isEmpty {
+                pairs[id] = checksum
+            }
+        }
+        return pairs
     }
 
     // MARK: - Scenario
@@ -473,8 +596,11 @@ final class SyncBadgeUITests: XCTestCase {
 
         openBackupScreen()
         shot("sb06-backup-settings")
-        XCTAssertFalse(isOn(syncBadgeToggle()),
-                       "the setting must start off on an erased device")
+        if let state = syncBadgeState() {
+            XCTAssertFalse(state, "the setting must start off on an erased device")
+        } else {
+            print("SYNC BADGE: the toggle publishes no value at open — the pre-state is proven on the timeline instead")
+        }
         runBackupAndWait()
         shot("sb07-backup-complete")
 
@@ -482,25 +608,36 @@ final class SyncBadgeUITests: XCTestCase {
 
         let checks = self.checks()
         let uploads = self.uploads()
-        guard let check = checks.first, let upload = uploads.first else {
+        let checked = checkedChecksums(checks)
+        guard !checked.isEmpty, !uploads.isEmpty else {
             XCTFail("the run left no trace on the wire: \(checks.count) bulk-upload-check, \(uploads.count) upload(s) — "
                     + "a badge with no request behind it would be a lie")
             return
         }
-        XCTAssertEqual(uploads.count, 1,
-                       "one seeded photo must be uploaded exactly once — got ids \(uploads.map { $0.deviceAssetId ?? "-" })")
-        XCTAssertEqual(check.checked, 1, "the dedup check must cover the one staged photo")
-        XCTAssertEqual(upload.deviceAssetId, check.firstID,
-                       "the uploaded photo is not the one that was checked: check=\(check.firstID ?? "nil") upload=\(upload.deviceAssetId ?? "nil")")
-        XCTAssertEqual(upload.checksum, check.firstChecksum,
-                       "the checksum on the upload differs from the one the dedup check presented — the server would store a different file than it deduplicated")
-        XCTAssertEqual(upload.checksum?.count, 28,
-                       "the upload's SHA1 must be a base64 digest — got \(upload.checksum ?? "nil")")
-        XCTAssertEqual(upload.visibility, "timeline",
-                       "a backed-up photo belongs in the timeline — got \(upload.visibility ?? "nil")")
-        XCTAssertFalse((upload.filename ?? "").isEmpty,
-                       "the upload carried no file name — the multipart file part was empty")
-        print("WIRE upload: deviceAssetId=\(upload.deviceAssetId ?? "-") checksum=\(upload.checksum ?? "-") file=\(upload.filename ?? "-")")
+        // Every uploaded photo is one the server was asked about first (you
+        // cannot upload what was never deduplicated), and — since the stub
+        // accepts everything it has not stored — every asked photo came back.
+        // The counts are deliberately NOT asserted: an erased device already
+        // carries sample photos, so the run's size is not this scenario's claim.
+        let uploadedIDs = Set(uploads.compactMap(\.deviceAssetId))
+        XCTAssertEqual(uploadedIDs, Set(checked.keys),
+                       "the uploaded photos are not the checked ones: uploaded \(uploadedIDs.sorted()), checked \(checked.keys.sorted())")
+        for upload in uploads {
+            let id = upload.deviceAssetId ?? ""
+            XCTAssertTrue(id.contains("/L0/"),
+                          "the uploaded asset '\(id)' is not a Photos localIdentifier — the run did not read the library")
+            XCTAssertEqual(upload.checksum, checked[id],
+                           "the checksum on the upload of \(id) differs from the one the dedup check presented — "
+                           + "the server would store a different file than it deduplicated")
+            XCTAssertEqual(upload.checksum?.count, 28,
+                           "the upload's SHA1 must be a base64 digest — got \(upload.checksum ?? "nil") for \(id)")
+            XCTAssertEqual(upload.visibility, "timeline",
+                           "a backed-up photo belongs in the timeline — got \(upload.visibility ?? "nil") for \(id)")
+            XCTAssertFalse((upload.filename ?? "").isEmpty,
+                           "the upload of \(id) carried no file name — the multipart file part was empty")
+        }
+        print("WIRE \(uploads.count) upload(s) for \(checked.count) checked asset(s); "
+              + "first: deviceAssetId=\(uploads[0].deviceAssetId ?? "-") checksum=\(uploads[0].checksum ?? "-") file=\(uploads[0].filename ?? "-")")
 
         // Back on the timeline, WITH the fact now in the ledger and the setting
         // still off: the feature must stay mute. This is the negative control.
