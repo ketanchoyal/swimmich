@@ -728,7 +728,7 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         filename: String,
         fields: [(name: String, value: String)]
     ) throws -> (file: URL, contentType: String) {
-        let multipart = MultipartBody()
+        var multipart = MultipartBody()
         let bodyURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("immich-upload-\(UUID().uuidString).multipart")
         try multipart.writeStreamed(

@@ -24,18 +24,28 @@ public struct WidgetSession: Codable, Equatable, Sendable {
     /// and must keep decoding.
     public var trustedHosts: [String]?
 
+    /// The installation identifier the app uploads under (`DeviceIdentity`).
+    /// It travels with the session because it lives in the *app's*
+    /// `UserDefaults`, which a widget or a share extension cannot read: without
+    /// it an asset shared from the sheet would appear under a second device in
+    /// the web UI's per-device filter. Optional for the same reason as
+    /// `trustedHosts` — an older stored session must keep decoding.
+    public var deviceId: String?
+
     public init(
         baseURL: String,
         token: String,
         userName: String? = nil,
         userId: String? = nil,
-        trustedHosts: [String]? = nil
+        trustedHosts: [String]? = nil,
+        deviceId: String? = nil
     ) {
         self.baseURL = baseURL
         self.token = token
         self.userName = userName
         self.userId = userId
         self.trustedHosts = trustedHosts
+        self.deviceId = deviceId
     }
 
     public var trustedHostSet: Set<String> { Set(trustedHosts ?? []) }

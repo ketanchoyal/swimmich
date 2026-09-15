@@ -1,17 +1,23 @@
 import Foundation
 
 /// Builds multipart/form-data request bodies for asset uploads.
-struct MultipartBody {
-    let boundary: String
+///
+/// Lives in `ImmichSharedKit` because the share extension uploads from its own
+/// process and cannot see `Sources/Services`: an extension only links the kit.
+/// The app target compiles `Sources/` as one flat entry, so the type is also
+/// compiled straight into the app and `ImmichAPIClient` keeps using it without
+/// importing the framework. Public so both consumers can reach it.
+public struct MultipartBody {
+    public let boundary: String
     private let crlf = "\r\n"
     private var parts: [Data] = []
 
-    init(boundary: String = "----ImmichBoundary-\(UUID().uuidString)") {
+    public init(boundary: String = "----ImmichBoundary-\(UUID().uuidString)") {
         self.boundary = boundary
     }
 
     /// Adds a text form field.
-    mutating func append(name: String, value: String) {
+    public mutating func append(name: String, value: String) {
         var part = Data()
         part.append("--\(boundary)\(crlf)".data(using: .utf8)!)
         part.append("Content-Disposition: form-data; name=\"\(name)\"\(crlf)\(crlf)".data(using: .utf8)!)
@@ -20,10 +26,10 @@ struct MultipartBody {
     }
 
     /// Adds a binary file field.
-    mutating func append(name: String, filename: String, contentType: String, data: Data) {
+    public mutating func append(name: String, filename: String, contentType: String, data: Data) {
         var part = Data()
         part.append("--\(boundary)\(crlf)".data(using: .utf8)!)
-        part.append("Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\(crlf)".data(using: .utf8)!)
+        part.append("Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\(crlf)\(crlf)".data(using: .utf8)!)
         part.append("Content-Type: \(contentType)\(crlf)\(crlf)".data(using: .utf8)!)
         part.append(data)
         part.append(crlf.data(using: .utf8)!)
@@ -31,7 +37,7 @@ struct MultipartBody {
     }
 
     /// Finalizes the body by appending the closing boundary.
-    func encoded() -> Data {
+    public func encoded() -> Data {
         var body = Data()
         for part in parts { body.append(part) }
         body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
@@ -39,7 +45,7 @@ struct MultipartBody {
     }
 
     /// Total byte length of the finalized body (computed without mutating).
-    var totalLength: Int {
+    public var totalLength: Int {
         var len = 0
         for p in parts { len += p.count }
         let closing = "--\(boundary)--\(crlf)".data(using: .utf8)!.count
@@ -50,7 +56,11 @@ struct MultipartBody {
     /// field whose bytes are copied from `fileField.fileURL` in bounded
     /// chunks, then the text `fields`, then the closing boundary. Never holds
     /// the file in memory — the caller uploads via `URLSession.upload(fromFile:)`.
-    func writeStreamed(
+    ///
+    /// Declared `mutating` alongside `append`: a body is built and written in
+    /// place, so callers hold it in a `var`. It does not read the in-memory
+    /// `parts`.
+    public mutating func writeStreamed(
         fileField: (name: String, filename: String, contentType: String, fileURL: URL),
         fields: [(name: String, value: String)],
         to destination: URL
@@ -72,7 +82,9 @@ struct MultipartBody {
         // wrapped in an autorelease pool: FileHandle.read hands back an
         // autoreleased NSData whose backing bytes would otherwise accumulate for
         // the entire file — gigabytes for a video — until this function returns,
-        // OOM-killing the app. Draining per chunk pins peak memory at one chunk.
+        // OOM-killing the process. Draining per chunk pins peak memory at one
+        // chunk, which is what makes a video tenable inside an extension's
+        // small budget.
         let input = try FileHandle(forReadingFrom: fileField.fileURL)
         defer { try? input.close() }
         while try autoreleasepool(invoking: {
@@ -94,5 +106,5 @@ struct MultipartBody {
     }
 
     /// Content-Type header value.
-    var contentType: String { "multipart/form-data; boundary=\(boundary)" }
+    public var contentType: String { "multipart/form-data; boundary=\(boundary)" }
 }
