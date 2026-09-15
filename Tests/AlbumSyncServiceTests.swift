@@ -491,7 +491,14 @@ final class AlbumSyncServiceTests: XCTestCase {
         XCTAssertEqual(mock.addAssetsToAlbumCalls.flatMap { $0.ids }, ["srv-a1"])
         XCTAssertTrue(mock.uploads.isEmpty, "le rattrapage ne ré-upload rien")
         XCTAssertEqual(engine.albumSyncOutcome?.added, 1)
-        XCTAssertEqual(vm.albumSyncSummary.map { $0.contains("1 added") }, true)
+        // Through the catalog, not the English source: `String(localized:)`
+        // follows the process language, so a hard-coded expectation would test
+        // the simulator's language instead of the code (and an exact match is
+        // stronger than a `contains`).
+        XCTAssertEqual(
+            vm.albumSyncSummary,
+            localizedString("%lld added · %lld already there · %lld failed", 1, 0, 0)
+        )
         XCTAssertNil(vm.albumSyncError)
         XCTAssertFalse(vm.isReorganizing)
     }
