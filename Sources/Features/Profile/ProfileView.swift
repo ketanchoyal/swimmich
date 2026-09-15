@@ -20,6 +20,7 @@ struct ProfileView: View {
     @State var offline: OfflineDownloadViewModel
     @State var notifications: NotificationsViewModel
     @State var language: LanguageSettingsViewModel
+    @State var freeUpSpace: FreeUpSpaceViewModel
 
     var body: some View {
         NavigationStack {
@@ -110,6 +111,16 @@ struct ProfileView: View {
                         Label("Offline Storage", systemImage: "arrow.down.circle")
                     }
                     .accessibilityIdentifier("offlineStorageRow")
+
+                    // Last in Management on purpose: it acts on what the DEVICE
+                    // holds, like the Offline Storage row right above, and keeps
+                    // the Backup / Sync cluster (what goes up) intact.
+                    NavigationLink {
+                        FreeUpSpaceView(vm: freeUpSpace)
+                    } label: {
+                        Label("Free Up Space", systemImage: "externaldrive.badge.minus")
+                    }
+                    .accessibilityIdentifier("freeUpSpaceRow")
                 } header: {
                     Text("Management")
                 }

@@ -9,6 +9,15 @@ final class DependencyContainer {
     let client: ImmichAPIClient
     let keychain: KeychainStore
     let photos: PhotoLibraryService
+    /// The destructive half of the Photos surface (gap G1). Same object as
+    /// `photos` — see `photoLibrary`.
+    let cleanupSource: any LocalCleanupSource
+    /// The one PhotosKit service behind `photos` and `cleanupSource`. Stored
+    /// concretely because the album list Free Up Space offers is only reachable
+    /// through `BackupAssetSource`: a second `PhotoLibraryServiceImpl` would
+    /// rebuild its own iCloud-shared-album set, and the screen that offers a
+    /// deletion would disagree with the one performing it.
+    private let photoLibrary: PhotoLibraryServiceImpl
     let appLock: AppLockViewModel
     let trustedServers: TrustedServerStore
     let realtime: RealtimeService
@@ -58,7 +67,12 @@ final class DependencyContainer {
         let trustStore = TrustedServerStoreImpl()
         self.trustedServers = trustStore
         self.client = ImmichAPIClient(trustStore: trustStore)
-        self.photos = PhotoLibraryServiceImpl()
+        // One PhotosKit service for the whole app: the album list, the export
+        // path and the deletion path all have to describe the same library.
+        let photoLibrary = PhotoLibraryServiceImpl()
+        self.photoLibrary = photoLibrary
+        self.photos = photoLibrary
+        self.cleanupSource = photoLibrary
         self.appLock = AppLockViewModel()
         self.realtime = RealtimeService()
         self.backupScheduler = BGTaskBackupScheduler()
@@ -222,6 +236,19 @@ final class DependencyContainer {
     /// read.
     func makeLanguageSettingsViewModel() -> LanguageSettingsViewModel {
         LanguageSettingsViewModel(store: language)
+    }
+
+    /// Free Up Space (gap G1). The ledger passed here is the SAME instance the
+    /// backup engine writes: it is the only record of which checksums the server
+    /// was told about, and a fresh ledger would make the scan find nothing.
+    func makeFreeUpSpaceViewModel() -> FreeUpSpaceViewModel {
+        FreeUpSpaceViewModel(
+            client: client as any ImmichClient,
+            source: cleanupSource,
+            albumSource: photoLibrary,
+            ledger: backupLedger,
+            settings: CleanupSettingsStore()
+        )
     }
 
     /// AC-615: photo editor VM factory. Editor uses URLSession + ImmichAssetURL directly,
