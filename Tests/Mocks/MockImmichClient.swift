@@ -1323,7 +1323,13 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var lastDeleteLibraryId: String?
     var apiKeysResponse: [ApiKeyResponseDto]?
     var lastCreateApiKeyName: String?
+    var lastCreateApiKeyPermissions: [String]?
     var lastDeleteApiKeyId: String?
+    /// `GET /api/api-keys/me` — the singular key that carries the request.
+    var myAPIKeyResponse: ApiKeyResponseDto?
+    var apiKeyCreateResponse: ApiKeyCreateResponseDto?
+    var apiKeyRotateResponse: ApiKeyCreateResponseDto?
+    var lastRotateApiKeyId: String?
     var adminError: Error?
 
     func getAdminUsers() async throws -> [UserAdminResponseDto] {
@@ -1403,13 +1409,30 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return apiKeysResponse ?? []
     }
 
-    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto {
+    func createAPIKey(name: String, permissions: [String]) async throws -> ApiKeyCreateResponseDto {
         bump()
         lastCreateApiKeyName = name
+        lastCreateApiKeyPermissions = permissions
         if let e = globalError ?? adminError { throw e }
-        return ApiKeyCreateResponseDto(
+        return apiKeyCreateResponse ?? ApiKeyCreateResponseDto(
             secret: "secret",
             apiKey: ApiKeyResponseDto(id: "key-new", name: name)
+        )
+    }
+
+    func getMyAPIKey() async throws -> ApiKeyResponseDto {
+        bump()
+        if let e = globalError ?? adminError { throw e }
+        return myAPIKeyResponse ?? ApiKeyResponseDto(id: "key-me", name: "session")
+    }
+
+    func rotateAPIKey(id: String) async throws -> ApiKeyCreateResponseDto {
+        bump()
+        lastRotateApiKeyId = id
+        if let e = globalError ?? adminError { throw e }
+        return apiKeyRotateResponse ?? ApiKeyCreateResponseDto(
+            secret: "rotated",
+            apiKey: ApiKeyResponseDto(id: id, name: "rotated")
         )
     }
 

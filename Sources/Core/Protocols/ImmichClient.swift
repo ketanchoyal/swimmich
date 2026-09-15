@@ -294,8 +294,19 @@ protocol ImmichClient: AnyObject, Sendable {
     func getLibraries() async throws -> [LibraryResponseDto]
     func scanLibrary(id: String) async throws
     func deleteLibrary(id: String) async throws
+    /// `GET /api/api-keys` — the keys of the current user (`apiKey.read`, not an
+    /// admin permission: the bearer of the token owns them).
     func getAPIKeys() async throws -> [ApiKeyResponseDto]
-    func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto
+    /// `GET /api/api-keys/me` — the key that carries this very request, in the
+    /// singular. Never the list, and a session-authenticated caller may have no
+    /// such key at all.
+    func getMyAPIKey() async throws -> ApiKeyResponseDto
+    /// `POST /api/api-keys` — `permissions` is the full scope list (`["all"]`
+    /// for a wildcard key). The answer carries the secret, readable once.
+    func createAPIKey(name: String, permissions: [String]) async throws -> ApiKeyCreateResponseDto
+    /// `POST /api/api-keys/{id}/rotate` — **POST**, not PUT: the route exposes no
+    /// other verb. Answers the same body as a creation: the new secret.
+    func rotateAPIKey(id: String) async throws -> ApiKeyCreateResponseDto
     func deleteAPIKey(id: String) async throws
 
     // MARK: - Sessions (gap G19)

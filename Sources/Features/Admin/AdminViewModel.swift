@@ -1,8 +1,10 @@
 import Foundation
 
-/// Admin panel state (gap #12): users, jobs, libraries, API keys. Admin-gated
-/// at the view level via `auth.isAdmin`; the VM is plain CRUD over the admin
-/// endpoints.
+/// Admin panel state (gap #12): users, jobs, libraries. Admin-gated at the view
+/// level via `auth.isAdmin`; the VM is plain CRUD over the admin endpoints.
+///
+/// It no longer carries API keys: the token's own keys are not an admin object
+/// (`UserApiKeysViewModel`, gap G20), and one state cannot have two owners.
 @Observable
 @MainActor
 final class AdminViewModel {
@@ -11,13 +13,9 @@ final class AdminViewModel {
     var users: [UserAdminResponseDto] = []
     var jobs: [String: QueueResponseLegacyDto] = [:]
     var libraries: [LibraryResponseDto] = []
-    var apiKeys: [ApiKeyResponseDto] = []
 
     var isLoading = false
     var errorMessage: String?
-
-    /// One-shot secret from the last API-key creation (shown once).
-    var lastAPIKeySecret: String?
 
     init(client: any ImmichClient) {
         self.client = client
@@ -34,12 +32,10 @@ final class AdminViewModel {
             async let u = client.getAdminUsers()
             async let j = client.getJobsStatus()
             async let l = client.getLibraries()
-            async let k = client.getAPIKeys()
-            let (users, jobs, libraries, keys) = try await (u, j, l, k)
+            let (users, jobs, libraries) = try await (u, j, l)
             self.users = users
             self.jobs = jobs
             self.libraries = libraries
-            self.apiKeys = keys
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -113,29 +109,6 @@ final class AdminViewModel {
     func deleteLibrary(_ library: LibraryResponseDto) async {
         do {
             try await client.deleteLibrary(id: library.id)
-            errorMessage = nil
-            await load(force: true)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    // MARK: - API keys
-
-    func createAPIKey(name: String) async {
-        do {
-            let resp = try await client.createAPIKey(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
-            lastAPIKeySecret = resp.secret
-            errorMessage = nil
-            await load(force: true)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func deleteAPIKey(_ key: ApiKeyResponseDto) async {
-        do {
-            try await client.deleteAPIKey(id: key.id)
             errorMessage = nil
             await load(force: true)
         } catch {

@@ -40,6 +40,9 @@ struct ProfileView: View {
     /// Change-password screen (gap G18). Built by the composition root: the
     /// screen is pushed, so the row and the form must show one instance.
     @State var changePassword: ChangePasswordViewModel
+    /// User API keys (gap G20). A `@State`, like the hub's other ViewModels: the
+    /// sheet's lifetime is its owner's.
+    @State var apiKeys: UserApiKeysViewModel
 
     var body: some View {
         NavigationStack {
@@ -195,6 +198,17 @@ struct ProfileView: View {
                         Label("Free Up Space", systemImage: "externaldrive.badge.minus")
                     }
                     .accessibilityIdentifier("freeUpSpaceRow")
+
+                    // Last in Management, and deliberately OUTSIDE the admin-only
+                    // section below: the list endpoint is scoped to the bearer of
+                    // the token, so every account manages its own keys here
+                    // (gap G20).
+                    NavigationLink {
+                        UserApiKeysView(vm: apiKeys)
+                    } label: {
+                        Label("API Keys", systemImage: "key.horizontal")
+                    }
+                    .accessibilityIdentifier("apiKeysRow")
                 } header: {
                     Text("Management")
                 }
