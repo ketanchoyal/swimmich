@@ -102,4 +102,62 @@ final class AssetDetailViewModelTests: XCTestCase {
         XCTAssertEqual(vm.errorMessage, "Server error 500: boom")
         XCTAssertNil(vm.detail)
     }
+
+    // MARK: - Star ratings (star-ratings, AC-5062/AC-5063)
+
+    @MainActor
+    private func makeRatingAsset() -> AssetReactItem {
+        AssetReactItem(
+            id: "asset-1", ownerId: "owner", ratio: 1.0,
+            isFavorite: false, visibility: "timeline", isTrashed: false,
+            isImage: true, thumbhash: nil, createdAt: "2024-07-01T00:00:00.000Z",
+            fileCreatedAt: "2024-07-01T00:00:00.000Z", localOffsetHours: 0,
+            duration: nil, livePhotoVideoId: nil, projectionType: nil,
+            city: nil, country: nil, latitude: nil, longitude: nil, stack: []
+        )
+    }
+
+    @MainActor
+    func test_setRating_sendsValueAndAdoptsServerResponse() async {
+        let mock = MockImmichClient()
+        let vm = AssetDetailViewModel(asset: makeRatingAsset(), client: mock)
+
+        await vm.setRating(3)
+
+        XCTAssertEqual(mock.ratingUpdates.map(\.rating), [3])
+        XCTAssertEqual(mock.ratingUpdates.first?.id, "asset-1")
+        XCTAssertEqual(vm.rating, 3)
+        XCTAssertEqual(vm.detail?.exifInfo?.rating, 3, "the PATCH response is the new local truth")
+        XCTAssertEqual(vm.lastRatingSent, 3)
+        XCTAssertEqual(vm.lastRatingAssetId, "asset-1")
+        XCTAssertNil(vm.errorMessage)
+    }
+
+    @MainActor
+    func test_setRating_nilSendsUnratedAndClearsLocally() async {
+        let mock = MockImmichClient()
+        let vm = AssetDetailViewModel(asset: makeRatingAsset(), client: mock)
+
+        await vm.setRating(3)
+        await vm.setRating(nil)
+
+        XCTAssertEqual(mock.ratingUpdates.map(\.rating), [3, nil])
+        XCTAssertNil(vm.rating)
+        XCTAssertNil(vm.detail?.exifInfo?.rating)
+    }
+
+    @MainActor
+    func test_setRating_revertsOnFailure() async {
+        let mock = MockImmichClient()
+        let vm = AssetDetailViewModel(asset: makeRatingAsset(), client: mock)
+
+        await vm.setRating(3) // succeeds: the server now holds 3
+        mock.ratingUpdateResults = [.failure(APIError.serverError(500, "boom"))]
+        await vm.setRating(1) // fails: the bar must not keep the unconfirmed 1
+
+        XCTAssertEqual(mock.ratingUpdates.map(\.rating), [3, 1])
+        XCTAssertEqual(vm.rating, 3)
+        XCTAssertNotNil(vm.errorMessage)
+        XCTAssertFalse(vm.isSavingRating)
+    }
 }

@@ -15,6 +15,16 @@ struct MetadataSearchDto: Codable, Equatable {
     var country: String?
     var type: String?
     var isFavorite: Bool?
+    /// Filter by rating `1...5` (the server's scale — `0` is invalid since v3).
+    ///
+    /// The flat field is `x-immich-state: Deprecated` since v3.2.0, **but so are
+    /// the 33 other flat fields of this schema** (`isFavorite`, `city`, `make`,
+    /// `model`, `visibility`, …), i.e. every filter this screen already sends.
+    /// The replacement is `filter: SearchFilter` (whose `rating` is a
+    /// `NumberFilterNullable`) and the migration is cross-cutting — switching
+    /// `rating` alone would put two conventions in one request body and break
+    /// servers older than v3.2.0. Keep it flat until that migration happens.
+    var rating: Int?
     var personIds: [String]?
     var albumIds: [String]? // AC-519 — enables album asset fetch (FM-2 mitigation)
     var order: String?

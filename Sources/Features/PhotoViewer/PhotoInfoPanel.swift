@@ -100,6 +100,9 @@ struct PhotoInfoPanel: View {
     private var content: some View {
         if let detail = vm?.detail, let exif = detail.exifInfo {
             ScrollView {
+                ratingCard
+                    .padding(.horizontal, PVSpacing.s16)
+                    .padding(.top, PVSpacing.s8)
                 facesCard(faces: vm?.faces ?? [])
                     .padding(.horizontal, PVSpacing.s16)
                     .padding(.top, PVSpacing.s8)
@@ -129,6 +132,42 @@ struct PhotoInfoPanel: View {
         } else {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Rating card (star-ratings): the panel's first card, because five 44 pt
+    /// targets take 220 pt of width and must clear the sheet's short detent.
+    /// The rating is rendered here and nowhere else — hence the removal of the
+    /// EXIF "star.fill" row, which showed a bare number (and nothing at all
+    /// when unrated). Hidden without a ViewModel, like the other action cards.
+    @ViewBuilder
+    private var ratingCard: some View {
+        if let vm {
+            InfoCard {
+                VStack(alignment: .leading, spacing: PVSpacing.s8) {
+                    Label("Rating", systemImage: "star.fill")
+                        .font(.pvCaption.weight(.semibold))
+                        .foregroundStyle(Color.textSecondaryPV)
+                    PVRatingBar(rating: vm.rating,
+                                isEnabled: !vm.isSavingRating,
+                                onRate: { value in Task { await vm.setRating(value) } },
+                                onClear: { Task { await vm.setRating(nil) } })
+                    if vm.rating != nil {
+                        Button {
+                            Task { await vm.setRating(nil) }
+                        } label: {
+                            Label("Clear rating", systemImage: "star.slash")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(PVSubtleButtonStyle())
+                        .accessibilityIdentifier("assetRatingClearButton")
+                    }
+                    if let error = vm.errorMessage {
+                        InlineErrorBadge(message: error)
+                    }
+                }
+                .padding(PVSpacing.s16)
+            }
         }
     }
 
@@ -302,7 +341,6 @@ struct ExifInfoPanel: View {
             ("internaldrive.fill", exif.fileSizeFormatted),
             ("aspectratio", exif.orientation),
             ("viewfinder", exif.projectionType),
-            ("star.fill", exif.rating.map { String($0) }),
         ].compactMap { symbol, value in value.map { (symbol, $0) } }
     }
 

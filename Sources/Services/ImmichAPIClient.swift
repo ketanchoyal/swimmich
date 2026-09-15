@@ -151,6 +151,13 @@ final class ImmichAPIClient: ImmichClient, @unchecked Sendable {
         try await sendAuthed(.PATCH, path: ImmichAPI.assets.path("/\(id)"), body: AnyEncodable(dto))
     }
 
+    /// Same verb/path as `updateAsset`, but with a body whose `rating` key is
+    /// always present — `null` clears the rating, which `UpdateAssetDto`
+    /// (synthesized encoder, `Int?` nil omitted) cannot express.
+    func setAssetRating(id: String, rating: Int?) async throws -> AssetResponseDto {
+        try await sendAuthed(.PATCH, path: ImmichAPI.assets.path("/\(id)"), body: AnyEncodable(RatingUpdateDto(rating: rating)))
+    }
+
     func deleteAssets(ids: [String], force: Bool?) async throws {
         let body = AnyEncodable(AssetBulkDeleteDto(ids: ids, force: force))
         _ = try await sendAuthedRaw(.DELETE, path: ImmichAPI.assets.path(""), body: body)

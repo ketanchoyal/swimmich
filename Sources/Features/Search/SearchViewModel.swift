@@ -79,6 +79,11 @@ final class SearchViewModel {
     /// When non-nil, metadata `search()` ignores free-text `query` and filters
     /// by this field instead. Public for `recordRecentSearch` / view wiring.
     var pendingExploreFilter: (ExploreField, String)? = nil
+
+    /// Star-rating filter (star-ratings) — `nil` = no rating constraint.
+    /// Sticky by design: it survives text edits and Explore drill-downs; only
+    /// "Any rating" in the filter menu and `clearSearch()` clear it.
+    var ratingFilter: Int?
     /// Convenience: the city value when the active filter is a city (legacy
     /// accessor + tests). Nil for non-city filters or when no filter is set.
     var selectedCity: String? {
@@ -232,10 +237,25 @@ final class SearchViewModel {
     /// Clears results back to the idle state (empty query path).
     func clearSearch() {
         query = ""
+        ratingFilter = nil
         searchTask?.cancel()
         searchGeneration += 1
         resetToIdle()
         lastQueried = ""
+    }
+
+    /// Sets (or clears) the star-rating filter and re-runs the search.
+    ///
+    /// Metadata mode is forced when a value is set: `SmartSearchDto` carries no
+    /// filter field, so a rating filter under Smart search would be dropped
+    /// silently. Values outside the server's `1...5` scale (including `0`, which
+    /// is invalid since v3) mean "no filter" rather than a request the server
+    /// would reject.
+    func setRatingFilter(_ value: Int?) async {
+        let valid = value.flatMap { (1...5).contains($0) ? $0 : nil }
+        ratingFilter = valid
+        if valid != nil { searchMode = .metadata }
+        await search()
     }
 
     /// Recent-search chip tap: write the term into the field, then search
@@ -320,6 +340,7 @@ final class SearchViewModel {
                 dto.query = nil
                 field.apply(value, to: &dto)
             }
+            dto.rating = ratingFilter
             return try await client.searchMetadata(dto: dto)
         case .smart:
             let dto = SmartSearchDto(query: query, page: page)

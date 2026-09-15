@@ -391,6 +391,25 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return base
     }
 
+    /// Star-rating writes (star-ratings): every `(id, rating)` call in order,
+    /// plus per-call canned answers when a test needs a specific response.
+    var ratingUpdates: [(id: String, rating: Int?)] = []
+    var ratingUpdateResults: [Result<AssetResponseDto, Error>] = []
+
+    func setAssetRating(id: String, rating: Int?) async throws -> AssetResponseDto {
+        bump()
+        ratingUpdates.append((id: id, rating: rating))
+        if !ratingUpdateResults.isEmpty {
+            return try ratingUpdateResults.removeFirst().get()
+        }
+        if let e = globalError { throw e }
+        // Echo the rating back the way the server would: the PATCH response is
+        // the updated asset, so `exifInfo.rating` follows without a re-fetch.
+        var base = try await getAsset(id: id)
+        base.exifInfo = ExifResponseDto(rating: rating)
+        return base
+    }
+
     func deleteAssets(ids: [String], force: Bool?) async throws {
         bump()
         lastDeleteBody = AssetBulkDeleteDto(ids: ids, force: force)
