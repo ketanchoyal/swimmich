@@ -33,10 +33,13 @@ final class SlideshowViewModel {
 
         var id: String { rawValue }
 
+        /// English catalog key, like every other user-facing string in the app
+        /// (the catalog extracts it at build time); the Preferences picker and
+        /// the slideshow's own menu show the same label.
         var label: String {
             switch self {
-            case .dissolve: return "Fondu"
-            case .slide: return "Glissement"
+            case .dissolve: return "Dissolve"
+            case .slide: return "Slide"
             case .kenBurns: return "Ken Burns"
             }
         }
@@ -46,8 +49,41 @@ final class SlideshowViewModel {
 
     private(set) var currentIndex: Int
     private(set) var isPlaying = false
-    var speed: SlideshowSpeed = .threeSeconds
-    var transition: SlideshowTransitionStyle = .dissolve
+
+    /// Preferences seam (gap G22). Speed, look and order are seeded from it at
+    /// init, and the two setters below write back — so the slideshow's own
+    /// menus and the Preferences screen modify the same value, which is exactly
+    /// what two independent `@AppStorage` declarations would not do.
+    private let appSettings: AppSettingsStore
+
+    private var storedSpeed: SlideshowSpeed
+    private var storedTransition: SlideshowTransitionStyle
+
+    var speed: SlideshowSpeed {
+        get { storedSpeed }
+        set {
+            guard newValue != storedSpeed else { return }
+            storedSpeed = newValue
+            appSettings.slideshowSpeed = newValue.rawValue
+        }
+    }
+
+    var transition: SlideshowTransitionStyle {
+        get { storedTransition }
+        set {
+            guard newValue != storedTransition else { return }
+            storedTransition = newValue
+            appSettings.slideshowLook = newValue.rawValue
+        }
+    }
+
+    /// Whether the show wraps at the last slide. Today's ticker wraps
+    /// unconditionally, so the additive default is ON (`advance()` stops only
+    /// when this is off).
+    var repeats: Bool {
+        get { appSettings.slideshowRepeat }
+        set { appSettings.slideshowRepeat = newValue }
+    }
     /// True while the current slide is a video/Live-Photo being played inline —
     /// the ticker must not advance during playback.
     private(set) var isVideoActive = false
@@ -67,10 +103,24 @@ final class SlideshowViewModel {
 
     // MARK: - Init
 
-    init(assets: [AssetReactItem], startIndex: Int = 0) {
+    init(assets: [AssetReactItem], startIndex: Int = 0, appSettings: AppSettingsStore = .shared) {
         self.assets = assets
-        self.order = Array(assets.indices)
-        self.currentIndex = assets.isEmpty ? 0 : min(max(startIndex, 0), assets.count - 1)
+        self.appSettings = appSettings
+        // Unreadable stored values fall back to the case the slideshow would
+        // have used before the setting existed.
+        self.storedSpeed = SlideshowSpeed(rawValue: appSettings.slideshowSpeed) ?? .threeSeconds
+        self.storedTransition = SlideshowTransitionStyle(rawValue: appSettings.slideshowLook) ?? .dissolve
+
+        // "Reverse Order": the show runs backwards. The order is reversed, not
+        // the step direction, so the slide on screen when the viewer starts the
+        // show is still the one that opens it (its position is looked up in the
+        // reversed order instead of assumed to be `startIndex`).
+        var initialOrder = Array(assets.indices)
+        if appSettings.slideshowReverse { initialOrder.reverse() }
+        self.order = initialOrder
+
+        let wanted = assets.isEmpty ? 0 : min(max(startIndex, 0), assets.count - 1)
+        self.currentIndex = initialOrder.firstIndex(of: wanted) ?? wanted
     }
 
     // MARK: - Transport
@@ -81,11 +131,22 @@ final class SlideshowViewModel {
 
     func togglePlayPause() { isPlaying.toggle() }
 
-    /// Advances one slide, wrapping at the end. No-op while paused or while a
-    /// video is playing on the current slide (ticker gating, belt and braces).
+    /// Advances one slide. No-op while paused or while a video is playing on
+    /// the current slide (ticker gating, belt and braces). At the last slide it
+    /// wraps when "Repeat" is on — today's behavior, and the default — and
+    /// otherwise stops the show, which is what the ticker's `isPlaying` guard
+    /// then sees.
     func advance() {
         guard isPlaying, !isVideoActive, !assets.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % assets.count
+        guard currentIndex + 1 < assets.count else {
+            guard repeats else {
+                stop()
+                return
+            }
+            currentIndex = 0
+            return
+        }
+        currentIndex += 1
     }
 
     /// Manual next — allowed even while paused.

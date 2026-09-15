@@ -67,9 +67,48 @@ struct VideoPlayerView: View {
     /// Broadcasts every playback status change — the slideshow advances on
     /// `.ended` and skips on `.failed`.
     var onStatusChange: ((VideoPlaybackStatus) -> Void)? = nil
+    /// Overrides the "Loop" preference for this page. The slideshow passes
+    /// `false`: a looping video never reports `.ended`, and its ticker waits on
+    /// exactly that to move to the next slide.
+    var loopsVideo: Bool? = nil
 
-    @State private var vm = VideoPlaybackViewModel()
+    @State private var vm: VideoPlaybackViewModel
     @State private var playerLayer: AVPlayerLayer?
+
+    /// Explicit init because the view model is seeded from the store, and the
+    /// environment is not readable from a property initializer. Every parameter
+    /// keeps its default, so no call site changes; the store defaults to the
+    /// process-wide instance the root injects (same pattern as `PhotoViewer`'s
+    /// `client` / `downloads`).
+    init(
+        asset: AssetReactItem,
+        baseURL: URL,
+        token: String?,
+        assetID: String? = nil,
+        localFileURL: URL? = nil,
+        controlsVisible: Bool = true,
+        videoGravity: AVLayerVideoGravity = .resizeAspect,
+        onSingleTap: @escaping () -> Void = {},
+        onPlaybackEnded: (() -> Void)? = nil,
+        isPaused: Bool = false,
+        onStatusChange: ((VideoPlaybackStatus) -> Void)? = nil,
+        loopsVideo: Bool? = nil,
+        appSettings: AppSettingsStore = .shared
+    ) {
+        self.asset = asset
+        self.baseURL = baseURL
+        self.token = token
+        self.assetID = assetID
+        self.localFileURL = localFileURL
+        self.controlsVisible = controlsVisible
+        self.videoGravity = videoGravity
+        self.onSingleTap = onSingleTap
+        self.onPlaybackEnded = onPlaybackEnded
+        self.isPaused = isPaused
+        self.onStatusChange = onStatusChange
+        self.loopsVideo = loopsVideo
+        _vm = State(initialValue: VideoPlaybackViewModel(appSettings: appSettings, loopsVideo: loopsVideo))
+    }
 
     var body: some View {
         ZStack {

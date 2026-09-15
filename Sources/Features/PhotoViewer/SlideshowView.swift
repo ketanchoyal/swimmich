@@ -74,7 +74,10 @@ struct SlideshowView: View {
                 controlsVisible: false,
                 onSingleTap: toggleControls,
                 isPaused: !vm.isPlaying,
-                onStatusChange: handleStatusChange
+                onStatusChange: handleStatusChange,
+                // A slide must end: the "Loop" preference is a viewer setting,
+                // and obeying it here would leave the show parked on the video.
+                loopsVideo: false
             )
         } else if let pairID = asset.livePhotoVideoId, !pairID.isEmpty {
             VideoPlayerView(
@@ -86,7 +89,8 @@ struct SlideshowView: View {
                 controlsVisible: false,
                 onSingleTap: toggleControls,
                 isPaused: !vm.isPlaying,
-                onStatusChange: handleStatusChange
+                onStatusChange: handleStatusChange,
+                loopsVideo: false
             )
         } else if vm.transition == .kenBurns {
             KenBurnsImageView(
@@ -118,7 +122,9 @@ struct SlideshowView: View {
 
     // MARK: - Ticker (view-owned)
 
-    private var tickerKey: String { "\(vm.speed.rawValue)-\(vm.isPlaying)-\(vm.isVideoActive)" }
+    /// `repeats` is part of the key so flipping "Repeat" while the show sits on
+    /// its last slide re-arms the loop instead of leaving it stopped.
+    private var tickerKey: String { "\(vm.speed.rawValue)-\(vm.isPlaying)-\(vm.isVideoActive)-\(vm.repeats)" }
 
     private func runTicker() async {
         guard vm.isPlaying, !vm.isVideoActive else { return }
@@ -273,7 +279,7 @@ struct SlideshowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(vm.isPlaying ? "Pause" : "Play")
-        .sensoryFeedback(.selection, trigger: vm.isPlaying)
+        .appSensoryFeedback(.selection, trigger: vm.isPlaying)
     }
 
     private var speedMenu: some View {

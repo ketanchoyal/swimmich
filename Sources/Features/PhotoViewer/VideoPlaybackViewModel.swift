@@ -15,8 +15,28 @@ final class VideoPlaybackViewModel {
 
     let engine: any VideoPlaybackEngine
 
-    init(engine: any VideoPlaybackEngine = AVVideoPlaybackEngine()) {
+    /// Preferences seam (gap G22). Read **at `prepare`**, never captured at
+    /// init: the switches describe the next playback, and a movie already
+    /// playing is not cut short because the user flipped one mid-stream.
+    private let appSettings: AppSettingsStore
+
+    /// Per-page override of the "Loop" preference. The slideshow passes `false`:
+    /// a looping video never reaches `.ended`, and the slideshow's ticker waits
+    /// on exactly that to move to the next slide.
+    private let loopsVideo: Bool?
+
+    /// The playback shape, snapshotted by `prepare` (see `appSettings`).
+    private var autoPlayWhenReady = true
+    private var loopWhenEnded = false
+
+    init(
+        engine: any VideoPlaybackEngine = AVVideoPlaybackEngine(),
+        appSettings: AppSettingsStore = .shared,
+        loopsVideo: Bool? = nil
+    ) {
         self.engine = engine
+        self.appSettings = appSettings
+        self.loopsVideo = loopsVideo
         // Hooks stay synchronous: the concrete engine fires them on the main
         // queue (time observer + end notification), and the mock fires them
         // synchronously in tests — no async hop needed.
@@ -27,12 +47,19 @@ final class VideoPlaybackViewModel {
             guard let self else { return }
             self.duration = seconds
             self.status = .ready
-            self.play()
+            if self.autoPlayWhenReady { self.play() }
         }
         engine.onEnded = { [weak self] in
             guard let self else { return }
             self.currentTime = self.duration
-            self.status = .ended
+            if self.loopWhenEnded {
+                // Straight back to the top, still `.playing`: the transport
+                // never parks on the last frame, so no `.ended` is reported.
+                self.seek(to: 0)
+                self.play()
+            } else {
+                self.status = .ended
+            }
         }
         engine.onFailure = { [weak self] message in
             self?.status = .failed(message)
@@ -57,7 +84,12 @@ final class VideoPlaybackViewModel {
             await prepare(url: localFileURL, assetID: assetID, token: nil)
             return
         }
-        let url = ImmichAssetURL.videoPlayback(assetId: assetID, baseURL: baseURL)
+        // "Stream Original" (gap G22): the original file instead of the
+        // server's transcode of it. The offline copy above wins over both — a
+        // downloaded file is not streamed at all.
+        let url = appSettings.loadOriginalVideo
+            ? ImmichAssetURL.original(assetId: assetID, baseURL: baseURL)
+            : ImmichAssetURL.videoPlayback(assetId: assetID, baseURL: baseURL)
         await prepare(url: url, assetID: assetID, token: token)
     }
 
@@ -75,6 +107,11 @@ final class VideoPlaybackViewModel {
     /// Re-entrant safe core — tests call this directly with a crafted URL.
     func prepare(url: URL, assetID: String, token: String?) async {
         guard status != .preparing else { return }
+        // The two shape switches are read HERE, once per preparation: the page
+        // plays the way the settings said when it was prepared, whatever the
+        // user does to the switches afterwards.
+        autoPlayWhenReady = appSettings.autoPlayVideo
+        loopWhenEnded = loopsVideo ?? appSettings.loopVideo
         status = .preparing
         preparedAssetID = assetID
         currentTime = 0

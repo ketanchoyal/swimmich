@@ -65,9 +65,9 @@ struct PhotoEditorView: View {
             .navigationTitle("Edit")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .sensoryFeedback(.selection, trigger: aspectTick)
-        .sensoryFeedback(.impact, trigger: rotateTick)
-        .sensoryFeedback(.impact(weight: .light), trigger: revertTick)
+        .appSensoryFeedback(.selection, trigger: aspectTick)
+        .appSensoryFeedback(.impact, trigger: rotateTick)
+        .appSensoryFeedback(.impact(weight: .light), trigger: revertTick)
         .task {
             // AC-616: load on appear.
             if let baseURL = auth.baseURL {

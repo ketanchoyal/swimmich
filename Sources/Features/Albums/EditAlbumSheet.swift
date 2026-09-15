@@ -65,6 +65,6 @@ struct EditAlbumSheet: View {
                 }
             }
         }
-        .sensoryFeedback(.success, trigger: saveTick)
+        .appSensoryFeedback(.success, trigger: saveTick)
     }
 }

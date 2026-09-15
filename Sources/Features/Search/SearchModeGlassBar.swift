@@ -56,7 +56,7 @@ struct SearchModeGlassBar: View {
             .glassEffect(.regular, in: Capsule())
             .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
         }
-        .sensoryFeedback(.selection, trigger: modeChangeTick)
+        .appSensoryFeedback(.selection, trigger: modeChangeTick)
         .onChange(of: mode) { _, _ in
             modeChangeTick += 1
         }

@@ -6,6 +6,32 @@ import XCTest
 @MainActor
 final class SlideshowViewModelTests: XCTestCase {
 
+    private var suiteName: String!
+    private var defaults: UserDefaults!
+    private var settings: AppSettingsStore!
+
+    /// Every case gets its own defaults suite. The view model now reads its
+    /// speed, look, order and repeat flag from the store and writes speed/look
+    /// back, so a shared suite would leak one case's speed into the next — and
+    /// `UserDefaults.standard` would leak one *run* into the next.
+    override func setUp() {
+        super.setUp()
+        suiteName = "SlideshowViewModelTests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+        settings = AppSettingsStore(defaults: defaults)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        settings = nil
+        super.tearDown()
+    }
+
+    private func makeViewModel(_ assets: [AssetReactItem], startIndex: Int = 0) -> SlideshowViewModel {
+        SlideshowViewModel(assets: assets, startIndex: startIndex, appSettings: settings)
+    }
+
     private func makeAsset(id: String, video: Bool = false, livePhoto: Bool = false) -> AssetReactItem {
         AssetReactItem(
             id: id, ownerId: "owner", ratio: 1.0, isFavorite: false, visibility: "timeline",
@@ -20,31 +46,31 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_init_clampsStartIndex() {
         let assets = [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 7)
+        let vm = makeViewModel(assets, startIndex: 7)
         XCTAssertEqual(vm.currentIndex, 2)
         XCTAssertEqual(vm.currentAsset?.id, "c")
 
-        let empty = SlideshowViewModel(assets: [], startIndex: 0)
+        let empty = makeViewModel([], startIndex: 0)
         XCTAssertEqual(empty.currentIndex, 0)
         XCTAssertNil(empty.currentAsset)
     }
 
     func test_init_defaultNotPlaying_threeSeconds() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a")])
+        let vm = makeViewModel([makeAsset(id: "a")])
         XCTAssertFalse(vm.isPlaying)
         XCTAssertEqual(vm.speed, .threeSeconds)
         XCTAssertEqual(vm.speed.rawValue, 3)
     }
 
     func test_init_identityOrder() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
         XCTAssertEqual(vm.order, [0, 1, 2])
     }
 
     // MARK: - Advance / wrap
 
     func test_advance_wrapsAround() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
         vm.start()
         vm.advance()
         XCTAssertEqual(vm.currentIndex, 1)
@@ -57,7 +83,7 @@ final class SlideshowViewModelTests: XCTestCase {
     }
 
     func test_advance_noop_whilePaused() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b")], startIndex: 1)
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b")], startIndex: 1)
         vm.advance()
         XCTAssertEqual(vm.currentIndex, 1)
         vm.togglePlayPause()
@@ -67,7 +93,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_advance_noop_whileVideoActive() {
         let assets = [makeAsset(id: "photo"), makeAsset(id: "clip", video: true)]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 1)
+        let vm = makeViewModel(assets, startIndex: 1)
         vm.start()
         vm.slideChanged()
         XCTAssertTrue(vm.isVideoActive)
@@ -79,7 +105,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_videoEnded_advancesImmediately() {
         let assets = [makeAsset(id: "photo"), makeAsset(id: "clip", video: true)]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 1)
+        let vm = makeViewModel(assets, startIndex: 1)
         vm.start()
         vm.slideChanged()
         XCTAssertTrue(vm.isVideoActive)
@@ -90,7 +116,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_videoEnded_noopWhenPaused() {
         let assets = [makeAsset(id: "photo"), makeAsset(id: "clip", video: true)]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 1)
+        let vm = makeViewModel(assets, startIndex: 1)
         vm.slideChanged()
         XCTAssertTrue(vm.isVideoActive)
         vm.videoEnded()
@@ -100,7 +126,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_videoEnded_idempotent() {
         let assets = [makeAsset(id: "photo"), makeAsset(id: "clip", video: true)]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 1)
+        let vm = makeViewModel(assets, startIndex: 1)
         vm.start()
         vm.slideChanged()
         vm.videoEnded()
@@ -109,7 +135,7 @@ final class SlideshowViewModelTests: XCTestCase {
     }
 
     func test_videoEnded_noopOnStillSlide() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b")], startIndex: 0)
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b")], startIndex: 0)
         vm.start()
         vm.videoEnded()
         XCTAssertEqual(vm.currentIndex, 0)
@@ -117,7 +143,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_slideChanged_clearsVideoActiveOnStill() {
         let assets = [makeAsset(id: "clip", video: true), makeAsset(id: "photo")]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 0)
+        let vm = makeViewModel(assets, startIndex: 0)
         vm.start()
         vm.slideChanged()
         XCTAssertTrue(vm.isVideoActive)
@@ -137,7 +163,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_slideChanged_armsLivePhoto() {
         let assets = [makeAsset(id: "l", livePhoto: true), makeAsset(id: "p")]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 0)
+        let vm = makeViewModel(assets, startIndex: 0)
         vm.start()
         vm.slideChanged()
         XCTAssertTrue(vm.isVideoActive)
@@ -146,7 +172,7 @@ final class SlideshowViewModelTests: XCTestCase {
     // MARK: - Manual navigation (allowed while paused)
 
     func test_next_previous_wrapWhilePaused() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")])
         vm.previous()
         XCTAssertEqual(vm.currentIndex, 2)
         vm.next()
@@ -154,7 +180,7 @@ final class SlideshowViewModelTests: XCTestCase {
     }
 
     func test_singleAsset_neverLeavesZero() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "only")])
+        let vm = makeViewModel([makeAsset(id: "only")])
         vm.start()
         vm.advance()
         XCTAssertEqual(vm.currentIndex, 0)
@@ -167,7 +193,7 @@ final class SlideshowViewModelTests: XCTestCase {
     // MARK: - Transport + speed + transition
 
     func test_startStopToggle() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a")])
+        let vm = makeViewModel([makeAsset(id: "a")])
         vm.start()
         XCTAssertTrue(vm.isPlaying)
         vm.stop()
@@ -179,7 +205,7 @@ final class SlideshowViewModelTests: XCTestCase {
     }
 
     func test_speedChange() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a")])
+        let vm = makeViewModel([makeAsset(id: "a")])
         XCTAssertEqual(vm.speed, .threeSeconds)
         vm.speed = .tenSeconds
         XCTAssertEqual(vm.speed, .tenSeconds)
@@ -187,12 +213,12 @@ final class SlideshowViewModelTests: XCTestCase {
     }
 
     func test_transition_defaultDissolve() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a")])
+        let vm = makeViewModel([makeAsset(id: "a")])
         XCTAssertEqual(vm.transition, .dissolve)
     }
 
     func test_goTo_clamps() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "a"), makeAsset(id: "b")])
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b")])
         vm.goTo(index: 5)
         XCTAssertEqual(vm.currentIndex, 1)
     }
@@ -201,7 +227,7 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_shuffle_coversAllIndices() {
         let assets = (0..<10).map { makeAsset(id: "\($0)") }
-        let vm = SlideshowViewModel(assets: assets)
+        let vm = makeViewModel(assets)
         vm.shuffle()
         XCTAssertEqual(Set(vm.order), Set(0..<10))
         XCTAssertEqual(vm.count, 10)
@@ -209,16 +235,65 @@ final class SlideshowViewModelTests: XCTestCase {
 
     func test_shuffle_preservesCurrentAsset() {
         let assets = [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c"), makeAsset(id: "d")]
-        let vm = SlideshowViewModel(assets: assets, startIndex: 2)
+        let vm = makeViewModel(assets, startIndex: 2)
         let currentID = vm.currentAsset?.id
         vm.shuffle()
         XCTAssertEqual(vm.currentAsset?.id, currentID)
     }
 
     func test_shuffle_singleAssetNoop() {
-        let vm = SlideshowViewModel(assets: [makeAsset(id: "only")])
+        let vm = makeViewModel([makeAsset(id: "only")])
         vm.shuffle()
         XCTAssertEqual(vm.order, [0])
+    }
+
+    // MARK: - Preferences (settings-parity, G22)
+
+    func test_init_seedsSpeedAndLookFromTheStore() {
+        settings.slideshowSpeed = 5
+        settings.slideshowLook = "slide"
+
+        let vm = makeViewModel([makeAsset(id: "a")])
+
+        XCTAssertEqual(vm.speed, .fiveSeconds)
+        XCTAssertEqual(vm.transition, .slide)
+    }
+
+    /// The show's own menu and the Preferences screen write the same value:
+    /// the picker in the viewer follows a change made in the other screen, and
+    /// what the viewer picks is what the next launch reads.
+    func test_speedAndLook_changesWriteTheStore() {
+        let vm = makeViewModel([makeAsset(id: "a")])
+
+        vm.speed = .tenSeconds
+        vm.transition = .kenBurns
+
+        XCTAssertEqual(settings.slideshowSpeed, 10)
+        XCTAssertEqual(settings.slideshowLook, "kenBurns")
+        XCTAssertEqual(AppSettingsStore(defaults: defaults).slideshowSpeed, 10)
+    }
+
+    func test_init_reverseOrder_runsBackwardsFromTheCurrentSlide() {
+        settings.slideshowReverse = true
+        let assets = [makeAsset(id: "a"), makeAsset(id: "b"), makeAsset(id: "c")]
+
+        let vm = makeViewModel(assets, startIndex: 2)
+
+        XCTAssertEqual(vm.currentAsset?.id, "c", "the show opens on the photo on screen")
+        vm.start()
+        vm.advance()
+        XCTAssertEqual(vm.currentAsset?.id, "b", "and then walks the library backwards")
+    }
+
+    func test_repeatOff_stopsAtTheLastSlide() {
+        settings.slideshowRepeat = false
+        let vm = makeViewModel([makeAsset(id: "a"), makeAsset(id: "b")], startIndex: 1)
+        vm.start()
+
+        vm.advance()
+
+        XCTAssertFalse(vm.isPlaying)
+        XCTAssertEqual(vm.currentIndex, 1)
     }
 }
 

@@ -57,7 +57,7 @@ struct AddToAlbumPickerSheet: View {
             .sheet(isPresented: $presentingCreate) {
                 CreateAlbumSheet(vm: albumsVM, preselectedAssetIds: Array(selectedAssetIds))
             }
-            .sensoryFeedback(.success, trigger: lastAddTick)
+            .appSensoryFeedback(.success, trigger: lastAddTick)
         }
     }
 

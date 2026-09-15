@@ -323,21 +323,23 @@ final class TimelineViewModel {
         return computed
     }
 
-    /// The interleaved month-header + day-group sections the grid renders,
-    /// built from `groupedByDay` via `TimelineSectionBuilder.build`. Memoized
-    /// on the same `(count, lastId)` signature as `groupedByDay` so the whole
-    /// section pipeline (Dictionary + sorts + banner interleave) runs only
-    /// when `items` changes, not per `body` evaluation (audit P1).
+    /// The sections the grid renders, built from `groupedByDay` via
+    /// `TimelineSectionBuilder.build`. Memoized on the same `(count, lastId)`
+    /// signature as `groupedByDay` — plus the grouping itself, which is a
+    /// parameter of the builder (settings-parity): a cache keyed on the items
+    /// alone would hand the previous grouping back after the user switches it.
+    /// Memoization is what keeps the whole pipeline (Dictionary + sorts + banner
+    /// interleave) off every `body` evaluation (audit P1).
     private var _timelineSections: [TimelineSectionBuilder.Section]?
-    private var _timelineSectionsKey: (count: Int, lastId: String?)?
+    private var _timelineSectionsKey: (count: Int, lastId: String?, groupBy: TimelineGroupBy)?
 
-    var timelineSections: [TimelineSectionBuilder.Section] {
-        let key = (count: items.count, lastId: items.last?.id)
+    func timelineSections(groupBy: TimelineGroupBy) -> [TimelineSectionBuilder.Section] {
+        let key = (count: items.count, lastId: items.last?.id, groupBy: groupBy)
         if let cacheKey = _timelineSectionsKey, cacheKey.count == key.count, cacheKey.lastId == key.lastId,
-           let cached = _timelineSections {
+           cacheKey.groupBy == key.groupBy, let cached = _timelineSections {
             return cached
         }
-        let computed = TimelineSectionBuilder.build(from: groupedByDay)
+        let computed = TimelineSectionBuilder.build(from: groupedByDay, groupBy: groupBy)
         _timelineSections = computed
         _timelineSectionsKey = key
         return computed

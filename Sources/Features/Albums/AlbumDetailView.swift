@@ -336,11 +336,11 @@ struct AlbumDetailView: View {
                 vm.exitSelectionMode()
             }
         }
-        .sensoryFeedback(.warning, trigger: lastDeleteTick)
-        .sensoryFeedback(.success, trigger: lastRemoveTick)
-        .sensoryFeedback(.success, trigger: vm.album?.albumThumbnailAssetId)
-        .sensoryFeedback(.selection, trigger: vm.selectionMode)
-        .sensoryFeedback(.selection, trigger: lastSelectionTick)
+        .appSensoryFeedback(.warning, trigger: lastDeleteTick)
+        .appSensoryFeedback(.success, trigger: lastRemoveTick)
+        .appSensoryFeedback(.success, trigger: vm.album?.albumThumbnailAssetId)
+        .appSensoryFeedback(.selection, trigger: vm.selectionMode)
+        .appSensoryFeedback(.selection, trigger: lastSelectionTick)
         .photoViewer(
             item: $viewerItem,
             baseURL: auth.baseURL ?? URL(string: "https://example.com")!,

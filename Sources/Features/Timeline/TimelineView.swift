@@ -26,13 +26,20 @@ struct TimelineView: View {
     @Environment(AuthViewModel.self) private var auth
     @Environment(\.openProfile) private var openProfile
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// App preferences (gap G22): the persisted density and grouping live in
+    /// the store, so the pinch gesture, the Preferences stepper and this grid
+    /// all drive one value.
+    @Environment(AppSettingsStore.self) private var appSettings
 
-    // Grid zoom (Photos-style pinch): 2-7 columns, default 3. `gridScale`
-    // persists the committed zoom between gestures; the live pinch multiplier
-    // folds in during `MagnifyGesture.onChanged`.
-    private let defaultColumnCount = 3
+    // Grid zoom (Photos-style pinch): 2-7 columns. `baseColumns` is the density
+    // with no gesture on it — seeded once from the store and re-seeded when the
+    // Preferences stepper changes it — and it is what the pinch math measures
+    // against. `columnCount` is the live value; `gridScale` persists the
+    // committed zoom between gestures, the live pinch multiplier folding in
+    // during `MagnifyGesture.onChanged`.
     private let minColumnCount = 2
     private let maxColumnCount = 7
+    @State private var baseColumns = 3
     @State private var columnCount = 3
     @State private var gridScale: CGFloat = 1.0
 
@@ -96,12 +103,26 @@ struct TimelineView: View {
                 .overlay(alignment: .topLeading) {
                     if let day = pinnedDay, !vm.selectionMode {
                         VStack(alignment: .leading, spacing: PVSpacing.s2) {
-                            Text(DateHeaderFormatter.yearString(for: day))
-                                .font(.pvTitle)
-                                .foregroundStyle(Color.white)
-                            Text(DateHeaderFormatter.dayMonthString(for: day))
-                                .font(.pvSubhead.weight(.bold))
-                                .foregroundStyle(Color.white)
+                            // Under `.month` grouping the pin IS a month key
+                            // ("YYYY-MM"), and the label is the one the builder
+                            // already produced — one formatting path, so the
+                            // sticky header can never word a month differently
+                            // from the banner behind it. Under `.day` nothing
+                            // changes. Under `.none` no group reports a frame,
+                            // so `pinnedDay` stays nil and this whole overlay is
+                            // gone — which is the point of a flat timeline.
+                            if appSettings.groupBy == .month {
+                                Text(pinnedMonthDisplay ?? day)
+                                    .font(.pvTitle)
+                                    .foregroundStyle(Color.white)
+                            } else {
+                                Text(DateHeaderFormatter.yearString(for: day))
+                                    .font(.pvTitle)
+                                    .foregroundStyle(Color.white)
+                                Text(DateHeaderFormatter.dayMonthString(for: day))
+                                    .font(.pvSubhead.weight(.bold))
+                                    .foregroundStyle(Color.white)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, PVSpacing.s16)
@@ -172,11 +193,11 @@ struct TimelineView: View {
                                 forEffectiveScale: TimelineGridZoom.effectiveScale(
                                     base: gridScale,
                                     magnification: value.magnification,
-                                    defaultColumns: defaultColumnCount,
+                                    defaultColumns: baseColumns,
                                     minColumns: minColumnCount,
                                     maxColumns: maxColumnCount
                                 ),
-                                defaultColumns: defaultColumnCount,
+                                defaultColumns: baseColumns,
                                 minColumns: minColumnCount,
                                 maxColumns: maxColumnCount
                             )
@@ -185,10 +206,14 @@ struct TimelineView: View {
                             gridScale = TimelineGridZoom.effectiveScale(
                                 base: gridScale,
                                 magnification: value.magnification,
-                                defaultColumns: defaultColumnCount,
+                                defaultColumns: baseColumns,
                                 minColumns: minColumnCount,
                                 maxColumns: maxColumnCount
                             )
+                            // The gesture is the writer of the setting too: what
+                            // the pinch commits is what the next launch (and the
+                            // Preferences stepper) shows.
+                            appSettings.tilesPerRow = columnCount
                         }
                 )
                 // D6: tap on empty grid area exits selection mode. Cell taps
@@ -228,10 +253,10 @@ struct TimelineView: View {
             .navigationDestination(item: $openedStackID) { stackId in
                 StackDetailView(stackId: stackId, vm: stacks)
             }
-            .sensoryFeedback(.selection, trigger: vm.selectionMode)
-            .sensoryFeedback(.selection, trigger: lastSelectionTick)
-            .sensoryFeedback(.success, trigger: lastFavoriteTick)
-            .sensoryFeedback(.warning, trigger: lastDeleteTick)
+            .appSensoryFeedback(.selection, trigger: vm.selectionMode)
+            .appSensoryFeedback(.selection, trigger: lastSelectionTick)
+            .appSensoryFeedback(.success, trigger: lastFavoriteTick)
+            .appSensoryFeedback(.warning, trigger: lastDeleteTick)
             // Spring on selection-mode transitions (AC-V04).
             .animation(PVMotion.standard, value: vm.selectionMode)
         }
@@ -239,6 +264,24 @@ struct TimelineView: View {
             if vm.items.isEmpty {
                 await vm.load()
             }
+        }
+        // Seed the grid from the persisted density, once. `baseColumns` is the
+        // pinch's reference and `columnCount` is what the grid draws; both start
+        // at the stored value so a relaunch comes back at the density the user
+        // left (3 when nothing was ever stored).
+        .onAppear {
+            let stored = appSettings.tilesPerRow
+            baseColumns = stored
+            columnCount = stored
+            gridScale = 1
+        }
+        // A change made in Preferences lands without a relaunch: the stepper
+        // writes the same property the pinch does, and the grid re-seeds itself.
+        .onChange(of: appSettings.tilesPerRow) { _, newValue in
+            guard newValue != columnCount else { return }
+            baseColumns = newValue
+            columnCount = newValue
+            gridScale = TimelineGridZoom.scale(forColumnCount: newValue, defaultColumns: newValue)
         }
         .alert("Delete \(vm.selectedIds.count) asset(s)?", isPresented: $pendingDeleteSelected) {
             Button("Delete", role: .destructive) {
@@ -377,41 +420,18 @@ struct TimelineView: View {
                             EmptyView()
 
                         case .dayGroup(let group):
-                            ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
-                                cellView(for: item)
-                                    .id(item.id)
-                                    .task {
-                                        // Global last-item trigger — stays correct
-                                        // under section restructure because the
-                                        // id compared is the VM's flat last id.
-                                        if item.id == vm.items.last?.id {
-                                            await vm.loadMore()
-                                        }
-                                        // First-item trigger — loads the NEWER
-                                        // bucket when scrolling up after a jump,
-                                        // re-anchoring so the view doesn't jump.
-                                        if item.id == vm.items.first?.id {
-                                            let previousFirst = vm.items.first?.id
-                                            await vm.loadNewer()
-                                            if let previousFirst {
-                                                scrollPosition.scrollTo(id: previousFirst, anchor: .top)
-                                            }
-                                        }
-                                    }
-                                    // First cell of each day reports the day's
-                                    // start edge (its grid position) so the
-                                    // floating header resolves the current day.
-                                    .background {
-                                        if index == 0 {
-                                            GeometryReader { proxy in
-                                                Color.clear.preference(
-                                                    key: PinnedDayPreferenceKey.self,
-                                                    value: [group.day: proxy.frame(in: .named(Self.scrollSpaceName)).minY]
-                                                )
-                                            }
-                                        }
-                                    }
-                            }
+                            // The day group is what the sticky header follows.
+                            sectionCells(group.items, pinKey: group.day)
+
+                        case .monthGroup(let month, let items):
+                            // One group per month, so the header follows the
+                            // month key the builder produced.
+                            sectionCells(items, pinKey: month)
+
+                        case .flat(let items):
+                            // Flat: nothing to pin, so nothing reports a frame
+                            // and the sticky header stays away.
+                            sectionCells(items, pinKey: nil)
                         }
                     }
                 }
@@ -431,11 +451,65 @@ struct TimelineView: View {
     /// re-declaring it (single source of truth in `TimelineSectionBuilder`).
     private typealias TimelineSection = TimelineSectionBuilder.Section
 
-    /// Interleaves month-year banners between day groups when the month
-    /// changes. Memoized on the VM (audit P1) so the section pipeline runs
-    /// only when `items` changes, not on every body evaluation.
+    /// The sections for the current grouping. Memoized on the VM (audit P1) so
+    /// the section pipeline runs only when `items` or the grouping changes, not
+    /// on every body evaluation.
     private var timelineSections: [TimelineSection] {
-        vm.timelineSections
+        vm.timelineSections(groupBy: appSettings.groupBy)
+    }
+
+    /// The banner text of the pinned month (`.month` grouping), read out of the
+    /// builder's own output so the sticky header and the banner behind it use
+    /// the same string. `nil` while nothing is pinned.
+    private var pinnedMonthDisplay: String? {
+        guard let pin = pinnedDay else { return nil }
+        for section in timelineSections {
+            if case .monthHeader(let month, let display) = section, month == pin { return display }
+        }
+        return nil
+    }
+
+    /// One run of cells inside the single shared grid. `pinKey` is what the
+    /// sticky header follows — the day under `.day`, the month under `.month` —
+    /// and `nil` reports nothing at all, which is how a flat timeline ends up
+    /// with no floating header.
+    @ViewBuilder
+    private func sectionCells(_ items: [AssetReactItem], pinKey: String?) -> some View {
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            cellView(for: item)
+                .id(item.id)
+                .task {
+                    // Global last-item trigger — stays correct
+                    // under section restructure because the
+                    // id compared is the VM's flat last id.
+                    if item.id == vm.items.last?.id {
+                        await vm.loadMore()
+                    }
+                    // First-item trigger — loads the NEWER
+                    // bucket when scrolling up after a jump,
+                    // re-anchoring so the view doesn't jump.
+                    if item.id == vm.items.first?.id {
+                        let previousFirst = vm.items.first?.id
+                        await vm.loadNewer()
+                        if let previousFirst {
+                            scrollPosition.scrollTo(id: previousFirst, anchor: .top)
+                        }
+                    }
+                }
+                // First cell of each group reports where the group starts
+                // (its grid position) so the floating header resolves the
+                // current day — or month.
+                .background {
+                    if index == 0, let pinKey {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: PinnedDayPreferenceKey.self,
+                                value: [pinKey: proxy.frame(in: .named(Self.scrollSpaceName)).minY]
+                            )
+                        }
+                    }
+                }
+        }
     }
 
     // MARK: - Cell container — navigation vs selection-aware tap
