@@ -75,6 +75,13 @@ final class DependencyContainer {
     /// both — a second instance would disagree with the one on screen.
     let language: AppLanguageStore
 
+    /// Process-wide download queue (gap G10). Same reasoning as `upload`: the
+    /// floating panel, the viewer's "Download to Files" and the timeline's
+    /// mass action must all drive ONE queue — and it has to outlive the screen
+    /// that started the download, where a queue built per presentation dies
+    /// with the sheet (exactly the defect this feature fixes).
+    let downloadQueue: DownloadQueueViewModel
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
@@ -122,6 +129,14 @@ final class DependencyContainer {
         cloudStatus.refresh(ledger: ledger)
         upload.engine.onLedgerChange = { cloudStatus.refresh(ledger: ledger) }
         upload.syncBadgeIndex()
+        // Foreground-only by construction: `URLSessionFileDownloadTransport`
+        // takes `.shared`, so a transfer pauses when iOS suspends the app. A
+        // background `URLSession` would need its own identifier, an app-delegate
+        // hand-off and a reconciliation pass at launch — none of which this
+        // card asks for; the panel is what keeps the run visible, not a
+        // background session. The transport is the same type the offline cache
+        // uses, so nothing new goes on the wire.
+        self.downloadQueue = DownloadQueueViewModel(client: client as any ImmichClient, transport: URLSessionFileDownloadTransport())
         self.libraryMonitor.onAssetsInserted = { [weak self] in
             self?.kickOffAutoBackup()
         }
@@ -271,6 +286,12 @@ final class DependencyContainer {
             index: offlineIndex
         )
     }
+
+    /// The one download queue of the process — the same instance the floating
+    /// panel projects, the viewer enqueues into and the timeline's mass action
+    /// hands its selection to. Never a fresh instance: a second queue would
+    /// show its own rows and cancel tasks the panel is following.
+    func makeDownloadQueueViewModel() -> DownloadQueueViewModel { downloadQueue }
 
     /// Sync status screen (AC-5030–5039). Takes both view models explicitly:
     /// the container must not pick which engine of the process is observed, and

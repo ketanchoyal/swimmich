@@ -1239,4 +1239,46 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         lastDeleteApiKeyId = id
         if let e = globalError ?? adminError { throw e }
     }
+
+    // MARK: - Download queue (gap G10)
+
+    var downloadInfoResponse = DownloadInfoResponse(totalSize: 0, archives: [])
+    var downloadInfoError: Error?
+    private(set) var lastDownloadInfoAssetIds: [String]?
+    private(set) var lastDownloadInfoAlbumId: String?
+    var originalRequestError: Error?
+    private(set) var lastOriginalRequestAssetId: String?
+    var downloadArchiveRequestError: Error?
+    private(set) var lastArchiveName: String?
+    private(set) var lastArchiveAssetIds: [String]?
+    private(set) var lastArchiveEdited: Bool?
+    /// The download endpoints in call order: the batch contract is an ORDER
+    /// (`download/info` before `download/archive`), which a "was it called"
+    /// flag cannot express.
+    private(set) var downloadCallOrder: [String] = []
+
+    func downloadInfo(assetIds: [String], albumId: String?) async throws -> DownloadInfoResponse {
+        bump()
+        downloadCallOrder.append("info")
+        lastDownloadInfoAssetIds = assetIds
+        lastDownloadInfoAlbumId = albumId
+        if let e = globalError ?? downloadInfoError { throw e }
+        return downloadInfoResponse
+    }
+
+    func originalRequest(assetId: String) throws -> URLRequest {
+        downloadCallOrder.append("original")
+        lastOriginalRequestAssetId = assetId
+        if let e = originalRequestError { throw e }
+        return URLRequest(url: URL(string: "https://example.com/api/assets/\(assetId)/original")!)
+    }
+
+    func downloadArchiveRequest(archiveName: String, assetIds: [String], edited: Bool) throws -> URLRequest {
+        downloadCallOrder.append("archive")
+        lastArchiveName = archiveName
+        lastArchiveAssetIds = assetIds
+        lastArchiveEdited = edited
+        if let e = downloadArchiveRequestError { throw e }
+        return URLRequest(url: URL(string: "https://example.com/api/download/archive")!)
+    }
 }

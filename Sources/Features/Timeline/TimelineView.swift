@@ -17,6 +17,10 @@ struct TimelineView: View {
     /// Stack hub state, borrowed from the root so a stack opened from a tile is
     /// the same object the «Me» hub shows (and vice versa).
     let stacks: StacksViewModel
+    /// The process-wide download queue (gap G10), handed down by the root for
+    /// the same reason as `stacks`: the mass action must feed the very queue
+    /// the floating panel projects — never a second instance built here.
+    let downloads: DownloadQueueViewModel
     @Binding var scrollTargetID: String?
     @Binding var scrollTargetDay: String?
     @Environment(AuthViewModel.self) private var auth
@@ -55,11 +59,13 @@ struct TimelineView: View {
     init(
         vm: TimelineViewModel,
         stacks: StacksViewModel,
+        downloads: DownloadQueueViewModel,
         scrollTargetID: Binding<String?> = .constant(nil),
         scrollTargetDay: Binding<String?> = .constant(nil)
     ) {
         _vm = State(initialValue: vm)
         self.stacks = stacks
+        self.downloads = downloads
         _scrollTargetID = scrollTargetID
         _scrollTargetDay = scrollTargetDay
     }
@@ -584,6 +590,22 @@ struct TimelineView: View {
                 }
                 .disabled(vm.selectedIds.count < 2)
                 .accessibilityIdentifier("stackButton")
+
+                // Download selected (gap G10) — a batch goes to the process-wide
+                // queue, which announces it to the server before streaming
+                // (the server refuses a batch it was never told about). The
+                // selection is the grid's, in grid order.
+                Button {
+                    Task {
+                        await downloads.enqueue(assets: vm.items.filter { vm.selectedIds.contains($0.id) })
+                        vm.exitSelectionMode()
+                    }
+                } label: {
+                    Label("Download", systemImage: "arrow.down.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .disabled(vm.selectedIds.isEmpty)
+                .accessibilityIdentifier("downloadSelectionButton")
             } else {
                 // AC-1010 — timeline filter menu (All / Favorites / Archived).
                 Menu {
