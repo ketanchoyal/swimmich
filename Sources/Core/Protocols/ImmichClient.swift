@@ -282,6 +282,22 @@ protocol ImmichClient: AnyObject, Sendable {
     func createAPIKey(name: String) async throws -> ApiKeyCreateResponseDto
     func deleteAPIKey(id: String) async throws
 
+    // MARK: - Sessions (gap G19)
+
+    /// `GET /api/sessions` — every session of the account, the one in use
+    /// flagged by `current`. No query, no parameters.
+    func getSessions() async throws -> [SessionResponseDto]
+
+    /// `DELETE /api/sessions/{id}` — 204. The server leaves the **current**
+    /// session alone even when its own id is named, so a client can never sign
+    /// itself out through this route.
+    func deleteSession(id: String) async throws
+
+    /// `DELETE /api/sessions` — 204, and deliberately not the current session:
+    /// the server excludes it. "Log out other devices", never "log out
+    /// everywhere".
+    func deleteAllSessions() async throws
+
     // MARK: - Server statistics (P0 api-surface-expansion)
     func getServerStatistics() async throws -> ServerStatsResponseDto
 

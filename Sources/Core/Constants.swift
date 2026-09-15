@@ -30,6 +30,9 @@ enum ImmichAPI {
     static let jobs = SubPath(root: "/jobs") // gap #12 (admin jobs)
     static let libraries = SubPath(root: "/libraries") // gap #12 (admin libraries)
     static let apiKeys = SubPath(root: "/api-keys") // gap #12 (admin api keys)
+    /// Connected devices (gap G19). Exactly `/sessions`: the two elevation
+    /// routes live under `/auth/session/*` and belong to `ImmichAPI.auth`.
+    static let sessions = SubPath(root: "/sessions")
 
     struct SubPath {
         let root: String

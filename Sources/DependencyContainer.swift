@@ -354,6 +354,10 @@ final class DependencyContainer {
         LanguageSettingsViewModel(store: language)
     }
 
+    func makeDeviceSessionsViewModel() -> DeviceSessionsViewModel {
+        DeviceSessionsViewModel(client: client as any ImmichClient)
+    }
+
     /// Profile picture screen (gap G16). Takes the session as an argument for
     /// the same reason as `makeSharedLinkViewerViewModel`: the container knows
     /// the client, but the connected server and its bearer token only exist

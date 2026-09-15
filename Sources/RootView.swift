@@ -111,6 +111,10 @@ private struct AuthenticatedRoot: View {
     @State private var localLibrary: LocalLibraryViewModel
     @State private var notifications: NotificationsViewModel
     @State private var language: LanguageSettingsViewModel
+    /// Connected devices (gap G19). Held here, not built inside the pushed
+    /// screen: the elevation is this screen's state, and a ViewModel rebuilt on
+    /// every push would forget it.
+    @State private var deviceSessions: DeviceSessionsViewModel
     @State private var freeUpSpace: FreeUpSpaceViewModel
     @State private var folders: FolderViewModel
     /// Profile picture screen (gap G16). Owned here so the account row of the Me
@@ -163,6 +167,7 @@ private struct AuthenticatedRoot: View {
         _localLibrary = State(initialValue: container.makeLocalLibraryViewModel())
         _notifications = State(initialValue: container.makeNotificationsViewModel())
         _language = State(initialValue: container.makeLanguageSettingsViewModel())
+        _deviceSessions = State(initialValue: container.makeDeviceSessionsViewModel())
         _freeUpSpace = State(initialValue: container.makeFreeUpSpaceViewModel())
         _folders = State(initialValue: container.makeFolderViewModel())
         _profilePicture = State(initialValue: container.makeProfilePictureViewModel(
@@ -292,7 +297,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, deviceSessions: deviceSessions, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

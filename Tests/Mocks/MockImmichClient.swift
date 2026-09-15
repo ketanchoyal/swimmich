@@ -1369,6 +1369,36 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         if let e = globalError ?? adminError { throw e }
     }
 
+    // MARK: - Connected devices (gap G19)
+
+    /// `GET /api/sessions` answer. `nil` means "the account has no session",
+    /// which is not a state the server produces but is the honest empty value.
+    var sessionsResponse: [SessionResponseDto]?
+    var sessionsError: Error?
+    var deleteSessionError: Error?
+    var deleteAllSessionsError: Error?
+    /// Every id the single-session DELETE was called with, in order.
+    private(set) var deletedSessionIDs: [String] = []
+    private(set) var deleteAllSessionsCallCount = 0
+
+    func getSessions() async throws -> [SessionResponseDto] {
+        bump()
+        if let e = globalError ?? sessionsError { throw e }
+        return sessionsResponse ?? []
+    }
+
+    func deleteSession(id: String) async throws {
+        bump()
+        deletedSessionIDs.append(id)
+        if let e = globalError ?? deleteSessionError { throw e }
+    }
+
+    func deleteAllSessions() async throws {
+        bump()
+        deleteAllSessionsCallCount += 1
+        if let e = globalError ?? deleteAllSessionsError { throw e }
+    }
+
     // MARK: - Download queue (gap G10)
 
     var downloadInfoResponse = DownloadInfoResponse(totalSize: 0, archives: [])
