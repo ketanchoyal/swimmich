@@ -653,6 +653,10 @@ struct TimelineView: View {
                         .labelStyle(.iconOnly)
                 }
                 .disabled(vm.selectedIds.isEmpty)
+                // Matched by identifier in `ReadOnlyModeUITests`: the label is
+                // translated, and the scenario taps this one control to attempt a
+                // write the read-only guard must refuse.
+                .accessibilityIdentifier("deleteSelectedButton")
 
                 // AC-515 — Add to Album. Opens picker sheet w/ selected assets.
                 Button {
