@@ -137,12 +137,14 @@ struct ProfileView: View {
                     } label: {
                         Label("Trash", systemImage: "trash")
                     }
+                .accessibilityIdentifier("trashRow")
 
                     NavigationLink {
                         BackupSettingsView(vm: upload, detail: uploadDetail)
                     } label: {
                         Label("Backup", systemImage: "icloud.and.arrow.up")
                     }
+                .accessibilityIdentifier("backupRow")
 
                     // Right after Backup: this screen reads the ledger that
                     // screen feeds.
@@ -167,30 +169,35 @@ struct ProfileView: View {
                     } label: {
                         Label("Duplicates", systemImage: "rectangle.on.rectangle.angled")
                     }
+                .accessibilityIdentifier("duplicatesRow")
 
                     NavigationLink {
                         PeopleView(vm: people)
                     } label: {
                         Label("People", systemImage: "person.2")
                     }
+                .accessibilityIdentifier("peopleRow")
 
                     NavigationLink {
                         TagsView(vm: tags)
                     } label: {
                         Label("Tags", systemImage: "tag")
                     }
+                .accessibilityIdentifier("tagsRow")
 
                     NavigationLink {
                         StackView(vm: stacks)
                     } label: {
                         Label("Stacks", systemImage: "square.stack.3d.down.right")
                     }
+                .accessibilityIdentifier("stacksRow")
 
                     NavigationLink {
                         PartnersView(vm: partners)
                     } label: {
                         Label("Partners", systemImage: "person.badge.plus")
                     }
+                .accessibilityIdentifier("partnersRow")
 
                     NavigationLink {
                         OfflineAssetsView(vm: offline)
@@ -248,6 +255,7 @@ struct ProfileView: View {
                         } label: {
                             Label("Administration", systemImage: "gearshape.2")
                         }
+                    .accessibilityIdentifier("adminRow")
                     } header: {
                         Text("Administration")
                     }
