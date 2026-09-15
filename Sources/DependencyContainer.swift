@@ -83,10 +83,6 @@ final class DependencyContainer {
         self.language = AppLanguageStore()
         let cloudStatus = CloudBackupStatusIndex()
         self.cloudStatus = cloudStatus
-        self.upload = UploadViewModel(
-            client: client as any ImmichClient, photos: photos,
-            ledger: backupLedger, scheduler: backupScheduler,
-            activityService: backupLiveActivity, cloudStatus: cloudStatus
         self.albumSyncStore = AlbumSyncStore()
         self.albumSyncService = AlbumSyncService(
             mapping: albumSyncStore,
@@ -98,6 +94,7 @@ final class DependencyContainer {
             client: client as any ImmichClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
             activityService: backupLiveActivity,
+            cloudStatus: cloudStatus,
             albumSync: albumSyncService,
             // Read per run, not captured: a login that happens after this
             // composition root was built must still mirror, and the mapping is
@@ -284,6 +281,8 @@ final class DependencyContainer {
     /// (`self.upload`, "One VM, one run, one island").
     func makeUploadDetailViewModel(upload: UploadViewModel) -> UploadDetailViewModel {
         UploadDetailViewModel(upload: upload)
+    }
+
     /// "On this device" (local library). Reads the same Photos instance the
     /// backup engine reads (`PhotoLibraryServiceImpl` is both the library
     /// service and the backup asset source) and the same client for the remote

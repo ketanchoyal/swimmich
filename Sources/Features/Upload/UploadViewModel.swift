@@ -169,7 +169,7 @@ final class BackupSettingsStore {
             allowCellularForVideos: allowCellularForVideos,
             excludedAlbumIDs: inForce == .excluded ? excludedAlbumIDs : [],
             selectedAlbumIDs: inForce == .selected ? selectedAlbumIDs : [],
-            showSyncBadge: showSyncBadge
+            showSyncBadge: showSyncBadge,
             syncedAlbumIDs: syncedAlbumIDs
         )
     }
@@ -251,7 +251,7 @@ final class UploadViewModel {
         scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
         activityService: any BackupLiveActivityServicing = LiveActivityBackupService(),
         notifications: any NotificationServicing = NotificationService(),
-        cloudStatus: CloudBackupStatusIndex? = nil
+        cloudStatus: CloudBackupStatusIndex? = nil,
         albumSync: (any AlbumSyncServicing)? = nil,
         userID: (@MainActor () -> String?)? = nil
     ) {
