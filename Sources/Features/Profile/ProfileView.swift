@@ -24,6 +24,7 @@ struct ProfileView: View {
     @State var language: LanguageSettingsViewModel
     @State var localLibrary: LocalLibraryViewModel
     @State var freeUpSpace: FreeUpSpaceViewModel
+    @State var folders: FolderViewModel
 
     var body: some View {
         NavigationStack {
@@ -123,6 +124,16 @@ struct ProfileView: View {
                         Label("Offline Storage", systemImage: "arrow.down.circle")
                     }
                     .accessibilityIdentifier("offlineStorageRow")
+
+                    // Next to Offline Storage on purpose: the two lines read the
+                    // same library from its two sides — what the device keeps in
+                    // cache, and the tree the server sees on its disk.
+                    NavigationLink {
+                        FolderView(vm: folders, node: nil)
+                    } label: {
+                        Label("Folders", systemImage: "folder")
+                    }
+                    .accessibilityIdentifier("foldersRow")
 
                     // Next to Offline Storage on purpose: both lines read the
                     // device, not the server.

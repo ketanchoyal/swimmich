@@ -1258,6 +1258,46 @@ final class ImmichAPIClientTests: XCTestCase {
         }
     }
 
+    // Folder view (gap G11): GET /api/view/folder carries the path verbatim as
+    // a query item — a client-side "tidying" of the leading slash would make the
+    // server answer with the wrong level, and nothing else would catch it.
+    func test_folderView_sendsThePathQueryItemVerbatim() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        CapturingURLProtocol.nextData = "[]".data(using: .utf8)!
+
+        _ = try await client.getFolderAssets(path: "/mnt/media/Photos 2024")
+
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/view/folder")
+        let components = URLComponents(url: try XCTUnwrap(captured.url), resolvingAgainstBaseURL: false)
+        XCTAssertEqual(components?.queryItems, [URLQueryItem(name: "path", value: "/mnt/media/Photos 2024")])
+    }
+
+    /// `GET /api/view/folder/unique-paths` takes no parameter at all.
+    func test_folderView_uniquePathsCarriesNoParameter() async throws {
+        let session = makeMockedSession()
+        let client = ImmichAPIClient(session: session)
+        client.configure(baseURL: URL(string: "https://example.com")!, token: "tok")
+
+        CapturingURLProtocol.nextData = #"["/mnt/media/Photos",""]"#.data(using: .utf8)!
+
+        let paths = try await client.getUniqueFolderPaths()
+
+        XCTAssertEqual(paths, ["/mnt/media/Photos", ""])
+        guard let captured = CapturingURLProtocol.lastRequest else {
+            return XCTFail("no request captured")
+        }
+        XCTAssertEqual(captured.httpMethod, "GET")
+        XCTAssertEqual(captured.url?.path, "/api/view/folder/unique-paths")
+        XCTAssertNil(captured.url?.query, "no query params expected")
+    }
+
     /// Minimal `SharedLinkResponseDto` the visitor routes decode.
     private static func sharedLinkJSON(key: String) -> Data {
         """
