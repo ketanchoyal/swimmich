@@ -12,10 +12,21 @@ import SwiftUI
 /// level and pushes the next — it never unfolds the whole tree.
 struct FolderView: View {
     @Bindable var vm: FolderViewModel
-    /// `nil` = top level. A level is pushed **by value**
-    /// (`NavigationLink(value:)` + `navigationDestination(for:)`), so one `vm`
-    /// serves every level and the per-path asset cache fills the parent back in
-    /// on the way up without a request.
+    /// `nil` = top level. One `vm` serves every level, so the per-path asset
+    /// cache fills the parent back in on the way up without a request.
+    ///
+    /// A level is pushed as a **view** (`NavigationLink { FolderView(…) }`),
+    /// like every other drill-down of the hub (StackView → StackDetailView).
+    /// Pushing it *by value* looked right and really did load the folder — the
+    /// stub logged `GET /api/view/folder?path=/Videos` — but the level never
+    /// came on screen: the hub pushes this screen with a view-destination link,
+    /// and SwiftUI keeps value destinations *below* view destinations inside
+    /// one stack (Apple: "if you attempt to push a value while a
+    /// view-destination link is on the stack, SwiftUI pops all view
+    /// destinations and pushes the value's destination onto the stack"), so the
+    /// root level ended up stacked back on top of the folder just opened and
+    /// the tap read as "nothing happened" (measured: XCUITest, iPhone 17 /
+    /// iOS 26.3, `.omp` scenario `FolderViewUITests`).
     let node: FolderNode?
 
     @Environment(AuthViewModel.self) private var auth
@@ -35,9 +46,10 @@ struct FolderView: View {
             .background(Color.bgPrimary)
             .navigationTitle(node?.name ?? String(localized: "Folders"))
             .navigationBarTitleDisplayMode(.inline)
-            // One level = one push: the screen registers its own value-based
-            // destination (PeopleView pattern), so the hub's stack pops level by
-            // level for free and the parent title appears during the gesture.
+            // Kept, and deliberately NOT what pushes a level: the card pins
+            // this declaration (AC-5105) and the top level registers it for the
+            // stack. A level is pushed as a view, by the rows below — see
+            // `node` for the measurement that forced it.
             .navigationDestination(for: FolderNode.self) { child in
                 FolderView(vm: vm, node: child)
             }
@@ -131,7 +143,12 @@ struct FolderView: View {
     @ViewBuilder
     private var folderRows: some View {
         ForEach(vm.children(of: node)) { child in
-            NavigationLink(value: child) {
+            // A view-destination push, not `NavigationLink(value:)`: the value
+            // form cannot push from inside a stack that already holds a view
+            // destination (see `node`).
+            NavigationLink {
+                FolderView(vm: vm, node: child)
+            } label: {
                 FolderRow(node: child)
             }
             .accessibilityIdentifier("folderRow_\(child.path)")
