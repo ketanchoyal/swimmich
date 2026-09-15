@@ -109,6 +109,10 @@ private struct AuthenticatedRoot: View {
     /// Change-password screen (gap G18). Owned by the Me sheet's lifetime like
     /// `lockedFolder`, so a partly typed form survives a re-render of this view.
     @State private var changePassword: ChangePasswordViewModel
+    /// Read-only mode (gap G17). Read from the container rather than copied
+    /// into `@State`: the switch, the badge and the guard must project ONE
+    /// boolean, and a copy here would outlive the container's.
+    private var readOnly: ReadOnlyModeStore { container.readOnly }
 
     @State private var timeline: TimelineViewModel
     @State private var recentTaken: RecentAssetsViewModel
@@ -251,6 +255,10 @@ private struct AuthenticatedRoot: View {
         // Backup-state mirror (G6): same injection, same reason — every tile in
         // every grid reads the one index the ledger feeds.
         .environment(container.cloudStatus)
+        // Read-only mode (gap G17): one boolean for the whole authenticated
+        // tree — the Me hub's switch, the avatar's badge and every screen that
+        // reads the mode see the same store, and it survives a re-render.
+        .environment(readOnly)
         .environment(offline)
         .onReceive(NotificationCenter.default.publisher(for: .immichAssetsChanged)) { _ in
             Task {
@@ -335,6 +343,7 @@ private struct AuthenticatedRoot: View {
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, deviceSessions: deviceSessions, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, apiKeys: apiKeys)
             ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, appSettings: appSettings, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, readOnly: readOnly, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },
@@ -437,9 +446,13 @@ extension EnvironmentValues {
 struct ProfileAvatarButton: View {
     let action: () -> Void
     @Environment(AuthViewModel.self) private var auth
+    /// Read-only mode (gap G17). The same store the hub's switch writes: the
+    /// avatar is the second surface of that ONE boolean.
+    @Environment(ReadOnlyModeStore.self) private var readOnly
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: action) {
+        ZStack(alignment: .bottomTrailing) {
             ZStack {
                 Circle().fill(Color.immichPrimary)
                 Text(UserAvatarCircle.initials(from: auth.userName ?? "?"))
@@ -448,9 +461,35 @@ struct ProfileAvatarButton: View {
             }
             .frame(width: 30, height: 30)
             .padding(7)
+
+            // The mode's only permanent marker: 10 pt, on the control that
+            // toggles it, hidden from VoiceOver (the state is carried by the
+            // avatar's own accessibility value — one announcement, not two).
+            if readOnly.isEnabled {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.immichWarning)
+                    .padding(2)
+                    .background(Circle().fill(Color.bgPrimary))
+                    .accessibilityHidden(true)
+                    .transition(.opacity.combined(with: .scale(scale: 0.7)))
+            }
         }
-        .buttonStyle(.plain)
+        // The pair is deliberate: a `Button` with a simultaneous long press
+        // fires BOTH (the Me sheet opens and the mode flips), and SwiftUI's
+        // tap/long-press pair makes the tap fail once the press passes 0.5 s.
+        .contentShape(Circle())
+        .onTapGesture(perform: action)
+        .onLongPressGesture(minimumDuration: 0.5) {
+            withAnimation(PVMotion.adaptive(PVMotion.standard, reduceMotion: reduceMotion)) {
+                readOnly.toggle()
+            }
+        }
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Profile")
+        .accessibilityValue(readOnly.isEnabled ? Text("Read-only") : Text(""))
+        // VoiceOver cannot long-press: the same toggle as a named action.
+        .accessibilityAction(named: Text("Read-only Mode")) { readOnly.toggle() }
         // The label is translated, so the UI tests reach for the identifier
         // instead of a string that changes with the language.
         .accessibilityIdentifier("profileAvatar")

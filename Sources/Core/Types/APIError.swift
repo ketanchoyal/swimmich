@@ -9,6 +9,9 @@ enum APIError: Error, LocalizedError, Equatable {
     case invalidURL
     case multipartEncoding(String)
     case http(Int)
+    /// The device is in read-only mode: a write was attempted and refused
+    /// before it reached the wire (gap G17).
+    case readOnlyMode
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +22,7 @@ enum APIError: Error, LocalizedError, Equatable {
         case .invalidURL: return "Invalid server URL."
         case .multipartEncoding(let m): return "Multipart encoding failed: \(m)"
         case .http(let code): return "HTTP \(code)"
+        case .readOnlyMode: return String(localized: "Read-only mode is on. Turn it off in Me to change your library.")
         }
     }
 

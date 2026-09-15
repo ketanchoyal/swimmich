@@ -224,6 +224,12 @@ final class UploadViewModel {
     /// Thumbnail badge mirror (G6). Optional: a VM built without an index has
     /// no badge to gate, and the setting simply writes itself to disk.
     @ObservationIgnored let cloudStatus: CloudBackupStatusIndex?
+    /// Read-only mode (gap G17). A backup *writes*: while the mode is on the
+    /// run is refused before it starts, so a whole pass reports one refusal
+    /// instead of failing `uploadAsset` once per candidate. The client guard
+    /// would refuse every one of those calls anyway — this is the gate that
+    /// explains itself first.
+    let readOnly: ReadOnlyModeStore
 
     var albums: [BackupAlbum] = []
 
@@ -253,6 +259,11 @@ final class UploadViewModel {
         notifications: any NotificationServicing = NotificationService(),
         cloudStatus: CloudBackupStatusIndex? = nil,
         albumSync: (any AlbumSyncServicing)? = nil,
+        // Defaulted rather than required: a caller that does not know the mode
+        // (a test, a future preview) still gets a real store. `nil` because a
+        // default argument is evaluated in the caller's context, which is not
+        // the main actor — the store is built here instead.
+        readOnly: ReadOnlyModeStore? = nil,
         userID: (@MainActor () -> String?)? = nil
     ) {
         self.client = client
@@ -269,6 +280,7 @@ final class UploadViewModel {
         self.activityService = activityService
         self.notifications = notifications
         self.cloudStatus = cloudStatus
+        self.readOnly = readOnly ?? ReadOnlyModeStore()
     }
 
     /// Pushes the "Show backup status on thumbnails" preference into the badge
@@ -345,6 +357,13 @@ final class UploadViewModel {
         manual: Bool = false,
         only assetIDs: [String] = []
     ) async {
+        // Read-only mode: ONE refusal for the whole run — the manual CTA and
+        // the automatic chain both come through this method — instead of a
+        // failed `uploadAsset` per candidate.
+        guard !readOnly.isEnabled else {
+            engine.reportError(String(localized: "Read-only mode is on. Turn it off in Me to change your library."))
+            return
+        }
         if manual {
             guard await ensurePhotoAccess() else {
                 engine.reportError("Photo library access is required to back up.")
@@ -567,6 +586,9 @@ final class UploadViewModel {
 /// Backup settings screen — the real backup UI (was a scaffold).
 struct BackupSettingsView: View {
     @Environment(AuthViewModel.self) private var auth
+    /// Read-only mode (gap G17): the run CTA is the one control that greys out
+    /// instead of disappearing, explained by its own footer.
+    @Environment(ReadOnlyModeStore.self) private var readOnly
 
     @State var vm: UploadViewModel
     /// The per-asset report of the same run — built from `vm`'s engine, not a
@@ -883,6 +905,10 @@ struct BackupSettingsView: View {
                 } label: {
                     Label("Run now", systemImage: "arrow.up.circle")
                 }
+                // The one control this feature greys out instead of removing:
+                // a backup row is a place, not a destructive affordance, and
+                // the footer below says why it does not answer.
+                .disabled(readOnly.isEnabled)
                 .accessibilityIdentifier("runBackupButton")
                 if vm.canResume {
                     Button {
@@ -897,6 +923,9 @@ struct BackupSettingsView: View {
             Text("Progress")
         } footer: {
             Text("Photos kept only in iCloud are downloaded before they can be uploaded. A slow or not-yet-ready download retries automatically, and anything still pending is picked up on the next backup.")
+            if readOnly.isEnabled {
+                Text("Read-only mode is on. Turn it off in Me to change your library.")
+            }
         }
     }
 

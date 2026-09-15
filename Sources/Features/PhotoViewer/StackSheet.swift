@@ -10,9 +10,33 @@ struct StackSheet: View {
     let token: String?
     var onChanged: () -> Void = {}
 
+    /// The stack **writes** (set cover, remove a member, unstack) go through
+    /// the view model, never through the client a view holds: the client seam
+    /// is where read-only mode refuses a write, and the refusal has to land in
+    /// `errorMessage` instead of being thrown back into a `catch` in the view.
+    /// Built here from the injected client — the same shape as `CastSheet` —
+    /// so the sheet keeps working for every caller, and the reads below stay on
+    /// the transport they were handed.
+    @State private var stacks: StacksViewModel
+
     @State private var stack: StackResponseDto?
     @State private var isLoading = true
     @State private var errorMessage: String?
+
+    init(
+        asset: AssetReactItem,
+        client: any ImmichClient,
+        baseURL: URL,
+        token: String?,
+        onChanged: @escaping () -> Void = {}
+    ) {
+        self.asset = asset
+        self.client = client
+        self.baseURL = baseURL
+        self.token = token
+        self.onChanged = onChanged
+        _stacks = State(initialValue: StacksViewModel(client: client))
+    }
 
     var body: some View {
         NavigationStack {
@@ -106,36 +130,28 @@ struct StackSheet: View {
     }
 
     private func setPrimary(_ stack: StackResponseDto, _ assetId: String) async {
-        do {
-            _ = try await client.updateStack(id: stack.id, primaryAssetId: assetId)
-            errorMessage = nil
-            await reload(stackId: stack.id)
-            onChanged()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await stacks.updatePrimary(stackId: stack.id, assetId: assetId)
+        errorMessage = stacks.errorMessage
+        guard errorMessage == nil else { return }
+        await reload(stackId: stack.id)
+        onChanged()
     }
 
     private func remove(_ stack: StackResponseDto, _ assetId: String) async {
-        do {
-            try await client.removeAssetFromStack(stackId: stack.id, assetId: assetId)
-            errorMessage = nil
-            await reload(stackId: stack.id)
-            onChanged()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await stacks.removeAssetFromStack(stackId: stack.id, assetId: assetId)
+        errorMessage = stacks.errorMessage
+        guard errorMessage == nil else { return }
+        await reload(stackId: stack.id)
+        onChanged()
     }
 
     private func unstack(_ stack: StackResponseDto) async {
-        do {
-            try await client.deleteStack(id: stack.id)
-            self.stack = nil
-            onChanged()
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await stacks.deleteStack(id: stack.id)
+        errorMessage = stacks.errorMessage
+        guard errorMessage == nil else { return }
+        self.stack = nil
+        onChanged()
+        dismiss()
     }
 
     private func load() async {

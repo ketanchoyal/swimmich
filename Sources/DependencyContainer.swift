@@ -107,11 +107,34 @@ final class DependencyContainer {
     /// shortcut read the same entry; never the session token slot.
     let lockedFolderPINs: any LockedFolderPINStoring
 
+    /// Read-only mode (gap G17). One store per process: the Me hub's switch,
+    /// the avatar's long press and the guard below are three readers of ONE
+    /// boolean, and a second store could publish a state the guard disagrees
+    /// with.
+    let readOnly: ReadOnlyModeStore
+
+    /// The library client every view model and every view writes through. The
+    /// raw `client` above stays the transport (session, trust store, low-level
+    /// container calls); this one refuses the writes while the mode is on, so
+    /// no screen can bypass the guard by holding the transport instead.
+    ///
+    /// `nonisolated` on purpose: the photo viewer takes it as a **default
+    /// argument**, and default arguments are evaluated in the caller's context
+    /// — its eight presenters must not each have to thread a client through.
+    nonisolated let libraryClient: any ImmichClient
+
     init() {
         self.keychain = KeychainStoreImpl()
         let trustStore = TrustedServerStoreImpl()
         self.trustedServers = trustStore
         self.client = ImmichAPIClient(trustStore: trustStore)
+        // Read-only mode: the store persists into `.standard` and the guard
+        // reads the very same defaults at call time (never a captured value),
+        // so the mode can be flipped without a relaunch and the next write
+        // already sees it. Built before `upload`, whose engine holds this
+        // client.
+        self.readOnly = ReadOnlyModeStore()
+        self.libraryClient = ReadOnlyGuardClient(inner: client as any ImmichClient, isEnabled: { ReadOnlyModeStore.isEnabledIn(.standard) })
         // One PhotosKit service for the whole app: the album list, the export
         // path and the deletion path all have to describe the same library.
         let photoLibrary = PhotoLibraryServiceImpl()
@@ -143,11 +166,12 @@ final class DependencyContainer {
             batchSize: BackupEngine.checkChunkSize
         )
         self.upload = UploadViewModel(
-            client: client as any ImmichClient, photos: photos,
+            client: libraryClient, photos: photos,
             ledger: backupLedger, scheduler: backupScheduler,
             activityService: backupLiveActivity,
             cloudStatus: cloudStatus,
             albumSync: albumSyncService,
+            readOnly: readOnly,
             // Read per run, not captured: a login that happens after this
             // composition root was built must still mirror, and the mapping is
             // keyed by the account that owns the albums.
@@ -167,7 +191,7 @@ final class DependencyContainer {
         // card asks for; the panel is what keeps the run visible, not a
         // background session. The transport is the same type the offline cache
         // uses, so nothing new goes on the wire.
-        self.downloadQueue = DownloadQueueViewModel(client: client as any ImmichClient, transport: URLSessionFileDownloadTransport())
+        self.downloadQueue = DownloadQueueViewModel(client: libraryClient, transport: URLSessionFileDownloadTransport())
         self.libraryMonitor.onAssetsInserted = { [weak self] in
             self?.kickOffAutoBackup()
         }
@@ -179,7 +203,7 @@ final class DependencyContainer {
 
     func makeAuthViewModel() -> AuthViewModel {
         AuthViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             keychain: keychain,
             realtime: realtime,
             // Widgets read the session from the shared keychain group, not from
@@ -189,7 +213,7 @@ final class DependencyContainer {
     }
 
     func makeTimelineViewModel() -> TimelineViewModel {
-        TimelineViewModel(client: client as any ImmichClient)
+        TimelineViewModel(client: libraryClient)
     }
 
     /// Change-password screen (gap G18). Only lends the shared `ImmichClient`:
@@ -203,31 +227,31 @@ final class DependencyContainer {
     /// the two screens keep their own bucket list and their own scroll, so
     /// nothing but the mode parameter is shared.
     func makeRecentAssetsViewModel(mode: RecentAssetsMode) -> RecentAssetsViewModel {
-        RecentAssetsViewModel(client: client as any ImmichClient, mode: mode)
+        RecentAssetsViewModel(client: libraryClient, mode: mode)
     }
 
     func makeTrashViewModel() -> TrashViewModel {
-        TrashViewModel(client: client as any ImmichClient)
+        TrashViewModel(client: libraryClient)
     }
 
     func makeSearchViewModel() -> SearchViewModel {
-        SearchViewModel(client: client as any ImmichClient)
+        SearchViewModel(client: libraryClient)
     }
 
     func makeMapViewModel() -> MapViewModel {
-        MapViewModel(client: client as any ImmichClient, settings: mapSettings)
+        MapViewModel(client: libraryClient, settings: mapSettings)
     }
 
     func makeAlbumsViewModel() -> AlbumsViewModel {
-        AlbumsViewModel(client: client as any ImmichClient)
+        AlbumsViewModel(client: libraryClient)
     }
 
     func makeAlbumDetailViewModel(albumId: String) -> AlbumDetailViewModel {
-        AlbumDetailViewModel(client: client as any ImmichClient, albumId: albumId)
+        AlbumDetailViewModel(client: libraryClient, albumId: albumId)
     }
 
     func makeSharedLinksViewModel() -> SharedLinksViewModel {
-        SharedLinksViewModel(client: client as any ImmichClient)
+        SharedLinksViewModel(client: libraryClient)
     }
 
     /// The album mirror, for callers that need it explicitly. Always the single
@@ -241,14 +265,14 @@ final class DependencyContainer {
     /// is only known once the app is authenticated.
     func makeSharedLinkViewerViewModel(baseURL: URL, externalDomain: String) -> SharedLinkViewerViewModel {
         SharedLinkViewerViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             baseURL: baseURL,
             externalDomain: externalDomain
         )
     }
 
     func makeStorageStatsViewModel() -> StorageStatsViewModel {
-        StorageStatsViewModel(client: client as any ImmichClient)
+        StorageStatsViewModel(client: libraryClient)
     }
     /// Reads the persisted auto-backup toggle directly — no live VM needed
     /// (the scene-phase code runs outside the tab tree's VMs).
@@ -274,19 +298,19 @@ final class DependencyContainer {
     }
 
     func makePeopleViewModel() -> PeopleViewModel {
-        PeopleViewModel(client: client as any ImmichClient)
+        PeopleViewModel(client: libraryClient)
     }
 
     func makeTagsViewModel() -> TagsViewModel {
-        TagsViewModel(client: client as any ImmichClient)
+        TagsViewModel(client: libraryClient)
     }
 
     func makeStacksViewModel() -> StacksViewModel {
-        StacksViewModel(client: client as any ImmichClient)
+        StacksViewModel(client: libraryClient)
     }
 
     func makePartnersViewModel() -> PartnersViewModel {
-        PartnersViewModel(client: client as any ImmichClient)
+        PartnersViewModel(client: libraryClient)
     }
 
     /// Notification permission screen (issue #16). Holds no cache — it reads
@@ -296,7 +320,7 @@ final class DependencyContainer {
     }
 
     func makeAdminViewModel() -> AdminViewModel {
-        AdminViewModel(client: client as any ImmichClient)
+        AdminViewModel(client: libraryClient)
     }
 
     /// Gap G20: the current account's own API keys. A dedicated VM, not
@@ -307,7 +331,7 @@ final class DependencyContainer {
     }
 
     func makeMemoriesViewModel() -> MemoriesViewModel {
-        MemoriesViewModel(client: client as any ImmichClient)
+        MemoriesViewModel(client: libraryClient)
     }
 
     func makeRoadTripViewModel(
@@ -318,7 +342,7 @@ final class DependencyContainer {
         token: String?
     ) -> RoadTripViewModel {
         RoadTripViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             albumId: albumId,
             selectedAssetIds: selectedAssetIds,
             albumTitle: albumTitle,
@@ -329,14 +353,14 @@ final class DependencyContainer {
     }
 
     func makeDuplicatesViewModel() -> DuplicatesViewModel {
-        DuplicatesViewModel(client: client as any ImmichClient)
+        DuplicatesViewModel(client: libraryClient)
     }
 
     /// Folder view (gap G11). Read-only and stateless outside the VM: the tree
     /// and the per-folder asset cache live in the instance and nothing is
     /// persisted, so there is no store to share here — one VM per screen tree.
     func makeFolderViewModel() -> FolderViewModel {
-        FolderViewModel(client: client as any ImmichClient)
+        FolderViewModel(client: libraryClient)
     }
 
     /// Offline storage screen (issue #18). Shares the process-wide store and
@@ -345,7 +369,7 @@ final class DependencyContainer {
     func makeOfflineDownloadViewModel() -> OfflineDownloadViewModel {
         OfflineDownloadViewModel(
             store: offlineStore,
-            client: client as any ImmichClient,
+            client: libraryClient,
             index: offlineIndex
         )
     }
@@ -393,7 +417,7 @@ final class DependencyContainer {
     /// the client, but the connected server and its bearer token only exist
     /// once the app is authenticated.
     func makeProfilePictureViewModel(baseURL: URL?, token: String?) -> ProfilePictureViewModel {
-        ProfilePictureViewModel(client: client as any ImmichClient, baseURL: baseURL, token: token)
+        ProfilePictureViewModel(client: libraryClient, baseURL: baseURL, token: token)
     }
 
     /// Per-asset upload report (upload-detail). Takes the caller's
@@ -413,7 +437,7 @@ final class DependencyContainer {
         LocalLibraryViewModel(
             photoLibrary: photos,
             albumSource: (photos as? BackupAssetSource) ?? PhotoLibraryServiceImpl(),
-            client: client as any ImmichClient
+            client: libraryClient
         )
     }
 
@@ -422,7 +446,7 @@ final class DependencyContainer {
     /// was told about, and a fresh ledger would make the scan find nothing.
     func makeFreeUpSpaceViewModel() -> FreeUpSpaceViewModel {
         FreeUpSpaceViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             source: cleanupSource,
             albumSource: photoLibrary,
             ledger: backupLedger,
@@ -443,7 +467,7 @@ final class DependencyContainer {
     /// PIN is stored per account — two servers must never share one code.
     func makeLockedFolderViewModel(accountID: String) -> LockedFolderViewModel {
         LockedFolderViewModel(
-            client: client as any ImmichClient,
+            client: libraryClient,
             pins: lockedFolderPINs,
             accountID: accountID
         )
