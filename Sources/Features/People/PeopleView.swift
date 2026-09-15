@@ -40,9 +40,6 @@ struct PeopleView: View {
             }
         }
         .navigationTitle("People")
-        .navigationDestination(for: PersonResponseDto.self) { person in
-            PersonDetailView(vm: vm, pushed: person, columns: columns, viewerItem: $viewerItem)
-        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -114,8 +111,17 @@ struct PeopleView: View {
         }
     }
 
+    /// A row is pushed as a **view**, not by value: the hub opens this screen with
+    /// a view-destination link, and SwiftUI keeps value destinations *below* view
+    /// destinations inside one stack — a `NavigationLink(value:)` here silently
+    /// did nothing (measured by XCUITest: eight gestures across two list
+    /// instances, row hittable, screen unmoved, while a tap on the same screen's
+    /// refresh button did reach the app). `FolderView` hit the same wall and was
+    /// fixed the same way.
     private func personRow(_ person: PersonResponseDto) -> some View {
-        NavigationLink(value: person) {
+        NavigationLink {
+            PersonDetailView(vm: vm, pushed: person, columns: columns, viewerItem: $viewerItem)
+        } label: {
             HStack(spacing: PVSpacing.s12) {
                 AuthenticatedAsyncImage(
                     url: ImmichAssetURL.personThumbnail(personId: person.id, baseURL: auth.baseURL ?? URL(string: "https://example.com")!),
@@ -143,6 +149,13 @@ struct PeopleView: View {
             .padding(.vertical, PVSpacing.s4)
         }
         .accessibilityElement(children: .combine)
+        // The row is interactive and had no identifier: its label is a
+        // concatenation ("Ada Lovelace, 3 photos"), and after the drill-down is
+        // popped back the same row publishes as a cell whose label is EMPTY, so
+        // a label query stops matching a list that is plainly on screen. (The
+        // combine modifier above is NOT the reason the row does not activate for
+        // XCUITest — removing it was measured to change nothing.)
+        .accessibilityIdentifier("personRow_\(person.id)")
     }
 }
 
