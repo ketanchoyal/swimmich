@@ -150,6 +150,9 @@ struct PhotoViewer: View {
     @State private var showCastSheet = false
     @State private var showInfo = false
     @State private var infoVM: AssetDetailViewModel?
+    /// Full-screen location map of the current photo — the viewer owns the
+    /// presentation (the info panel scrolls and unmounts).
+    @State private var locationMap: AssetLocationMapRequest?
     /// Detected-text mode: the toggle survives page changes (each page loads
     /// its own boxes); the VM is rebuilt per asset like `infoVM`.
     @State private var showOcr = false
@@ -312,11 +315,29 @@ struct PhotoViewer: View {
                         baseURL: baseURL,
                         token: token,
                         onClose: { showInfo = false },
+                        onOpenLocationMap: { latitude, longitude, placeName in
+                            locationMap = AssetLocationMapRequest(
+                                latitude: latitude,
+                                longitude: longitude,
+                                placeName: placeName
+                            )
+                        },
                         onOpenInMaps: openInMaps
                     )
                     .presentationDetents([.fraction(0.7), .large])
                     .presentationDragIndicator(.visible)
                 }
+            }
+
+            // Full-screen location map (tap the info panel's mini-map). Owned
+            // here, next to the other sheets: the panel is a sheet itself and
+            // unmounts while scrolling.
+            .sheet(item: $locationMap) { request in
+                AssetLocationMapSheet(
+                    latitude: request.latitude,
+                    longitude: request.longitude,
+                    placeName: request.placeName
+                )
             }
 
             // Slideshow overlay — INTERNAL layer, topmost. It covers the pager,

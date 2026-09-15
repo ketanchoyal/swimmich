@@ -76,7 +76,10 @@ protocol ImmichClient: AnyObject, Sendable {
     func searchStatistics(dto: SearchStatisticsDto) async throws -> SearchStatisticsResponseDto
 
     // MARK: - Map (AC-710)
-    func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto]
+    /// `GET /api/map/markers` — every geolocated asset, narrowed by `filter`
+    /// (it carries the whole `GET` surface of the route, including the
+    /// `fileCreatedAfter`/`fileCreatedBefore` time window).
+    func getMapMarkers(filter: MapMarkerFilter) async throws -> [MapMarkerResponseDto]
 
     // MARK: - Albums (AC-500..AC-518)
     func getAlbums() async throws -> [AlbumResponseDto]

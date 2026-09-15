@@ -121,8 +121,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     // Map capture (AC-710)
     var mapMarkersResponse: [MapMarkerResponseDto]?
     var mapMarkersError: Error?
-    var lastMapMarkersIsFavorite: Bool?
-    var lastMapMarkersIsArchived: Bool?
+    var lastMapMarkersFilter: MapMarkerFilter?
 
     // Albums capture (AC-500..AC-518)
     var albumsResponse: [AlbumResponseDto]?
@@ -486,10 +485,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         return statisticsResponse ?? SearchStatisticsResponseDto(total: 0)
     }
 
-    func getMapMarkers(isFavorite: Bool?, isArchived: Bool?) async throws -> [MapMarkerResponseDto] {
+    func getMapMarkers(filter: MapMarkerFilter) async throws -> [MapMarkerResponseDto] {
         bump()
-        lastMapMarkersIsFavorite = isFavorite
-        lastMapMarkersIsArchived = isArchived
+        lastMapMarkersFilter = filter
         if let e = globalError ?? mapMarkersError { throw e }
         return mapMarkersResponse ?? []
     }
