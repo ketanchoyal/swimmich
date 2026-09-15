@@ -88,6 +88,10 @@ private struct AuthenticatedRoot: View {
     /// which the eager `make*` calls in `init` do not yet know.
     private let container: DependencyContainer
 
+    /// Change-password screen (gap G18). Owned by the Me sheet's lifetime like
+    /// `lockedFolder`, so a partly typed form survives a re-render of this view.
+    @State private var changePassword: ChangePasswordViewModel
+
     @State private var timeline: TimelineViewModel
     @State private var recentTaken: RecentAssetsViewModel
     @State private var recentAdded: RecentAssetsViewModel
@@ -171,6 +175,7 @@ private struct AuthenticatedRoot: View {
         ))
         _downloads = State(initialValue: container.makeDownloadQueueViewModel())
         _lockedFolder = State(initialValue: container.makeLockedFolderViewModel(accountID: accountID))
+        _changePassword = State(initialValue: container.makeChangePasswordViewModel())
     }
 
     var body: some View {
@@ -292,7 +297,7 @@ private struct AuthenticatedRoot: View {
         // Me section: presented as a sheet from the stable root presenter, from
         // the avatar button that every tab's navigation bar exposes.
         .sheet(isPresented: $showProfile) {
-            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder)
+            ProfileView(trash: trash, storage: storage, upload: upload, uploadDetail: uploadDetail, duplicates: duplicates, people: people, tags: tags, stacks: stacks, partners: partners, admin: admin, offline: offline, recentTaken: recentTaken, recentAdded: recentAdded, syncStatus: syncStatus, notifications: notifications, language: language, localLibrary: localLibrary, freeUpSpace: freeUpSpace, folders: folders, profilePicture: profilePicture, lockedFolder: lockedFolder, changePassword: changePassword)
         }
         .sheet(isPresented: Binding(
             get: { map.isPhotoSheetPresented },

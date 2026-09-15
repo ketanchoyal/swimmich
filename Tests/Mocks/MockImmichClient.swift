@@ -1060,6 +1060,50 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         )
     }
 
+    // Change password (gap G18)
+    /// Body of the last `POST /api/auth/change-password`, recorded before any
+    /// canned error is thrown so the request shape is assertable either way.
+    var lastChangePasswordBody: ChangePasswordDto?
+    var changePasswordResponse: UserAdminResponseDto?
+    var changePasswordError: Error?
+    /// Optional suspension point before the canned response — lets the
+    /// re-entrancy test hold a submit in flight deterministically.
+    var changePasswordGate: (() async -> Void)?
+    /// `GET /api/users/me` as read by `AuthViewModel` (the profile screen reads
+    /// the same route through `getMyUserResponse`).
+    var currentUserResponse: UserAdminResponseDto?
+    var currentUserError: Error?
+
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        invalidateSessions: Bool
+    ) async throws -> UserAdminResponseDto {
+        bump()
+        lastChangePasswordBody = ChangePasswordDto(
+            password: currentPassword,
+            newPassword: newPassword,
+            invalidateSessions: invalidateSessions
+        )
+        if let gate = changePasswordGate { await gate() }
+        if let e = globalError ?? changePasswordError { throw e }
+        return changePasswordResponse ?? UserAdminResponseDto(
+            id: "me", name: "Me Myself", email: "me@example.com",
+            profileImagePath: nil, avatarColor: "#123456", profileChangedAt: nil,
+            shouldChangePassword: false
+        )
+    }
+
+    func currentUser() async throws -> UserAdminResponseDto {
+        bump()
+        if let e = globalError ?? currentUserError { throw e }
+        return currentUserResponse ?? UserAdminResponseDto(
+            id: "me", name: "Me Myself", email: "me@example.com",
+            profileImagePath: nil, avatarColor: "#123456", profileChangedAt: nil,
+            shouldChangePassword: false
+        )
+    }
+
     func uploadProfileImage(
         fileURL: URL,
         filename: String,

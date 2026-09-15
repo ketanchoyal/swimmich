@@ -20,6 +20,22 @@ protocol ImmichClient: AnyObject, Sendable {
 
     func login(email: String, password: String) async throws -> LoginResponseDto
     func logout() async throws -> LogoutResponseDto
+    /// `POST /api/auth/change-password` — replaces the current password.
+    ///
+    /// The return type is the server's `UserAdminResponseDto` for the updated
+    /// user, not `Void`: it is the only server-side proof that
+    /// `shouldChangePassword` fell back to `false` (`auth.service.ts:140`).
+    /// A wrong current password is a **400** (`BadRequestException('Wrong
+    /// password')`), so the global 401 handler must not run for a typo.
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        invalidateSessions: Bool
+    ) async throws -> UserAdminResponseDto
+    /// `GET /api/users/me` read as the auth seam: `AuthViewModel` re-reads the
+    /// server's `shouldChangePassword` flag with it, after a login or during a
+    /// session. `getMyUser()` serves the same route for the profile screen.
+    func currentUser() async throws -> UserAdminResponseDto
     func validateToken() async throws -> ValidateAccessTokenResponseDto
     func authorizeOAuth(redirectURI: String, state: String, codeChallenge: String) async throws -> OAuthAuthorizeResponseDto
     /// Returns the same payload as `login` — the server replies with `LoginResponseDto`.
