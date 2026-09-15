@@ -91,7 +91,18 @@ final class MockBackupAssetSource: BackupAssetSource, @unchecked Sendable {
     /// Ids the engine actually asked to export, in order — the network-policy
     /// tests assert a deferred asset is *never* exported.
     nonisolated(unsafe) var exportedIDs: [String] = []
+    /// `deviceAssetID → deviceAlbumIDs`, the inverse index the real source
+    /// derives from Photos. Returned as-is, filtered to the ids asked for.
+    nonisolated(unsafe) var albumMembershipByDeviceAlbum: [String: [String]] = [:]
     func purgeStaleExports() { purgeCount += 1 }
+
+    func albumMembership(deviceAlbumIDs: Set<String>) -> [String: [String]] {
+        guard !deviceAlbumIDs.isEmpty else { return [:] }
+        return albumMembershipByDeviceAlbum.compactMapValues { albumIDs in
+            let kept = albumIDs.filter { deviceAlbumIDs.contains($0) }
+            return kept.isEmpty ? nil : kept
+        }
+    }
 }
 
 /// Deterministic environment — tests toggle the gates by hand.

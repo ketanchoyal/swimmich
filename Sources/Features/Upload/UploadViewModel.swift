@@ -70,6 +70,14 @@ final class BackupSettingsStore {
         didSet { defaults.set(Array(excludedAlbumIDs), forKey: Self.excludedAlbumsKey) }
     }
 
+    /// Albums mirrored one-way into server albums of the same name. Orthogonal
+    /// to `albumScope`: the scope chooses what is backed up, this chooses where
+    /// an uploaded photo is filed. Dedicated key, default empty — nobody's
+    /// backup changes behavior by installing this version.
+    var syncedAlbumIDs: Set<String> {
+        didSet { defaults.set(Array(syncedAlbumIDs), forKey: Self.syncedAlbumsKey) }
+    }
+
     static let enabledKey = "photoBackupEnabled"
     static let wifiKey = "photoBackupOnlyWiFi"
     static let chargingKey = "photoBackupOnlyCharging"
@@ -79,6 +87,7 @@ final class BackupSettingsStore {
     static let albumsKey = "photoBackupSelectedAlbums"
     static let excludedAlbumsKey = "photoBackupExcludedAlbums"
     static let autoDetectNewPhotosKey = "photoBackupAutoDetectNewPhotos"
+    static let syncedAlbumsKey = "photoBackupSyncedAlbums"
 
     /// Legacy keys, read once for the one-shot migration and then deleted.
     /// The old screenshots toggle becomes the Screenshots smart album; the
@@ -110,6 +119,7 @@ final class BackupSettingsStore {
                 : []
         }
         excludedAlbumIDs = excluded
+        syncedAlbumIDs = Set(defaults.stringArray(forKey: Self.syncedAlbumsKey) ?? [])
         if let raw = defaults.string(forKey: Self.albumScopeKey),
            let stored = BackupAlbumScope(rawValue: raw) {
             albumScope = stored
@@ -136,7 +146,9 @@ final class BackupSettingsStore {
 
     /// Snapshot the current prefs; the engine runs against a frozen copy. Only
     /// the active scope's set is carried over, so the engine never has to
-    /// arbitrate between an inclusion and an exclusion list.
+    /// arbitrate between an inclusion and an exclusion list — while the mirror
+    /// set rides along untouched: it is not a scope, and a manual run must
+    /// mirror exactly like an automatic one.
     func snapshot() -> BackupSettings {
         let inForce = effectiveAlbumScope
         return BackupSettings(
@@ -147,7 +159,8 @@ final class BackupSettingsStore {
             allowCellularForPhotos: allowCellularForPhotos,
             allowCellularForVideos: allowCellularForVideos,
             excludedAlbumIDs: inForce == .excluded ? excludedAlbumIDs : [],
-            selectedAlbumIDs: inForce == .selected ? selectedAlbumIDs : []
+            selectedAlbumIDs: inForce == .selected ? selectedAlbumIDs : [],
+            syncedAlbumIDs: syncedAlbumIDs
         )
     }
 }
@@ -225,14 +238,18 @@ final class UploadViewModel {
         settings: BackupSettingsStore? = nil,
         scheduler: any BackgroundBackupScheduling = BGTaskBackupScheduler(),
         activityService: any BackupLiveActivityServicing = LiveActivityBackupService(),
-        notifications: any NotificationServicing = NotificationService()
+        notifications: any NotificationServicing = NotificationService(),
+        albumSync: (any AlbumSyncServicing)? = nil,
+        userID: (@MainActor () -> String?)? = nil
     ) {
         self.client = client
         self.photos = photos
         self.engine = engine ?? BackupEngine(
             client: client,
             source: (photos as? BackupAssetSource) ?? PhotoLibraryServiceImpl(),
-            ledger: ledger ?? BackupLedger.persistent()
+            ledger: ledger ?? BackupLedger.persistent(),
+            albumSync: albumSync,
+            userID: userID
         )
         self.settings = settings ?? BackupSettingsStore()
         self.scheduler = scheduler
@@ -414,6 +431,53 @@ final class UploadViewModel {
         await engine.reconcileNow()
     }
 
+    // MARK: - Album mirror (device → server)
+
+    /// What the mirror did, published by the engine (nil while it is off).
+    var albumSyncOutcome: AlbumSyncOutcome? { engine.albumSyncOutcome }
+
+    /// True while the catch-up pass runs. Its own lock on top of `running`, so
+    /// two taps can't put two writers on the mirror's buffer.
+    var isReorganizing = false
+
+    /// Message of a failed catch-up, shown in an alert and cleared by its OK.
+    var albumSyncError: String?
+
+    /// "Reorganize into album" needs something to reorganize: a mirrored album
+    /// to file into, and a ledger with assets that were backed up before the
+    /// mirror existed.
+    var canReorganize: Bool {
+        !settings.syncedAlbumIDs.isEmpty && trackedAssetCount > 0
+    }
+
+    /// One line for the settings screen: what the mirror did, plus the first
+    /// error when something failed. Nil while nothing has been mirrored.
+    var albumSyncSummary: String? {
+        guard let outcome = engine.albumSyncOutcome else { return nil }
+        let counts = String(
+            localized: "\(outcome.added) added · \(outcome.alreadyInAlbum) already there · \(outcome.failed) failed"
+        )
+        guard let error = outcome.lastError else { return counts }
+        return "\(counts) — \(error)"
+    }
+
+    /// Sorts the assets an earlier run already uploaded into the mirrored
+    /// albums. Reads the ledger and hands it to the engine — the view layer
+    /// never speaks to the album API itself, so exactly one path writes into an
+    /// album (the engine's mirror), and nothing is ever re-uploaded here.
+    func reorganizeIntoAlbums() async {
+        guard canReorganize, !running, !isReorganizing else { return }
+        let entries = engine.entriesForReconciliation()
+        guard !entries.isEmpty else { return }
+        isReorganizing = true
+        defer { isReorganizing = false }
+        let outcome = await engine.reorganizeAlbums(
+            entries: entries,
+            syncedDeviceAlbumIDs: settings.syncedAlbumIDs
+        )
+        albumSyncError = outcome.failed > 0 ? outcome.lastError : nil
+    }
+
     /// Reduces the engine's observable state to one Live Activity frame:
     /// progress + outcome breakdown + phase + in-flight file + ETA.
     private func makeActivitySnapshot() -> BackupActivitySnapshot {
@@ -456,6 +520,7 @@ struct BackupSettingsView: View {
                 }
                 backupSection
                 albumSection
+                reorganizeSection
                 progressSection
                 trackingSection
                 serverCheckSection
@@ -485,6 +550,17 @@ struct BackupSettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("The next backup will re-check every photo against the server. Nothing is deleted — already-uploaded photos are simply skipped again.")
+            }
+            .alert(
+                "Reorganization failed",
+                isPresented: Binding(
+                    get: { vm.albumSyncError != nil },
+                    set: { if !$0 { vm.albumSyncError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { vm.albumSyncError = nil }
+            } message: {
+                Text(vm.albumSyncError ?? "")
             }
         }
     }
@@ -519,6 +595,32 @@ struct BackupSettingsView: View {
             Text("Server check")
         } footer: {
             Text("Asks the server which of your tracked photos it still has. Nothing is uploaded or downloaded — it is a list comparison, so it is quick even on a large library. Photos you deleted on the server are forgotten here, so the next backup uploads them again. Immich does this automatically about once a week; run it by hand after deleting photos on the server, so they come back without waiting for the next backup.")
+        }
+    }
+
+    /// The catch-up action for assets uploaded before the mirror was turned on:
+    /// one section, one button — modelled on `serverCheckSection`, the
+    /// non-destructive maintenance action already in this Form.
+    ///
+    /// No `NavigationStack` here: `BackupSettingsView` wraps its own `Form` in
+    /// one, and a second would draw a second bar.
+    @ViewBuilder
+    private var reorganizeSection: some View {
+        Section {
+            if let summary = vm.albumSyncSummary {
+                LabeledContent("In albums", value: summary)
+            }
+            Button {
+                Task { await vm.reorganizeIntoAlbums() }
+            } label: {
+                Label("Reorganize into album", systemImage: "rectangle.stack.badge.plus")
+            }
+            .disabled(!vm.canReorganize || vm.running || vm.isReorganizing)
+            .accessibilityIdentifier("backupReorganizeButton")
+        } header: {
+            Text("Album mirror")
+        } footer: {
+            Text("Files the photos you backed up before turning the mirror on into their albums. It reads your backup list and asks the server which photos it already has — nothing is uploaded again, and nothing is deleted.")
         }
     }
 
@@ -619,6 +721,22 @@ struct BackupSettingsView: View {
                                    value: albumCount(vm.settings.excludedAlbumIDs, "excluded"))
                 }
             }
+            // The mirror is not part of the scope above: it is the same
+            // question ("which albums?") for a different job — filing what was
+            // uploaded. Smart albums are left out at the call site: the
+            // resolution ignores them, so offering them would be a setting with
+            // no effect.
+            NavigationLink {
+                AlbumPickerView(
+                    title: "Albums to mirror",
+                    albums: vm.albums.filter { !$0.isSmart },
+                    selection: $vm.settings.syncedAlbumIDs
+                )
+            } label: {
+                LabeledContent("Mirror into albums",
+                               value: albumCount(vm.settings.syncedAlbumIDs, "mirrored"))
+            }
+            .accessibilityIdentifier("backupMirrorAlbumsRow")
         } header: {
             Text("Albums")
         } footer: {
@@ -631,7 +749,7 @@ struct BackupSettingsView: View {
     }
 
     private var albumSectionFooter: String {
-        switch vm.settings.albumScope {
+        let scope: String = switch vm.settings.albumScope {
         case .all:
             "Every photo and video in your library is backed up."
         case .selected:
@@ -645,6 +763,14 @@ struct BackupSettingsView: View {
                 ? "No album skipped yet, so every album is backed up. Pick an album to leave it out."
                 : "Photos in the albums you picked are left out of every backup. Nothing is ever deleted from Immich or from Photos."
         }
+        // The mirror is one-way and frozen at creation; saying it once, here,
+        // is cheaper than a user discovering it — and the alternative reading
+        // (a two-way sync) is the one people assume. This one sentence goes
+        // through `String(localized:)` because the scope sentences above are
+        // built as plain strings and never reach the catalogue.
+        return scope + " " + String(
+            localized: "Photos in a mirrored album also join a server album of the same name. That server album is created at the first backup and reused as it is: moving a photo between albums in Photos never moves it on the server, and nothing is ever deleted or renamed here."
+        )
     }
 
     @ViewBuilder

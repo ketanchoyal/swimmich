@@ -278,6 +278,27 @@ extension PhotoLibraryServiceImpl: BackupAssetSource {
         return ids
     }
 
+    /// Which of `deviceAlbumIDs` each asset belongs to, one fetch per album.
+    /// Same shape as `excludedAssetIDs(_:)` and for the same reason: resolving
+    /// an album's membership by asking each asset where it lives costs a Photos
+    /// round-trip per asset, which is what made a whole-library scan stall.
+    /// Hidden assets are left out — a hidden photo is not backed up, so it must
+    /// not seed a mirror either. An album with no asset, or an id the library
+    /// doesn't have, contributes nothing.
+    func albumMembership(deviceAlbumIDs: Set<String>) -> [String: [String]] {
+        guard !deviceAlbumIDs.isEmpty else { return [:] }
+        let options = PHFetchOptions()
+        options.includeHiddenAssets = false
+        var membership: [String: [String]] = [:]
+        for albumID in deviceAlbumIDs {
+            guard let collection = Self.collection(forAlbumID: albumID) else { continue }
+            PHAsset.fetchAssets(in: collection, options: options).enumerateObjects { asset, _, _ in
+                membership[asset.localIdentifier, default: []].append(albumID)
+            }
+        }
+        return membership
+    }
+
     /// Streams the asset's original resource to a temp file on disk (never a
     /// full `Data` in memory). `isNetworkAccessAllowed` lets iCloud-only
     /// originals download; a stall watchdog guards a hung download.

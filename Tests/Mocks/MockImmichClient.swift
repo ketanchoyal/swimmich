@@ -125,6 +125,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var albumsResponse: [AlbumResponseDto]?
     var albumsError: Error?
     var lastCreateAlbumDto: CreateAlbumDto?
+    /// Every album name passed to `createAlbum`, in order — the album mirror
+    /// asserts *what* it created, not just how many times.
+    var createdAlbumNames: [String] = []
     var createAlbumResponse: AlbumResponseDto?
     var createAlbumError: Error?
     var getAlbumResponse: [String: AlbumResponseDto] = [:]
@@ -138,6 +141,9 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     var deleteAlbumError: Error?
     var lastAddAssetsAlbumId: String?
     var lastAddAssetsIds: [String]?
+    /// Every add-assets call in order — the mirror's batching is asserted on
+    /// the chunk boundaries, which the "last call" fields cannot show.
+    var addAssetsToAlbumCalls: [(albumId: String, ids: [String])] = []
     var addAssetsResponse: [BulkIdResponseDto]?
     var addAssetsError: Error?
     var lastRemoveAssetsAlbumId: String?
@@ -497,6 +503,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
     func createAlbum(dto: CreateAlbumDto) async throws -> AlbumResponseDto {
         bump()
         lastCreateAlbumDto = dto
+        createdAlbumNames.append(dto.albumName)
         if let e = globalError ?? createAlbumError { throw e }
         return createAlbumResponse ?? cannedAlbum(id: "album-new", name: dto.albumName, count: dto.assetIds?.count ?? 0)
     }
@@ -558,6 +565,7 @@ final class MockImmichClient: ImmichClient, @unchecked Sendable {
         bump()
         lastAddAssetsAlbumId = albumId
         lastAddAssetsIds = dto.ids
+        addAssetsToAlbumCalls.append((albumId: albumId, ids: dto.ids))
         if let e = globalError ?? addAssetsError { throw e }
         return addAssetsResponse ?? dto.ids.map { BulkIdResponseDto(id: $0, success: true, error: nil, errorMessage: nil) }
     }
