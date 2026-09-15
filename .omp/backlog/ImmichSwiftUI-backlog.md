@@ -938,6 +938,79 @@ consomment. Les features d'une même phase restent indépendantes entre elles.
 - **Android uniquement** : VIEW intent, foreground service, Obtainium, empreintes de certificats de release.
 - **Déjà au-delà de la parité** : Live Activity + Dynamic Island, 4 widgets + AppIntents/Spotlight, viewer public de lien partagé, résolution des doublons, panneau d'administration, RoadTrip, multi-comptes.
 
+
+---
+
+### 2.18. Batch parallèle du 2026-09-15 — les 25 features livrées
+
+Les 25 fiches du plan des écarts ont été implémentées **en parallèle**, une branche
+`feat/<slug>` par feature dans son propre worktree, par des sous-agents, l'orchestrateur
+fusionnant et vérifiant. Quatre vagues (P2, P3, P4, P5), plus une migration ciblée
+accordée en cours de route.
+
+**Méthode, et ce qu'elle a coûté**
+
+- Un sous-agent par feature, chacun dans `immich_swiftui.worktrees/<slug>`, avec un
+  contrat commun écrit (`.omp/orchestration/BRIEF.md`) : carte AC = autorité, périmètre
+  de fichiers, hunks additifs aux ancres nommées, i18n par fragment (jamais le
+  `xcstrings` partagé), `project.pbxproj` jamais commité, pas de suite complète.
+- Trois simulateurs de slot neufs et trois DerivedData, sérialisés par un sémaphore
+  (`.omp/orchestration/verify.sh`) : 25 branches qui compilent en parallèle sur un seul
+  poste, sans que deux `xcodebuild` se disputent le même appareil.
+- Fusion des branches en `union` (driver `.gitattributes` temporaire, retiré depuis) :
+  zéro conflit, au prix de **neuf sites de concaténation** là où deux branches touchaient
+  la même ligne (init du conteneur, appel `ProfileView` dupliqué jusqu'à sept fois,
+  accolades perdues) — tous rattrapés par la porte de compilation, aucun par la suite.
+- Vérification : une **matrice AC** (`ac.py`) rejoue les 250 checks des 25 cartes sur
+  l'arbre intégré, et la suite complète y tourne **deux fois** (simulateur du dépôt en
+  allemand, slot neuf en anglais).
+
+**Résultat**
+
+| | |
+|---|---|
+| Features livrées | **25 / 25** (60/60 AC en P2, 40/40 en P3, 70/70 en P4, 80/80 en P5) |
+| Checks AC sur l'arbre intégré | **250 / 250 PASS** |
+| Suite | 886 → **1193 tests, TEST SUCCEEDED** (les deux environnements) |
+| Catalogue | 648 → **1035 clés** (fr/de/es/it) |
+| Fuite trouvée dans les cartes | 7 défauts, chacun prouvé et arbitré (voir ci-dessous) |
+
+**Ce que le batch a trouvé en dehors des cartes**
+
+1. **La baseline était rouge sur `main`** avant toute feature : 16 entrées mortes du
+   catalogue (`%@ Photos`, `API Keys (%@)`…) que la garde `AppStringsTests` exigeait
+   traduites, chacune ayant un jumeau `%lld` vivant — résidus de la migration des
+   littéraux interpolés. Supprimées (diagnostic par extraction CLI `.stringsdata`).
+2. **Sept défauts de carte**, tous de la même famille : une carte antérieure au code.
+   - `AC-5045` : parenthèses non échappées dans un ERE — le motif ne pouvait pas correspondre.
+   - `AC-5075` : mêmes parenthèses dans un BRE (`grep -A4`, sans `-E`) — le grep refusait le motif.
+   - `AC-5081` : `routeDetectionEnabled`, que le SDK renomme `isRouteDetectionEnabled`.
+   - `AC-5201` : littéral `"permissions": permissions` qu'aucun code qui compile ne peut écrire.
+   - `AC-5171` : `struct` décorant un protocole `AnyObject` — interdit par le langage.
+   - `AC-5244`/`AC-5246` : `DownloadInfoView`, déjà pris par `download-panel`.
+   - `AC-5128`, `AC-5131`, `AC-5067`, `AC-5068` : **deux cartes se contredisaient** sur le
+     contenu d'un même fichier partagé (et sur la sémantique de `clearSearch`). C'est la
+     matrice AC qui les a fait apparaître — `ocr-text` et `star-ratings` étaient vertes,
+     puis rouges à la fusion de `search-filters`.
+3. **Une règle serveur qui invalidait une conception** : depuis la v3.2.0, `filter`,
+   `orderBy` et `cursor` sont **mutuellement exclusifs** avec tous les champs plats
+   dépréciés de `MetadataSearchDto` (`page` compris). `ocr-text` et `search-filters`
+   émettaient donc des requêtes en 400. Migration livrée (branche `feat/search-shape`) :
+   au-dessus de v3.2.0 le corps part en forme structurée (`filter` + `orderBy` +
+   `cursor`, zéro champ plat), en dessous il reste plat ; la pagination suit la forme.
+
+**Écarts assumés, à ne pas « réparer »**
+
+- `chromecast` livre **AirPlay**, pas Google Cast (aucun paquet SPM officiel, pas de
+  `Podfile`) : **G9 reste partiellement ouvert pour l'image fixe**, qu'AirPlay ne transporte pas.
+- `locked-folder` : le PIN est **serveur**, l'élévation (`isElevated`) n'est exposée par
+  aucun champ de session — l'état iOS est optimiste, et les deux routes `/auth/session/*`
+  exigent un token de session (un compte par clé API reçoit un 400).
+- `device-sessions` s'aligne sur `DeviceCard.svelte` (le client Flutter n'a rien) :
+  `DELETE /api/sessions` ne supprime pas la session courante.
+- `settings-parity` ajoute deux réglages sans équivalent upstream (densité 5/3/2, clé
+  `searchGridDensity`) : convention neuve du dépôt, pas de la parité.
+
 ---
 
 ## Référence API — endpoints ImmichClient
