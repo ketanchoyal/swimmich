@@ -60,6 +60,11 @@ final class OcrTextUITests: XCTestCase {
     private let noTextCopy = ["No text found", "Aucun texte détecté", "Kein Text gefunden",
                               "No se encontró texto", "Nessun testo trovato"]
 
+    /// The value both detected-text toggles publish while latched — the same
+    /// hazard as `noTextCopy`, one level down: the VoiceOver value is a catalog
+    /// key (`on`, shipped in five languages), so it follows the machine.
+    private let latchedCopy = ["on", "Activé", "Ein", "Activado", "Attivato"]
+
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -255,13 +260,16 @@ final class OcrTextUITests: XCTestCase {
                        "the photo viewer never dismissed — every later step would read the covered screen")
     }
 
-    /// Waits for an element's `accessibilityValue` to become `expected`.
+    /// Waits for an element's `accessibilityValue` to become one of `accepted`.
     /// A tap and the SwiftUI re-render that publishes the new value are two
-    /// events: asserting immediately reads the old one (measured).
-    private func waitForValue(_ element: XCUIElement, _ expected: String,
+    /// events: asserting immediately reads the old one (measured). The list is
+    /// `labelPredicate`'s twin one level down — a localized value is accepted in
+    /// every language it ships in, never in one.
+    private func waitForValue(_ element: XCUIElement, _ accepted: [String],
                               timeout: TimeInterval = 10) -> Bool {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", expected), object: element)
+        let predicate = NSPredicate(format: accepted.map { _ in "value == %@" }.joined(separator: " OR "),
+                                    argumentArray: accepted)
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
@@ -382,7 +390,7 @@ final class OcrTextUITests: XCTestCase {
         }
         shot("05-viewer")
         ocrToggle.tap()
-        XCTAssertTrue(waitForValue(ocrToggle, "on"),
+        XCTAssertTrue(waitForValue(ocrToggle, latchedCopy),
                       "the detected-text button did not latch — it reads '\(ocrToggle.value ?? "nil")'")
 
         // The layer announces its boxes: two confident ones, in reading order,
@@ -420,7 +428,7 @@ final class OcrTextUITests: XCTestCase {
         secondPhoto.tap()
         XCTAssertTrue(ocrToggle.waitForExistence(timeout: 25), "the viewer did not open on the second photo")
         ocrToggle.tap()
-        XCTAssertTrue(waitForValue(ocrToggle, "on"),
+        XCTAssertTrue(waitForValue(ocrToggle, latchedCopy),
                       "the detected-text button did not latch on the second photo")
 
         let status = app.descendants(matching: .any).matching(identifier: "viewerOcrStatusText").firstMatch
@@ -485,7 +493,7 @@ final class OcrTextUITests: XCTestCase {
                        "the detected-text toggle stayed disabled: either the mode is not Metadata"
                        + " or the server never answered 3.2.0 (the stub does)")
         ocrFilter.tap()
-        XCTAssertTrue(waitForValue(ocrFilter, "on"),
+        XCTAssertTrue(waitForValue(ocrFilter, latchedCopy),
                       "the detected-text toggle did not latch — it reads '\(ocrFilter.value ?? "nil")'")
 
         // MARK: - Search: the criterion travels as a structured filter
@@ -524,7 +532,7 @@ final class OcrTextUITests: XCTestCase {
         }
         criterion.tap()
         criterion.typeText(needle)
-        XCTAssertTrue(waitForValue(criterion, needle),
+        XCTAssertTrue(waitForValue(criterion, [needle]),
                       "the detected-text field did not take the query — it reads '\(criterion.value ?? "nil")'")
 
         app.buttons["searchFilterDone"].tap()

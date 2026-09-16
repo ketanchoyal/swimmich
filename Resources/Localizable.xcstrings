@@ -4481,6 +4481,34 @@
         }
       }
     },
+    "Jump straight to everything you've added lately on a dedicated page." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accédez directement à tout ce que vous avez ajouté récemment, sur une page dédiée."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Springe direkt zu allem, was du kürzlich hinzugefügt hast – auf einer eigenen Seite."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ve directamente a todo lo que has añadido recientemente, en una página dedicada."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vai direttamente a tutto ciò che hai aggiunto di recente, in una pagina dedicata."
+          }
+        }
+      }
+    },
     "Keep albums" : {
       "localizations" : {
         "fr" : {
@@ -9101,6 +9129,34 @@
         }
       }
     },
+    "Sit back and watch your photos play in a full-screen slideshow." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laissez vos photos défiler dans un diaporama plein écran."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lehn dich zurück und sieh dir deine Fotos in einer Vollbild-Diashow an."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siéntate tranquilo y mira tus fotos en una presentación a pantalla completa."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rilassati e guarda le tue foto in una presentazione a schermo intero."
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "fr" : {
@@ -10753,6 +10809,34 @@
         }
       }
     },
+    "Uploading %lld%%" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoi en cours %lld%%"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird hochgeladen: %lld%%"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subiendo %lld%%"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caricamento in corso %lld%%"
+          }
+        }
+      }
+    },
     "Uploading %lld/%lld" : {
       "localizations" : {
         "fr" : {
@@ -11225,6 +11309,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "preferiti"
+          }
+        }
+      }
+    },
+    "off" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivado"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disattivato"
+          }
+        }
+      }
+    },
+    "on" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activé"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activado"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attivato"
           }
         }
       }
