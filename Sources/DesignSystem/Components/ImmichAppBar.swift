@@ -3,13 +3,13 @@ import SwiftUI
 // MARK: - ImmichAppBar
 //
 // Immich-flavored app bar identity, placed in `ToolbarItem(placement: .principal)`.
-// Renders the immich logo glyph + "Immich" wordmark inline — the recognizable
-// immich top-of-screen identity (the upstream Flutter `ImmichSliverAppBar`
-// ships `immich-logo-inline-light.svg` / `-dark.svg`). The repo does not
-// currently bundle those SVGs, so we approximate with a tinted SF Symbol
-// (`camera.aperture`) + wordmark text. When the official SVGs land in
-// `Resources/Assets.xcassets/`, swap the body of `ImmichLogo` without
-// touching call sites.
+// Renders the immich mark + "Immich" wordmark inline — the recognizable
+// immich top-of-screen identity. The upstream Flutter `ImmichSliverAppBar`
+// draws `immich-logo-inline-light.svg` / `-dark.svg`; those files declare the
+// flower (which `ImmichMark` carries, path for path) plus a wordmark PNG that
+// differs only by appearance. Native text follows the system appearance on its
+// own, so the lockup here is the mark + a `Text`, in every app state, from one
+// code path.
 //
 // Native compromise: SwiftUI toolbar background, scrolling behaviour, and
 // safe-area insets remain iOS-native (no Material elevation), per the
@@ -33,16 +33,17 @@ struct ImmichAppBar: View {
     }
 }
 
-/// Standalone immich logo + wordmark — also reusable outside toolbars
+/// Standalone immich mark + wordmark — also reusable outside toolbars
 /// (auth screens, launch, empty-state headers).
 struct ImmichLogo: View {
     let title: LocalizedStringKey
 
     var body: some View {
-        HStack(spacing: PVSpacing.s4) {
-            Image(systemName: "camera.aperture")
-                .font(.system(size: 22, weight: .semibold)) // DS-exempt: brand glyph §8.6
-                .foregroundStyle(Color.immichPrimary)
+        HStack(spacing: PVSpacing.s8) {
+            // 24: the bird's own bounding box fills the frame, so its ink carries
+            // the same optical weight the flower did at this size.
+            ImmichMark()
+                .frame(width: 24, height: 24)
             Text(title)
                 .font(.pvH6)
                 .foregroundStyle(Color.textPrimaryPV)

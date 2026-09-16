@@ -33,7 +33,10 @@ struct WelcomeScreen: View {
 
     private var header: some View {
         VStack(spacing: PVSpacing.s8) {
-            PVHeaderBadge(icon: "camera.aperture")
+            PVHeaderBadge {
+                ImmichMark()
+                    .frame(width: 40, height: 40)
+            }
             Text("Welcome to Immich")
                 .font(.pvH2)
                 .multilineTextAlignment(.center)
