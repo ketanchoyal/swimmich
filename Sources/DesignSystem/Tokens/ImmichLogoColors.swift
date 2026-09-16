@@ -5,8 +5,8 @@ import SwiftUI
 // The five fills of the immich brand, taken verbatim from the official export
 // (`immich-logo.svg`: #FA2921, #ED79B5, #FFB400, #1E83F7, #18C249). The names
 // below are the flower's own seatings, because that is where the values come
-// from — the mark this app draws is the system bird, not the flower, so treat
-// the seating as provenance, not as geometry.
+// from — the mark this app draws is its own lens, not the flower, so treat the
+// seating as provenance, not as geometry.
 //
 // These are not theme colours. The mark does not change between light and dark
 // appearance — upstream only ever shipped a light/dark *wordmark* — so each one

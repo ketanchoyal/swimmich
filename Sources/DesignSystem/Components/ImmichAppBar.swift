@@ -3,13 +3,13 @@ import SwiftUI
 // MARK: - ImmichAppBar
 //
 // Immich-flavored app bar identity, placed in `ToolbarItem(placement: .principal)`.
-// Renders the immich mark + "Immich" wordmark inline — the recognizable
+// Renders the app's own mark + "Immich" wordmark inline — the recognizable
 // immich top-of-screen identity. The upstream Flutter `ImmichSliverAppBar`
-// draws `immich-logo-inline-light.svg` / `-dark.svg`; those files declare the
-// flower (which `ImmichMark` carries, path for path) plus a wordmark PNG that
-// differs only by appearance. Native text follows the system appearance on its
-// own, so the lockup here is the mark + a `Text`, in every app state, from one
-// code path.
+// draws `immich-logo-inline-light.svg` / `-dark.svg`: a logo plus a wordmark PNG
+// that differs only by appearance. This app draws its own mark instead
+// (`ImmichMark`: a lens whose opening is the petal motif, in immich's five),
+// and native text follows the system appearance on its own, so the lockup here
+// is the mark + a `Text`, in every app state, from one code path.
 //
 // Native compromise: SwiftUI toolbar background, scrolling behaviour, and
 // safe-area insets remain iOS-native (no Material elevation), per the
@@ -40,8 +40,8 @@ struct ImmichLogo: View {
 
     var body: some View {
         HStack(spacing: PVSpacing.s8) {
-            // 24: the bird's own bounding box fills the frame, so its ink carries
-            // the same optical weight the flower did at this size.
+            // 24: the mark's own bounding box fills the frame, so its ink carries
+            // the optical weight the replaced SF Symbol did at this size.
             ImmichMark()
                 .frame(width: 24, height: 24)
             Text(title)

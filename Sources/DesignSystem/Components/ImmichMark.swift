@@ -2,185 +2,144 @@ import SwiftUI
 
 // MARK: - ImmichMark
 //
-// The app's mark: the SwiftUI bird, traced as a vector path and filled with
-// the immich five as a gradient.
+// The app's mark: a lens. A barrel band cut into five arcs, five iris slits,
+// and an opening whose *negative space* is the petal motif — five rounded
+// lobes with crisp valleys. It is the family the mark lives in (five-fold
+// rotation, five colours, photography) without being anyone's flower: the
+// petals are a pupil, the colour is one sweep, and the blades are cut where the
+// petal valleys meet the barrel.
 //
-// The outline is a TRACE of Apple's published SwiftUI mark
-// (`developer.apple.com/assets/elements/icons/swiftui`, the 512 pt export):
-// its mask was extracted from the asset's own pixels, the outer contour
-// followed by marching squares, simplified by Douglas-Peucker and closed as
-// cubic Beziers, then mapped into the unit square. It is a path, not an
-// image: crisp at every size, and the trace error was measured against the
-// source mask rather than eyeballed.
-// Trace parameters: epsilon 0.7 px on a 512 px source, 127 cubics.
+// Every contour is a formula — circles, radial wedges, and one sampled polar
+// curve — not traced data, so the mark is retuned by editing the numbers in
+// `ImmichMarkGeometry` and nothing else. No Apple asset, no upstream logo, and
+// nothing that has to be licensed: the shape is ours, and the palette is
+// `ImmichLogoColors`.
 //
-// NOTE FOR REVIEW: this is Apple's mark, not ours — fine for a personal or
-// internal build, but shipping it in an App Store icon is a trademark
-// question (Apple's design resources are licensed for mockups, not for
-// another product's identity). The immich colours are applied on top.
+// Read it at the two sizes it ships at: 24 pt beside the wordmark in
+// `ImmichLogo` (the app bar of eight screens) and 40 pt in the onboarding
+// badge. The barrel and the slits fade below 40 pt — deliberately: at 24 pt the
+// mark is a disc with a petal-shaped pupil, which is legible; the blades appear
+// as it grows, which is what keeps the 1024 pt icon interesting.
 
-/// The bird, as one closed path: a move point, then 6 numbers per cubic.
-enum ImmichBirdOutline {
-    static let points: [CGFloat] = [
-        0.621387, 0.059971, 0.615366, 0.049133, 0.622592, 0.057322,
-        0.625723, 0.058526, 0.628854, 0.059730, 0.629094, 0.059489,
-        0.640173, 0.067197, 0.651252, 0.074904, 0.675819, 0.091763,
-        0.692197, 0.104769, 0.708574, 0.117775, 0.722303, 0.129576,
-        0.738439, 0.145231, 0.754576, 0.160886, 0.770472, 0.175819,
-        0.789017, 0.198699, 0.807563, 0.221580, 0.837187, 0.263728,
-        0.849711, 0.282514, 0.862235, 0.301301, 0.860790, 0.305636,
-        0.864162, 0.311416, 0.867534, 0.317197, 0.864644, 0.307081,
-        0.869942, 0.317197, 0.875241, 0.327312, 0.887765, 0.351397,
-        0.895954, 0.372110, 0.904143, 0.392823, 0.914258, 0.424133,
-        0.919075, 0.441474, 0.923892, 0.458815, 0.923410, 0.469894,
-        0.924855, 0.476156, 0.926301, 0.482418, 0.927264, 0.476156,
-        0.927746, 0.479046, 0.928227, 0.481936, 0.927264, 0.490607,
-        0.927746, 0.493497, 0.928227, 0.496387, 0.930154, 0.492534,
-        0.930636, 0.496387, 0.931118, 0.500241, 0.930154, 0.512765,
-        0.930636, 0.516618, 0.931118, 0.520472, 0.933044, 0.504094,
-        0.933526, 0.519509, 0.934008, 0.534923, 0.934008, 0.593690,
-        0.933526, 0.609104, 0.933044, 0.624518, 0.931599, 0.605732,
-        0.930636, 0.611994, 0.929672, 0.618256, 0.930154, 0.635116,
-        0.927746, 0.646676, 0.925337, 0.658237, 0.912331, 0.667389,
-        0.916185, 0.681358, 0.920039, 0.695328, 0.940751, 0.713632,
-        0.950867, 0.730491, 0.960983, 0.747351, 0.970135, 0.766618,
-        0.976879, 0.782514, 0.983622, 0.798410, 0.988439, 0.814788,
-        0.991329, 0.825867, 0.994220, 0.836946, 0.993256, 0.844653,
-        0.994220, 0.848988, 0.995183, 0.853324, 0.996628, 0.848988,
-        0.997110, 0.851879, 0.997592, 0.854769, 0.996628, 0.863439,
-        0.997110, 0.866329, 0.997592, 0.869220, 0.999518, 0.859104,
-        1.000000, 0.869220, 1.000482, 0.879335, 1.000723, 0.915222,
-        1.000000, 0.927023, 0.999277, 0.938825, 0.997351, 0.938343,
-        0.995665, 0.940029, 0.993979, 0.941715, 0.991089, 0.936898,
-        0.989884, 0.937139, 0.988680, 0.937380, 0.989162, 0.940751,
-        0.988439, 0.941474, 0.987717, 0.942197, 0.988439, 0.945809,
-        0.985549, 0.941474, 0.982659, 0.937139, 0.979046, 0.925819,
-        0.971098, 0.915462, 0.963150, 0.905106, 0.949181, 0.888728,
-        0.937861, 0.879335, 0.926541, 0.869942, 0.912331, 0.862958,
-        0.903179, 0.859104, 0.894027, 0.855250, 0.886802, 0.857177,
-        0.882948, 0.856214, 0.879094, 0.855250, 0.888247, 0.853805,
-        0.880058, 0.853324, 0.871869, 0.852842, 0.842004, 0.852842,
-        0.833815, 0.853324, 0.825626, 0.853805, 0.835260, 0.855250,
-        0.830925, 0.856214, 0.826590, 0.857177, 0.816956, 0.856696,
-        0.807803, 0.859104, 0.798651, 0.861513, 0.785164, 0.866329,
-        0.776012, 0.870665, 0.766859, 0.875000, 0.759634, 0.881262,
-        0.752890, 0.885116, 0.746146, 0.888969, 0.739403, 0.892341,
-        0.735549, 0.893786, 0.731696, 0.895231, 0.736031, 0.890896,
-        0.729769, 0.893786, 0.723507, 0.896676, 0.711946, 0.905347,
-        0.697977, 0.911127, 0.684008, 0.916908, 0.660886, 0.924615,
-        0.645954, 0.928468, 0.631021, 0.932322, 0.615125, 0.932803,
-        0.608382, 0.934249, 0.601638, 0.935694, 0.609345, 0.936657,
-        0.605491, 0.937139, 0.601638, 0.937620, 0.589114, 0.936657,
-        0.585260, 0.937139, 0.581407, 0.937620, 0.595857, 0.939547,
-        0.582370, 0.940029, 0.568882, 0.940511, 0.517823, 0.940511,
-        0.504335, 0.940029, 0.490848, 0.939547, 0.508671, 0.938102,
-        0.501445, 0.937139, 0.494220, 0.936175, 0.468208, 0.935212,
-        0.460983, 0.934249, 0.453757, 0.933285, 0.462909, 0.932322,
-        0.458092, 0.931358, 0.453276, 0.930395, 0.442197, 0.930877,
-        0.432081, 0.928468, 0.421965, 0.926060, 0.404624, 0.918834,
-        0.397399, 0.916908, 0.390173, 0.914981, 0.406551, 0.922688,
-        0.388728, 0.916908, 0.370906, 0.911127, 0.316474, 0.892823,
-        0.290462, 0.882225, 0.264451, 0.871628, 0.256262, 0.867293,
-        0.232659, 0.853324, 0.209056, 0.839355, 0.168112, 0.811898,
-        0.148844, 0.798410, 0.129576, 0.784923, 0.132707, 0.787091,
-        0.117052, 0.772399, 0.101397, 0.757707, 0.074422, 0.732659,
-        0.054913, 0.710260, 0.035405, 0.687861, 0.008430, 0.650289,
-        0.000000, 0.638006, -0.008430, 0.625723, 0.001686, 0.634875,
-        0.004335, 0.636561, 0.006985, 0.638247, 0.004335, 0.640414,
-        0.015896, 0.648121, 0.027457, 0.655829, 0.051060, 0.670761,
-        0.073699, 0.682803, 0.096339, 0.694846, 0.127168, 0.710260,
-        0.151734, 0.720376, 0.176301, 0.730491, 0.203757, 0.738680,
-        0.221098, 0.743497, 0.238439, 0.748314, 0.249518, 0.747832,
-        0.255780, 0.749277, 0.262042, 0.750723, 0.255780, 0.751686,
-        0.258671, 0.752168, 0.261561, 0.752649, 0.270231, 0.751686,
-        0.273121, 0.752168, 0.276012, 0.752649, 0.272640, 0.754576,
-        0.276012, 0.755058, 0.279383, 0.755539, 0.289981, 0.754576,
-        0.293353, 0.755058, 0.296724, 0.755539, 0.282755, 0.756985,
-        0.296243, 0.757948, 0.309730, 0.758911, 0.360790, 0.760838,
-        0.374277, 0.760838, 0.387765, 0.760838, 0.371869, 0.758430,
-        0.377168, 0.757948, 0.382466, 0.757466, 0.400771, 0.758430,
-        0.406069, 0.757948, 0.411368, 0.757466, 0.403179, 0.756021,
-        0.408960, 0.755058, 0.414740, 0.754094, 0.424374, 0.756021,
-        0.440751, 0.752168, 0.457129, 0.748314, 0.486994, 0.740125,
-        0.507225, 0.731936, 0.527457, 0.723748, 0.552264, 0.709056,
-        0.562139, 0.703035, 0.572013, 0.697013, 0.567919, 0.699181,
-        0.566474, 0.695809, 0.565029, 0.692437, 0.563343, 0.690751,
-        0.553468, 0.682803, 0.543593, 0.674855, 0.527457, 0.664981,
-        0.507225, 0.648121, 0.486994, 0.631262, 0.465077, 0.613680,
-        0.432081, 0.581647, 0.399085, 0.549615, 0.347543, 0.497592,
-        0.309249, 0.455925, 0.270954, 0.414258, 0.229769, 0.364884,
-        0.202312, 0.331647, 0.174855, 0.298410, 0.156551, 0.271435,
-        0.144509, 0.256503, 0.132466, 0.241570, 0.137765, 0.252168,
-        0.130058, 0.242052, 0.122351, 0.231936, 0.102360, 0.203276,
-        0.098266, 0.195809, 0.094171, 0.188343, 0.089355, 0.184008,
-        0.105491, 0.197254, 0.121628, 0.210501, 0.155106, 0.243015,
-        0.195087, 0.275289, 0.235067, 0.307563, 0.302505, 0.359104,
-        0.345376, 0.390896, 0.388247, 0.422688, 0.433044, 0.453035,
-        0.452312, 0.466040, 0.471580, 0.479046, 0.454239, 0.464595,
-        0.460983, 0.468931, 0.467726, 0.473266, 0.486513, 0.488198,
-        0.492775, 0.492052, 0.499037, 0.495906, 0.497351, 0.492293,
-        0.498555, 0.492052, 0.499759, 0.491811, 0.505539, 0.496628,
-        0.500000, 0.490607, 0.494461, 0.484586, 0.481214, 0.473266,
-        0.465318, 0.455925, 0.449422, 0.438584, 0.427264, 0.413536,
-        0.404624, 0.386561, 0.381985, 0.359586, 0.358382, 0.331647,
-        0.329480, 0.294075, 0.300578, 0.256503, 0.248555, 0.184730,
-        0.231214, 0.161127, 0.213873, 0.137524, 0.226156, 0.154624,
-        0.225434, 0.152457, 0.224711, 0.150289, 0.209297, 0.132466,
-        0.226879, 0.148121, 0.244461, 0.163776, 0.293353, 0.212669,
-        0.330925, 0.246387, 0.368497, 0.280106, 0.407514, 0.314306,
-        0.452312, 0.350434, 0.497110, 0.386561, 0.560212, 0.434249,
-        0.599711, 0.463150, 0.639210, 0.492052, 0.671484, 0.512283,
-        0.689306, 0.523844, 0.707129, 0.535405, 0.701108, 0.539499,
-        0.706647, 0.532514, 0.712187, 0.525530, 0.719894, 0.492293,
-        0.722543, 0.481936, 0.725193, 0.471580, 0.721580, 0.475193,
-        0.722543, 0.470376, 0.723507, 0.465559, 0.727360, 0.459297,
-        0.728324, 0.453035, 0.729287, 0.446773, 0.727842, 0.436657,
-        0.728324, 0.432803, 0.728805, 0.428950, 0.730732, 0.445809,
-        0.731214, 0.429913, 0.731696, 0.414017, 0.731696, 0.353324,
-        0.731214, 0.337428, 0.730732, 0.321532, 0.729287, 0.341281,
-        0.728324, 0.334538, 0.727360, 0.327794, 0.726397, 0.303709,
-        0.725434, 0.296965, 0.724470, 0.290222, 0.723025, 0.296484,
-        0.722543, 0.294075, 0.722062, 0.291667, 0.724470, 0.290222,
-        0.722543, 0.282514, 0.720617, 0.274807, 0.712909, 0.255058,
-        0.710983, 0.247832, 0.709056, 0.240607, 0.713391, 0.246387,
-        0.710983, 0.239162, 0.708574, 0.231936, 0.699422, 0.212669,
-        0.696532, 0.204480, 0.693642, 0.196291, 0.695568, 0.194846,
-        0.693642, 0.190029, 0.691715, 0.185212, 0.686416, 0.178950,
-        0.684971, 0.175578, 0.683526, 0.172206, 0.688825, 0.178468,
-        0.684971, 0.169798, 0.681118, 0.161127, 0.672447, 0.141859,
-        0.661850, 0.123555, 0.651252, 0.105250, 0.627408, 0.070809,
-        0.621387, 0.059971,
-    ]
+/// The mark's geometry, in units of the disc's radius.
+enum ImmichMarkGeometry {
+    /// Barrel band: the outer ring, cut into one arc per blade.
+    static let barrelOuter: CGFloat = 1.00
+    static let barrelInner: CGFloat = 0.84
+    /// Air between the barrel and the iris plate that carries the opening.
+    static let gap: CGFloat = 0.05
+    /// The opening: radius at a valley, petal height above it, and how square
+    /// the valleys are (1 = a plain cosine, higher = crisper petals).
+    static let openingBase: CGFloat = 0.48
+    static let openingRise: CGFloat = 0.16
+    static let openingSharpness: CGFloat = 1.6
+    static let openingSamples = 240
+    /// The iris slits: width at the rim, the air they leave around the
+    /// opening, and how many blades cut the barrel.
+    static let slitWidth: CGFloat = 0.06
+    static let slitMargin: CGFloat = 0.04
+    static let blades = 5
+    /// One petal points straight up; the valleys sit half a blade further on.
+    static let petalPhase = -CGFloat.pi / 2
+    static let valleyPhase = petalPhase + CGFloat.pi / 5
 }
 
-/// The bird, drawn into the shape's rect.
-struct ImmichBirdShape: Shape {
+struct ImmichMarkShape: Shape {
+    /// The mark is the same drawing at every size, so the path is built once, in
+    /// the unit circle, and mapped into whatever rect the shape is given.
+    static let unitPath: Path = {
+        var path = Path()
+        let centre = CGPoint.zero
+        let radius: CGFloat = 1
+
+        // Barrel band: an outer disc with the iris plate's circle taken out of
+        // it, then the plate itself, one gap wider.
+        path.addEllipse(in: circleRect(centre, radius * ImmichMarkGeometry.barrelOuter))
+        let barrelInner = radius * ImmichMarkGeometry.barrelInner
+        path.addEllipse(in: circleRect(centre, barrelInner))
+        let plate = barrelInner - radius * ImmichMarkGeometry.gap
+        path.addEllipse(in: circleRect(centre, plate))
+
+        // The opening: the petal motif, as a closed curve through a polar
+        // profile, smoothed by Catmull-Rom.
+        addSmoothClosed(openingPoints(centre: centre, radius: radius), to: &path)
+
+        // The blades: each cut runs in two pieces, one per ring, so the air
+        // between the barrel and the plate stays air.
+        let inner = radius * (ImmichMarkGeometry.openingBase + ImmichMarkGeometry.openingRise
+                              + ImmichMarkGeometry.slitMargin)
+        let halfWidth = radius * ImmichMarkGeometry.slitWidth / 2
+        for blade in 0..<ImmichMarkGeometry.blades {
+            let angle = ImmichMarkGeometry.valleyPhase + CGFloat(blade) * 2 * .pi
+                / CGFloat(ImmichMarkGeometry.blades)
+            addSlit(from: inner, to: plate, halfWidth: halfWidth, at: angle, centre: centre, to: &path)
+            addSlit(from: barrelInner, to: radius * ImmichMarkGeometry.barrelOuter,
+                    halfWidth: halfWidth, at: angle, centre: centre, to: &path)
+        }
+        return path
+    }()
+
     func path(in rect: CGRect) -> Path {
         let side = min(rect.width, rect.height)
-        let originX = rect.minX + (rect.width - side) / 2
-        let originY = rect.minY + (rect.height - side) / 2
-        let points = ImmichBirdOutline.points
-        var path = Path()
-        path.move(to: CGPoint(x: originX + points[0] * side,
-                              y: originY + points[1] * side))
-        var i = 2
-        while i + 5 < points.count {
-            path.addCurve(
-                to: CGPoint(x: originX + points[i + 4] * side,
-                            y: originY + points[i + 5] * side),
-                control1: CGPoint(x: originX + points[i] * side,
-                                  y: originY + points[i + 1] * side),
-                control2: CGPoint(x: originX + points[i + 2] * side,
-                                  y: originY + points[i + 3] * side)
-            )
-            i += 6
+        let transform = CGAffineTransform(translationX: rect.midX, y: rect.midY)
+            .scaledBy(x: side / 2, y: side / 2)
+        return Self.unitPath.applying(transform)
+    }
+
+    private static func circleRect(_ centre: CGPoint, _ radius: CGFloat) -> CGRect {
+        CGRect(x: centre.x - radius, y: centre.y - radius, width: 2 * radius, height: 2 * radius)
+    }
+
+    /// r(θ) for the petal opening: rounded petals, valleys squared off.
+    private static func openingPoints(centre: CGPoint, radius: CGFloat) -> [CGPoint] {
+        let samples = ImmichMarkGeometry.openingSamples
+        let blades = CGFloat(ImmichMarkGeometry.blades)
+        return (0..<samples).map { index in
+            let theta = CGFloat(index) / CGFloat(samples) * 2 * .pi
+            let wave = pow(0.5 + 0.5 * cos(blades * (theta - ImmichMarkGeometry.petalPhase)),
+                           ImmichMarkGeometry.openingSharpness)
+            let r = radius * (ImmichMarkGeometry.openingBase + ImmichMarkGeometry.openingRise * wave)
+            return CGPoint(x: centre.x + r * cos(theta), y: centre.y + r * sin(theta))
+        }
+    }
+
+    /// One blade: a radial wedge from `from` out past the rim, closing on the
+    /// rim itself so the cut can never leave ink outside the disc.
+    private static func addSlit(from inner: CGFloat, to outer: CGFloat, halfWidth: CGFloat,
+                                at angle: CGFloat, centre: CGPoint, to path: inout Path) {
+        func point(_ r: CGFloat, _ a: CGFloat) -> CGPoint {
+            CGPoint(x: centre.x + r * cos(a), y: centre.y + r * sin(a))
+        }
+        let halfInner = halfWidth / inner
+        let halfOuter = halfWidth / outer
+        path.move(to: point(inner, angle - halfInner))
+        path.addArc(center: centre, radius: inner,
+                    startAngle: .radians(Double(angle - halfInner)),
+                    endAngle: .radians(Double(angle + halfInner)),
+                    clockwise: false)
+        path.addLine(to: point(outer, angle + halfOuter))
+        path.addLine(to: point(outer, angle - halfOuter))
+        path.closeSubpath()
+    }
+
+    /// Catmull-Rom through the points, as cubics — a closed, smooth opening.
+    private static func addSmoothClosed(_ points: [CGPoint], to path: inout Path) {
+        guard points.count > 2 else { return }
+        path.move(to: points[0])
+        for index in points.indices {
+            let p0 = points[(index - 1 + points.count) % points.count]
+            let p1 = points[index]
+            let p2 = points[(index + 1) % points.count]
+            let p3 = points[(index + 2) % points.count]
+            path.addCurve(to: p2,
+                          control1: CGPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6),
+                          control2: CGPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6))
         }
         path.closeSubpath()
-        return path
     }
 }
 
-/// The mark: the bird, filled with the immich gradient.
+/// The mark: the lens, filled with the immich sweep.
 ///
 /// ```swift
 /// ImmichMark().frame(width: 24, height: 24)   // app bar glyph
@@ -191,8 +150,8 @@ struct ImmichBirdShape: Shape {
 /// accessibility label (see `ImmichLogo`, which names the wordmark beside it).
 struct ImmichMark: View {
     var body: some View {
-        ImmichBirdShape()
-            .fill(LinearGradient.immichLogo)
+        ImmichMarkShape()
+            .fill(LinearGradient.immichLogo, style: FillStyle(eoFill: true))
             .aspectRatio(1, contentMode: .fit)
     }
 }

@@ -1083,6 +1083,52 @@ pilotée et l'upload multipart prouvé au checksum près, mais contre un stub, p
 
 ---
 
+### 2.20. Marque de l'app — un mark propre, plus celui d'Apple (2026-09-16)
+
+**Décision :** l'app dessine SA marque (`ImmichMark`), ni la silhouette d'Apple, ni la fleur
+d'immich.
+
+**Pourquoi.** Le mark précédent était un **traçage** de l'icône Swift d'Apple
+(`developer.apple.com/assets/elements/icons/swiftui`, export 512 pt, 124 cubiques) et portait
+son propre `NOTE FOR REVIEW`. Les textes sont sans ambiguïté : Apple interdit l'usage d'un de
+ses symboles graphiques « on or in connection with … products … except pursuant to an express
+written trademark license » (Guidelines for Using Apple Trademarks and Copyrights, Unauthorized
+Use §2), et l'App Review le refuse — 2.3.9 (droits sur tous les matériaux de l'icône), 4.1(c)
+(icône/marque d'un autre développeur), 5.2.1 (matériel protégé d'un tiers). Le mark était donc
+un prototype, à remplacer avant toute soumission publique. Au passage, la fleur d'immich (le
+vrai logo amont, `design/immich-logo.svg`) n'est pas un oiseau : c'est une fleur à cinq
+pétales — la silhouette tracée n'était donc la marque de personne.
+
+**Ce qu'elle est.** Une **lentille** vectorielle : bandeau de barillet (1,00 → 0,84) coupé en
+cinq arcs, cinq fentes d'iris (largeur 0,06, une par anneau — l'air du jeu reste de l'air), et
+une ouverture dont le **vide** est le motif de pétales (profil polaire, base 0,48, hauteur 0,16,
+exposant 1,6, 240 échantillons, spline Catmull-Rom). Apparentée à immich — cinq, rotation,
+photographie, et les cinq teintes de `LinearGradient.immichLogo` — sans être sa fleur. Tout est
+formule (`ImmichMarkGeometry`, `Sources/DesignSystem/Components/ImmichMark.swift`) : pas de
+données tracées, on retouche le mark en changeant des nombres, et le chemin est construit une
+fois dans le cercle unité puis mappé au `rect`.
+
+**Icône.** `Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` est régénérable :
+`.omp/brand/render-icon.swift` (miroir des constantes ci-dessus) —
+`swiftc -O .omp/brand/render-icon.swift -o /tmp/render-icon && /tmp/render-icon`. L'icône est
+le seul support que le mark ne peut pas dessiner lui-même (une banque d'assets est un raster).
+
+**Vérification (2026-09-16, slot français).** En situation : 40 pt (badge d'accueil) et 24 pt
+(barre d'outils « On this device ») relus comme cinq pétales et cinq arcs, nets et délibérés.
+Icône 1024 : **symétrie 5-fold IoU 0,994** à chaque pas de 72° (l'« asymétrie » perçue par un
+relecteur d'image est une hallucination — la géométrie est exacte et mesurée), jeu
+barillet/plaque vide à r = 0,815, ouverture vide jusqu'au centre. `LocalLibraryUITests` (un
+scénario committé, donc un écran réel du dépôt) vert avec le nouveau mark ; suite 1193 tests
+0 échec ; 250/250 checks AC.
+
+**Méthode.** Six familles de candidats ont été rendues et mesurées avant le choix (rendu
+CoreGraphics au même format que le `Shape`, colonnes 24/40/96 pt, métriques d'encre, d'épaisseur
+minimale et de composants connexes) : leçon mesurée — les modèles de relecture d'image comptent
+mal (fentes annoncées « trois » quand la mesure en donne cinq) et inventent des asymétries ; ce
+sont les mesures (anneaux d'encre, IoU de rotation, écart de spline) qui tranchent, pas l'œil.
+
+---
+
 ## Référence API — endpoints ImmichClient
 
 ### Endpoints déjà wire (existants)
