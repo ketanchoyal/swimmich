@@ -258,7 +258,7 @@ struct AssetThumbnailCell: View {
                 HStack(spacing: 3) {
                     Image(systemName: "play.fill").font(.system(size: 8)) // DS-exempt: badge micro-glyph §8.6
                     if let d = asset.duration, d > 0 {
-                        Text(Self.formattedDuration(d)).monospacedDigit()
+                        Text(VideoDurationFormatter.string(milliseconds: d)).monospacedDigit()
                     }
                 }
             }
@@ -326,12 +326,5 @@ struct AssetThumbnailCell: View {
                 .padding(8)
                 .accessibilityLabel(isSelected ? String(localized: "Selected") : String(localized: "Not selected"))
         }
-    }
-
-    /// mm:ss if ≥60s, else 0:ss (V11).
-    static func formattedDuration(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
     }
 }

@@ -198,9 +198,9 @@ struct VideoPlayerView: View {
             .padding(.horizontal, PVSpacing.s16)
 
             HStack {
-                Text(Self.format(vm.currentTime))
+                Text(VideoDurationFormatter.string(seconds: vm.currentTime))
                 Spacer()
-                Text(Self.format(vm.duration))
+                Text(VideoDurationFormatter.string(seconds: vm.duration))
             }
             .font(.pvCaption)
             .monospacedDigit()
@@ -276,12 +276,5 @@ struct VideoPlayerView: View {
             }
             .buttonStyle(.plain)
         }
-    }
-
-    // MARK: - Helpers
-
-    /// mm:ss (0:ss under a minute) — same convention as the grid badges.
-    static func format(_ seconds: Double) -> String {
-        AssetThumbnailCell.formattedDuration(Int(seconds.rounded()))
     }
 }

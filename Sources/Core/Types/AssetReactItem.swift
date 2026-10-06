@@ -22,6 +22,7 @@ struct AssetReactItem: Identifiable, Equatable, Hashable, Sendable {
     let createdAt: String
     let fileCreatedAt: String
     let localOffsetHours: Double
+    /// Milliseconds (the Immich unit) — render with `VideoDurationFormatter.string(milliseconds:)`.
     let duration: Int?
     let livePhotoVideoId: String?
     let projectionType: String?

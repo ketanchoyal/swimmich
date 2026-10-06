@@ -89,6 +89,7 @@ struct TimeBucketAssetResponseDto: Codable, Equatable {
     let createdAt: [String]
     let fileCreatedAt: [String]
     let localOffsetHours: [Double]
+    /// Milliseconds (the Immich unit) — render with `VideoDurationFormatter.string(milliseconds:)`.
     let duration: [Int?]
     let livePhotoVideoId: [String?]
     let projectionType: [String?]
@@ -107,6 +108,7 @@ struct AssetResponseDto: Codable, Equatable {
     let type: String
     var thumbhash: String?
     var localDateTime: String
+    /// Milliseconds (the Immich unit) — render with `VideoDurationFormatter.string(milliseconds:)`.
     var duration: Int?
     var hasMetadata: Bool
     var width: Int?

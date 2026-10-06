@@ -652,7 +652,7 @@ struct PhotoViewer: View {
                                 HStack(spacing: 3) {
                                     Image(systemName: "play.fill") // DS-exempt: badge micro-glyph §8.6
                                     if let d = asset.duration, d > 0 {
-                                        Text(AssetThumbnailCell.formattedDuration(d)).monospacedDigit()
+                                        Text(VideoDurationFormatter.string(milliseconds: d)).monospacedDigit()
                                     }
                                 }
                                 .font(.pvCaption)
