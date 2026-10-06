@@ -289,7 +289,7 @@ private struct OfflineAssetCell: View {
                 Image(systemName: "play.fill")
                     .font(.system(size: 8))
                 if let duration = asset.duration, duration > 0 {
-                    Text(AssetThumbnailCell.formattedDuration(duration)).monospacedDigit()
+                    Text(VideoDurationFormatter.string(milliseconds: duration)).monospacedDigit()
                 }
             }
             .font(.pvCaption)

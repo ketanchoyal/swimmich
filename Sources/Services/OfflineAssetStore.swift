@@ -20,6 +20,8 @@ struct CachedAssetInfo: Codable, Equatable, Sendable {
     var isVideo: Bool
     var ratio: Double
     var fileCreatedAt: String
+    /// Milliseconds (the Immich unit, persisted verbatim) — render with
+    /// `VideoDurationFormatter.string(milliseconds:)`.
     var duration: Int?
     var thumbhash: String?
 
